@@ -18,7 +18,8 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 |---|---|
 | `evaluator/` | Rust evaluator: policy checks, grading, cost accounting, verdicts, and a `wasi:http` client |
 | `contract/` | NEAR challenge contract (near-sdk 5) |
-| `tools/` | Mock OpenAI-compatible model API, request builder, JSON-RPC view helper |
+| `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
+| `integration-tests/` | Sandbox end-to-end tests of the contract |
 | `examples/rules/` | Challenge rules for local runs and for NEAR AI Cloud |
 | `examples/candidates/` | Example candidates covering each outcome |
 | `data/tickets/` | Synthetic tickets for a fictional store. Card numbers are public test numbers |
@@ -54,6 +55,12 @@ scripts/run-local.sh
 | `webhook-tool` | no | `policy_tool`: rejected before any model call |
 
 The mock's accuracy, latency and token counts are simulated and say nothing about real models.
+
+To run the contract end to end in a local NEAR sandbox, against a mock OutLayer that uses the same yield/resume handoff (needs [cargo-near](https://github.com/near/cargo-near) 0.13+; the first run downloads the sandbox node):
+
+```bash
+scripts/test-sandbox.sh
+```
 
 To score candidates against NEAR AI Cloud from your machine, put `BAKEOFF_LLM_API_KEY` in `.env`, then:
 
@@ -93,6 +100,8 @@ Verified locally:
 - the evaluator and contract unit tests pass;
 - the wasm evaluator produces the expected verdict for every example under wasmtime;
 - verdicts are 345–545 bytes;
-- a 16-ticket run uses 2–4 million instructions.
+- a 16-ticket run uses 2–4 million instructions;
+- in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
+- in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`.
 
 Not yet verified: a sealed run on OutLayer testnet. [docs/integration-notes.md](docs/integration-notes.md) lists what that run has to confirm.

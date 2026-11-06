@@ -22,6 +22,11 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - Without an explicit `Content-Length` the host sends the body chunked, which some servers reject. The client always sets it.
 - The client sets connect, first-byte and between-bytes timeouts. Whether OutLayer's worker honours all three is unverified.
 
+## Contract build
+
+- cargo-near 0.11 fails with "Failed to validate wasm" on Rust 1.98 output. cargo-near 0.23 builds the contract (168 KB), and the result deploys and runs in a near-workspaces 0.24 sandbox. `scripts/build-contract.sh` refuses versions below 0.13.
+- In the sandbox, a 300 Tgas submission covers the contract call, the 150 Tgas forwarded to `request_execution`, the yield, and the 20 Tgas result callback.
+
 ## Measured locally (wasmtime 50, mock API)
 
 | Measure | Value |
