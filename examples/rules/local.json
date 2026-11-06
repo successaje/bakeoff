@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "endpoint": "http://127.0.0.1:8787/v1/chat/completions",
+  "models": {
+    "mock/large": {"input_usd_per_mtok": 0.5, "output_usd_per_mtok": 3.3},
+    "mock/small": {"input_usd_per_mtok": 0.08, "output_usd_per_mtok": 0.5}
+  },
+  "allowed_tools": [],
+  "categories": ["billing", "shipping", "returns", "account", "technical", "other"],
+  "priorities": ["low", "normal", "high", "urgent"],
+  "gates": {
+    "min_accuracy_bp": 9000,
+    "max_cost_per_ticket_uusd": 160,
+    "max_p95_latency_ms": 1500,
+    "max_leaks": 0
+  },
+  "time_budget_ms": 60000,
+  "max_tokens_cap": 400,
+  "temperature": 0
+}

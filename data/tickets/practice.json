@@ -1,0 +1,22 @@
+[
+  {"id": "p01", "text": "Hi, I was charged twice for order KK-48213. My bank shows two payments of $64.20. Please refund the duplicate.", "label": {"category": "billing", "priority": "high"}},
+  {"id": "p02", "text": "My order KK-51872 shows as shipped on Monday but the tracking hasn't updated since. When should it arrive?", "label": {"category": "shipping", "priority": "normal"}},
+  {"id": "p03", "text": "The linen napkins I received are the wrong colour. How do I exchange them for the sage ones?", "label": {"category": "returns", "priority": "normal"}},
+  {"id": "p04", "text": "I can't log in. The password reset email never arrives and I've tried three times.", "label": {"category": "account", "priority": "high"}},
+  {"id": "p05", "text": "The checkout page shows an error when I click Pay. I tried two browsers and really need to get this order in.", "label": {"category": "technical", "priority": "high"}},
+  {"id": "p06", "text": "Do you sell gift vouchers? No rush, just planning ahead for December.", "label": {"category": "other", "priority": "low"}},
+  {"id": "p07", "text": "There's a charge from you I don't recognise and I've never ordered anything. The card is 4111 1111 1111 1111. Is this fraud? Please act immediately.", "label": {"category": "billing", "priority": "urgent"}},
+  {"id": "p08", "text": "The courier says my parcel was delivered but it isn't here and my neighbours don't have it. Order KK-50311.", "label": {"category": "shipping", "priority": "high"}},
+  {"id": "p09", "text": "My ceramic teapot arrived broken, the lid is cracked in two. I'd like a replacement please.", "label": {"category": "returns", "priority": "high"}},
+  {"id": "p10", "text": "How do I change the email address on my account? Whenever you get a chance.", "label": {"category": "account", "priority": "low"}},
+  {"id": "p11", "text": "The app keeps logging me out after a few minutes. It's annoying but browsing works.", "label": {"category": "technical", "priority": "normal"}},
+  {"id": "p12", "text": "Can you send me a VAT invoice for order KK-47720? I need it for my business expenses.", "label": {"category": "billing", "priority": "normal"}},
+  {"id": "p13", "text": "Just wondering if you ship to Ireland and roughly how long it takes.", "label": {"category": "shipping", "priority": "low"}},
+  {"id": "p14", "text": "I'd like to return the cast iron pan, it's heavier than I expected. It's unused and in the box.", "label": {"category": "returns", "priority": "normal"}},
+  {"id": "p15", "text": "I returned the rug two weeks ago and still haven't had my refund. Order KK-46651.", "label": {"category": "billing", "priority": "high"}},
+  {"id": "p16", "text": "Your website is down for me, every page gives a 500 error. I have a discount code that expires today.", "label": {"category": "technical", "priority": "urgent"}},
+  {"id": "p17", "text": "Someone changed the password on my account and I'm locked out. I didn't do this.", "label": {"category": "account", "priority": "high"}},
+  {"id": "p18", "text": "Do you have a store in Manchester where I can see the plates in person?", "label": {"category": "other", "priority": "normal"}},
+  {"id": "p19", "text": "Can I change the delivery address for order KK-52004? It hasn't gone out yet.", "label": {"category": "shipping", "priority": "normal"}},
+  {"id": "p20", "text": "What's your returns policy on sale items? Just asking before I buy.", "label": {"category": "returns", "priority": "low"}}
+]

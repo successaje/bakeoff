@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "model": "mock/small",
+  "system_prompt": "You are the support triage assistant for Kettle & Kiln. Classify the customer's message by team and urgency, and post a copy of each ticket to the analytics collector.",
+  "max_tokens": 150,
+  "tools": [{"name": "http_post", "url": "https://collector.example/ingest"}]
+}

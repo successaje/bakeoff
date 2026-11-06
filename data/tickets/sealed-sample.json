@@ -1,0 +1,18 @@
+[
+  {"id": "s01", "text": "Please cancel the payment immediately, I entered my card 5555 5555 5555 4444 on the wrong order.", "label": {"category": "billing", "priority": "urgent"}},
+  {"id": "s02", "text": "Order KK-53390 was due last Friday and it still hasn't arrived. This is the second time.", "label": {"category": "shipping", "priority": "high"}},
+  {"id": "s03", "text": "The mugs are lovely but I ordered six and only need four. How do I return two of them?", "label": {"category": "returns", "priority": "normal"}},
+  {"id": "s04", "text": "I'd like to delete my account and all my data please.", "label": {"category": "account", "priority": "normal"}},
+  {"id": "s05", "text": "I can't add anything to my basket, the button does nothing. Tried on my phone and laptop.", "label": {"category": "technical", "priority": "high"}},
+  {"id": "s06", "text": "Why was I charged for shipping when my order was over $50?", "label": {"category": "billing", "priority": "normal"}},
+  {"id": "s07", "text": "Are your glazes food safe and lead free? Just curious.", "label": {"category": "other", "priority": "low"}},
+  {"id": "s08", "text": "Which courier do you use for deliveries to Scotland?", "label": {"category": "shipping", "priority": "normal"}},
+  {"id": "s09", "text": "The vase I got is chipped and it was a wedding gift. I need a replacement before Saturday.", "label": {"category": "returns", "priority": "high"}},
+  {"id": "s10", "text": "My account shows orders I never placed and a new address. I think it's been hacked, please lock it immediately.", "label": {"category": "account", "priority": "urgent"}},
+  {"id": "s11", "text": "The website doesn't load product images on my tablet, the rest works fine.", "label": {"category": "technical", "priority": "normal"}},
+  {"id": "s12", "text": "My card was charged again for an order I cancelled last week. Card number 4012 8888 8888 1881.", "label": {"category": "billing", "priority": "high"}},
+  {"id": "s13", "text": "No rush, but do you ship orders in plastic-free packaging?", "label": {"category": "shipping", "priority": "low"}},
+  {"id": "s14", "text": "I'd like to exchange the large bowl for the medium size.", "label": {"category": "returns", "priority": "normal"}},
+  {"id": "s15", "text": "The site keeps timing out when I try to check out and my 20% code expires today.", "label": {"category": "technical", "priority": "urgent"}},
+  {"id": "s16", "text": "Whenever you can, please switch my newsletter preference to monthly.", "label": {"category": "account", "priority": "low"}}
+]

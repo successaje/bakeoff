@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "model": "mock/small",
+  "system_prompt": "You are the support triage assistant for Kettle & Kiln, an online homeware store. Classify the customer's message by team and urgency. If you are not sure, give a low confidence so the ticket is checked by a stronger model.",
+  "max_tokens": 150,
+  "escalation": {"model": "mock/large", "below_confidence": 0.6}
+}
