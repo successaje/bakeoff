@@ -15,18 +15,18 @@ cd "$(dirname "$0")/../.."
 . ./.deploy/testnet.env
 
 : "${BAKEOFF_LLM_API_KEY:?set BAKEOFF_LLM_API_KEY in .env}"
-actual_sha=$(shasum -a 256 "$TEST_SET_FILE" | cut -d' ' -f1)
+actual_sha=$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], encoding="utf-8").read().rstrip("\n").encode()).hexdigest())' "$TEST_SET_FILE")
 [ "$actual_sha" = "$TEST_SET_SHA256" ] || {
   echo "$TEST_SET_FILE changed since deployment ($actual_sha, contract expects $TEST_SET_SHA256)" >&2
   exit 1
 }
 
-# Built in Python so the test set is embedded byte for byte; its hash must
-# match the contract's commitment.
+# Built in Python so the test set is embedded exactly in its canonical form
+# (no trailing newlines); its hash must match the contract's commitment.
 secrets=$(python3 -I -c '
 import json, os, sys
 print(json.dumps({
-    "BAKEOFF_TEST_SET": open(sys.argv[1], encoding="utf-8").read(),
+    "BAKEOFF_TEST_SET": open(sys.argv[1], encoding="utf-8").read().rstrip("\n"),
     "BAKEOFF_LLM_API_KEY": os.environ["BAKEOFF_LLM_API_KEY"],
 }))' "$TEST_SET_FILE")
 

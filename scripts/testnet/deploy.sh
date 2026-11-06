@@ -48,7 +48,9 @@ echo "==> Building contract"
 scripts/build-contract.sh
 CONTRACT_WASM=target/near/bakeoff_contract.wasm
 
-TEST_SET_SHA256=$(shasum -a 256 "$TEST_SET_FILE" | cut -d' ' -f1)
+# The canonical test set is the file without trailing newlines: environment
+# variables commonly lose them, and the evaluator hashes what it receives.
+TEST_SET_SHA256=$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], encoding="utf-8").read().rstrip("\n").encode()).hexdigest())' "$TEST_SET_FILE")
 INIT_ARGS=$(python3 -I - "$RULES_FILE" "$OUTLAYER" "$EVALUATOR_URL" "$EVALUATOR_SHA256" \
   "$SECRETS_PROFILE" "$BAKEOFF_ACCOUNT" "$TEST_SET_SHA256" <<'EOF'
 import json, sys
