@@ -51,7 +51,9 @@ fn handle() -> Verdict {
     };
 
     let test_set = match (&request.mode, request.test_set_json) {
-        (Mode::Sealed, Some(_)) => return input_invalid("sealed requests must not carry a test set"),
+        (Mode::Sealed, Some(_)) => {
+            return input_invalid("sealed requests must not carry a test set")
+        }
         (Mode::Sealed, None) => std::env::var(TEST_SET_VAR).ok(),
         (Mode::Dev, supplied) => supplied,
     };
@@ -59,7 +61,12 @@ fn handle() -> Verdict {
 
     let endpoint = serde_json::from_str::<serde_json::Value>(&request.rules_json)
         .ok()
-        .and_then(|rules| rules.get("endpoint").and_then(|e| e.as_str()).map(str::to_owned))
+        .and_then(|rules| {
+            rules
+                .get("endpoint")
+                .and_then(|e| e.as_str())
+                .map(str::to_owned)
+        })
         .unwrap_or_default();
 
     let mut client = transport::client(endpoint, api_key);
@@ -74,7 +81,11 @@ fn handle() -> Verdict {
 }
 
 fn input_invalid(detail: &str) -> Verdict {
-    Verdict::rejected(Reason::InputInvalid, Some(detail.to_string()), Digests::default())
+    Verdict::rejected(
+        Reason::InputInvalid,
+        Some(detail.to_string()),
+        Digests::default(),
+    )
 }
 
 #[cfg(target_arch = "wasm32")]

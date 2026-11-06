@@ -17,5 +17,7 @@ pub mod verdict;
 #[cfg(target_arch = "wasm32")]
 pub mod wasi_http;
 
-pub use evaluate::{evaluate_request, ChatClient, ChatCompletion, ChatMessage, Clock, MonotonicClock};
+pub use evaluate::{
+    evaluate_request, ChatClient, ChatCompletion, ChatMessage, Clock, MonotonicClock,
+};
 pub use verdict::{Digests, Metrics, Reason, Verdict};

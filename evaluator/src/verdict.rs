@@ -145,13 +145,18 @@ mod tests {
         let json = verdict.to_json();
         assert!(json.len() < 900, "verdict is {} bytes", json.len());
 
-        let rejected = Verdict::rejected(Reason::PolicyTool, Some("x".repeat(1_000)), full_digests());
+        let rejected =
+            Verdict::rejected(Reason::PolicyTool, Some("x".repeat(1_000)), full_digests());
         assert!(rejected.to_json().len() < 900);
     }
 
     #[test]
     fn round_trips_through_json() {
-        let verdict = Verdict::rejected(Reason::PolicyModel, Some("model not allowed".into()), full_digests());
+        let verdict = Verdict::rejected(
+            Reason::PolicyModel,
+            Some("model not allowed".into()),
+            full_digests(),
+        );
         let parsed: Verdict = serde_json::from_str(&verdict.to_json()).unwrap();
         assert_eq!(parsed, verdict);
         assert!(verdict.to_json().contains("\"reasons\":[\"policy_model\"]"));

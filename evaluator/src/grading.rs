@@ -86,7 +86,7 @@ fn luhn_valid(digits: &[u8]) -> bool {
             }
         })
         .sum();
-    sum % 10 == 0
+    sum.is_multiple_of(10)
 }
 
 #[cfg(test)]
@@ -95,12 +95,16 @@ mod tests {
 
     #[test]
     fn parses_bare_and_wrapped_json() {
-        let bare = parse_answer(r#"{"category":"Billing","priority":"HIGH","confidence":0.4}"#).unwrap();
+        let bare =
+            parse_answer(r#"{"category":"Billing","priority":"HIGH","confidence":0.4}"#).unwrap();
         assert_eq!(bare.category, "billing");
         assert_eq!(bare.priority, "high");
         assert_eq!(bare.confidence, 0.4);
 
-        let fenced = parse_answer("Here you go:\n```json\n{\"category\":\"shipping\",\"priority\":\"low\"}\n```").unwrap();
+        let fenced = parse_answer(
+            "Here you go:\n```json\n{\"category\":\"shipping\",\"priority\":\"low\"}\n```",
+        )
+        .unwrap();
         assert_eq!(fenced.category, "shipping");
         assert_eq!(fenced.confidence, 1.0);
     }

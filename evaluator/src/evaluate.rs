@@ -16,15 +16,24 @@ pub struct ChatMessage {
 
 impl ChatMessage {
     pub fn system(content: impl Into<String>) -> Self {
-        Self { role: "system", content: content.into() }
+        Self {
+            role: "system",
+            content: content.into(),
+        }
     }
 
     pub fn user(content: impl Into<String>) -> Self {
-        Self { role: "user", content: content.into() }
+        Self {
+            role: "user",
+            content: content.into(),
+        }
     }
 
     pub fn assistant(content: impl Into<String>) -> Self {
-        Self { role: "assistant", content: content.into() }
+        Self {
+            role: "assistant",
+            content: content.into(),
+        }
     }
 }
 
@@ -57,7 +66,9 @@ pub struct MonotonicClock {
 
 impl MonotonicClock {
     pub fn new() -> Self {
-        Self { start: Instant::now() }
+        Self {
+            start: Instant::now(),
+        }
     }
 }
 
@@ -85,7 +96,9 @@ pub fn evaluate_request(
     let digests = Digests {
         rules_sha256: sha256_hex(rules_json.as_bytes()),
         config_sha256: sha256_hex(config_json.as_bytes()),
-        test_set_sha256: test_set_json.map(|t| sha256_hex(t.as_bytes())).unwrap_or_default(),
+        test_set_sha256: test_set_json
+            .map(|t| sha256_hex(t.as_bytes()))
+            .unwrap_or_default(),
     };
 
     let rules: Rules = match serde_json::from_str(rules_json) {
@@ -111,7 +124,7 @@ pub fn evaluate_request(
         Ok(tickets) => tickets,
         Err(_) => return Verdict::rejected(Reason::TestSetInvalid, None, digests),
     };
-    if policy::check_test_set(&rules, &tickets).is_err() {
+    if !policy::test_set_is_valid(&rules, &tickets) {
         return Verdict::rejected(Reason::TestSetInvalid, None, digests);
     }
 
@@ -168,19 +181,23 @@ fn run_tickets(
         if let Some(escalation) = &config.escalation {
             let unsure = answer
                 .as_ref()
-                .map_or(true, |a| a.confidence < escalation.below_confidence);
+                .is_none_or(|a| a.confidence < escalation.below_confidence);
             if unsure {
                 escalations += 1;
-                match call(client, rules, &escalation.model, &messages, config.max_tokens) {
-                    Ok((completion, cost)) => {
-                        cost_uusd += cost;
-                        if let Some(second) = parse_answer(&completion.content) {
-                            answer = Some(second);
-                        }
-                        outputs.push(completion.content);
-                        failed = false;
+                // A failed escalation keeps the first answer, if there was one.
+                if let Ok((completion, cost)) = call(
+                    client,
+                    rules,
+                    &escalation.model,
+                    &messages,
+                    config.max_tokens,
+                ) {
+                    cost_uusd += cost;
+                    if let Some(second) = parse_answer(&completion.content) {
+                        answer = Some(second);
                     }
-                    Err(_) => {}
+                    outputs.push(completion.content);
+                    failed = false;
                 }
             }
         }
@@ -212,7 +229,11 @@ fn run_tickets(
         accuracy_bp: basis_points(correct, completed),
         category_accuracy_bp: basis_points(category_correct, completed),
         cost_uusd,
-        cost_per_ticket_uusd: if completed == 0 { 0 } else { cost_uusd / completed as u64 },
+        cost_per_ticket_uusd: if completed == 0 {
+            0
+        } else {
+            cost_uusd / completed as u64
+        },
         p95_latency_ms: percentile_95(&mut latencies),
         mean_latency_ms: if completed == 0 {
             0
@@ -366,7 +387,12 @@ mod tests {
 
     impl ScriptedClient {
         fn new(now: Rc<Cell<u64>>) -> Self {
-            Self { now, calls: Vec::new(), leak_card: false, fail_model: None }
+            Self {
+                now,
+                calls: Vec::new(),
+                leak_card: false,
+                fail_model: None,
+            }
         }
     }
 
@@ -379,18 +405,27 @@ mod tests {
             _temperature: Option<f64>,
         ) -> Result<ChatCompletion, String> {
             self.calls.push(model.to_string());
-            self.now.set(self.now.get() + if model == "large" { 900 } else { 200 });
+            self.now
+                .set(self.now.get() + if model == "large" { 900 } else { 200 });
             if self.fail_model == Some(model) {
                 return Err("upstream status 503".into());
             }
             let ticket = &messages.last().unwrap().content;
-            let category = if ticket.contains("charged") || ticket.contains("Refund") { "billing" } else { "shipping" };
+            let category = if ticket.contains("charged") || ticket.contains("Refund") {
+                "billing"
+            } else {
+                "shipping"
+            };
             let (priority, confidence) = match (ticket.as_str(), model) {
                 ("Where is my parcel", _) => ("low", 0.9),
                 ("Parcel is late", "small") => ("low", 0.3),
                 _ => ("high", 0.9),
             };
-            let summary = if self.leak_card && ticket.contains("4111") { "Card 4111 1111 1111 1111" } else { "ok" };
+            let summary = if self.leak_card && ticket.contains("4111") {
+                "Card 4111 1111 1111 1111"
+            } else {
+                "ok"
+            };
             Ok(ChatCompletion {
                 content: format!(
                     r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence},"summary":"{summary}"}}"#
@@ -413,7 +448,11 @@ mod tests {
     #[test]
     fn large_model_passes_quality_but_fails_cost() {
         let (mut client, clock) = setup();
-        let v = evaluate(r#"{"version":1,"model":"large","system_prompt":"Triage."}"#, &mut client, &clock);
+        let v = evaluate(
+            r#"{"version":1,"model":"large","system_prompt":"Triage."}"#,
+            &mut client,
+            &clock,
+        );
         let m = v.metrics.clone().unwrap();
         assert_eq!(m.accuracy_bp, 10_000);
         // 1000 * $2/Mtok + 100 * $10/Mtok = 3000 µ$ per ticket
@@ -425,7 +464,11 @@ mod tests {
     #[test]
     fn small_model_alone_fails_accuracy() {
         let (mut client, clock) = setup();
-        let v = evaluate(r#"{"version":1,"model":"small","system_prompt":"Triage."}"#, &mut client, &clock);
+        let v = evaluate(
+            r#"{"version":1,"model":"small","system_prompt":"Triage."}"#,
+            &mut client,
+            &clock,
+        );
         let m = v.metrics.clone().unwrap();
         assert_eq!(m.accuracy_bp, 7_500);
         assert_eq!(m.cost_per_ticket_uusd, 150);
@@ -481,7 +524,11 @@ mod tests {
     fn upstream_outage_is_reported_instead_of_gates() {
         let (mut client, clock) = setup();
         client.fail_model = Some("small");
-        let v = evaluate(r#"{"version":1,"model":"small","system_prompt":"Triage."}"#, &mut client, &clock);
+        let v = evaluate(
+            r#"{"version":1,"model":"small","system_prompt":"Triage."}"#,
+            &mut client,
+            &clock,
+        );
         assert_eq!(v.reasons, vec![Reason::UpstreamErrors]);
         assert_eq!(v.metrics.unwrap().upstream_errors, 4);
     }

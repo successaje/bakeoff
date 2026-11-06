@@ -40,10 +40,16 @@ pub fn check_rules(rules: &Rules) -> Result<(), String> {
 
 pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (Reason, String)> {
     if config.version != SCHEMA_VERSION {
-        return Err((Reason::ConfigInvalid, format!("unsupported config version {}", config.version)));
+        return Err((
+            Reason::ConfigInvalid,
+            format!("unsupported config version {}", config.version),
+        ));
     }
     if !rules.models.contains_key(&config.model) {
-        return Err((Reason::PolicyModel, format!("model {} is not allowed", config.model)));
+        return Err((
+            Reason::PolicyModel,
+            format!("model {} is not allowed", config.model),
+        ));
     }
     if let Some(escalation) = &config.escalation {
         if !rules.models.contains_key(&escalation.model) {
@@ -53,7 +59,10 @@ pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (R
             ));
         }
         if !(0.0..=1.0).contains(&escalation.below_confidence) {
-            return Err((Reason::ConfigInvalid, "below_confidence must be between 0 and 1".into()));
+            return Err((
+                Reason::ConfigInvalid,
+                "below_confidence must be between 0 and 1".into(),
+            ));
         }
     }
     if let Some(tool) = config
@@ -61,7 +70,10 @@ pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (R
         .iter()
         .find(|tool| !rules.allowed_tools.contains(&tool.name))
     {
-        return Err((Reason::PolicyTool, format!("tool {} is not allowed", tool.name)));
+        return Err((
+            Reason::PolicyTool,
+            format!("tool {} is not allowed", tool.name),
+        ));
     }
     if config.max_tokens == 0 || config.max_tokens > rules.max_tokens_cap {
         return Err((
@@ -84,36 +96,50 @@ pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (R
     if prompt_chars > rules.max_prompt_chars {
         return Err((
             Reason::PolicyLimits,
-            format!("prompt and examples exceed {} characters", rules.max_prompt_chars),
+            format!(
+                "prompt and examples exceed {} characters",
+                rules.max_prompt_chars
+            ),
         ));
     }
     Ok(())
 }
 
-/// Validates the sponsor's test set. Failures are reported without detail so
-/// that nothing about the sealed tickets reaches the verdict.
-pub fn check_test_set(rules: &Rules, tickets: &[Ticket]) -> Result<(), ()> {
+/// Whether the sponsor's test set is usable. Deliberately a plain yes or no:
+/// nothing about the sealed tickets may reach the verdict.
+pub fn test_set_is_valid(rules: &Rules, tickets: &[Ticket]) -> bool {
     if tickets.is_empty() || tickets.len() > MAX_TEST_SET_TICKETS {
-        return Err(());
+        return false;
     }
     let mut ids = HashSet::with_capacity(tickets.len());
     for ticket in tickets {
-        let known = rules.categories.iter().any(|c| c.eq_ignore_ascii_case(&ticket.label.category))
-            && rules.priorities.iter().any(|p| p.eq_ignore_ascii_case(&ticket.label.priority));
+        let known = rules
+            .categories
+            .iter()
+            .any(|c| c.eq_ignore_ascii_case(&ticket.label.category))
+            && rules
+                .priorities
+                .iter()
+                .any(|p| p.eq_ignore_ascii_case(&ticket.label.priority));
         if !known || !ids.insert(ticket.id.as_str()) {
-            return Err(());
+            return false;
         }
     }
-    Ok(())
+    true
 }
 
 fn endpoint_allowed(endpoint: &str) -> bool {
     if endpoint.starts_with("https://") {
         return true;
     }
-    ["http://127.0.0.1:", "http://127.0.0.1/", "http://localhost:", "http://localhost/"]
-        .iter()
-        .any(|prefix| endpoint.starts_with(prefix))
+    [
+        "http://127.0.0.1:",
+        "http://127.0.0.1/",
+        "http://localhost:",
+        "http://localhost/",
+    ]
+    .iter()
+    .any(|prefix| endpoint.starts_with(prefix))
 }
 
 #[cfg(test)]
@@ -144,7 +170,9 @@ mod tests {
 
     #[test]
     fn accepts_a_conforming_candidate() {
-        let c = config(r#"{"version":1,"model":"small","system_prompt":"Triage.","tools":[{"name":"order_lookup"}]}"#);
+        let c = config(
+            r#"{"version":1,"model":"small","system_prompt":"Triage.","tools":[{"name":"order_lookup"}]}"#,
+        );
         assert!(check_rules(&rules()).is_ok());
         assert!(check_candidate(&rules(), &c).is_ok());
     }
@@ -152,12 +180,18 @@ mod tests {
     #[test]
     fn rejects_models_outside_the_rules() {
         let c = config(r#"{"version":1,"model":"frontier","system_prompt":"Triage."}"#);
-        assert_eq!(check_candidate(&rules(), &c).unwrap_err().0, Reason::PolicyModel);
+        assert_eq!(
+            check_candidate(&rules(), &c).unwrap_err().0,
+            Reason::PolicyModel
+        );
 
         let c = config(
             r#"{"version":1,"model":"small","system_prompt":"Triage.","escalation":{"model":"frontier","below_confidence":0.5}}"#,
         );
-        assert_eq!(check_candidate(&rules(), &c).unwrap_err().0, Reason::PolicyModel);
+        assert_eq!(
+            check_candidate(&rules(), &c).unwrap_err().0,
+            Reason::PolicyModel
+        );
     }
 
     #[test]
@@ -172,21 +206,31 @@ mod tests {
 
     #[test]
     fn rejects_unknown_config_fields() {
-        let parsed: Result<CandidateConfig, _> =
-            serde_json::from_str(r#"{"version":1,"model":"small","system_prompt":"x","webhook":"https://x"}"#);
+        let parsed: Result<CandidateConfig, _> = serde_json::from_str(
+            r#"{"version":1,"model":"small","system_prompt":"x","webhook":"https://x"}"#,
+        );
         assert!(parsed.is_err());
     }
 
     #[test]
     fn enforces_size_limits() {
-        let c = config(r#"{"version":1,"model":"small","system_prompt":"Triage.","max_tokens":5000}"#);
-        assert_eq!(check_candidate(&rules(), &c).unwrap_err().0, Reason::PolicyLimits);
+        let c =
+            config(r#"{"version":1,"model":"small","system_prompt":"Triage.","max_tokens":5000}"#);
+        assert_eq!(
+            check_candidate(&rules(), &c).unwrap_err().0,
+            Reason::PolicyLimits
+        );
 
         let long_prompt = format!(
             r#"{{"version":1,"model":"small","system_prompt":"{}"}}"#,
             "a".repeat(20_000)
         );
-        assert_eq!(check_candidate(&rules(), &config(&long_prompt)).unwrap_err().0, Reason::PolicyLimits);
+        assert_eq!(
+            check_candidate(&rules(), &config(&long_prompt))
+                .unwrap_err()
+                .0,
+            Reason::PolicyLimits
+        );
     }
 
     #[test]
@@ -204,19 +248,19 @@ mod tests {
             r#"[{"id":"1","text":"a","label":{"category":"billing","priority":"low"}}]"#,
         )
         .unwrap();
-        assert!(check_test_set(&rules(), &ok).is_ok());
+        assert!(test_set_is_valid(&rules(), &ok));
 
         let unknown: Vec<Ticket> = serde_json::from_str(
             r#"[{"id":"1","text":"a","label":{"category":"legal","priority":"low"}}]"#,
         )
         .unwrap();
-        assert!(check_test_set(&rules(), &unknown).is_err());
+        assert!(!test_set_is_valid(&rules(), &unknown));
 
         let duplicate: Vec<Ticket> = serde_json::from_str(
             r#"[{"id":"1","text":"a","label":{"category":"billing","priority":"low"}},
                 {"id":"1","text":"b","label":{"category":"billing","priority":"high"}}]"#,
         )
         .unwrap();
-        assert!(check_test_set(&rules(), &duplicate).is_err());
+        assert!(!test_set_is_valid(&rules(), &duplicate));
     }
 }

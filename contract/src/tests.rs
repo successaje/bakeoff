@@ -30,7 +30,10 @@ fn new_contract() -> Contract {
             url: "https://test.fastfs.io/owner.testnet/outlayer.testnet/evaluator.wasm".into(),
             sha256: EVALUATOR_SHA.into(),
         },
-        SecretsLocation { profile: "bakeoff".into(), owner: account("owner.testnet") },
+        SecretsLocation {
+            profile: "bakeoff".into(),
+            owner: account("owner.testnet"),
+        },
         RULES.into(),
         TEST_SET_SHA.into(),
     )
@@ -85,8 +88,14 @@ fn rejects_malformed_commitments() {
     testing_env!(context("owner.testnet").build());
     Contract::new(
         account("outlayer.testnet"),
-        EvaluatorBuild { url: "https://x".into(), sha256: "ABC".into() },
-        SecretsLocation { profile: "bakeoff".into(), owner: account("owner.testnet") },
+        EvaluatorBuild {
+            url: "https://x".into(),
+            sha256: "ABC".into(),
+        },
+        SecretsLocation {
+            profile: "bakeoff".into(),
+            owner: account("owner.testnet"),
+        },
         RULES.into(),
         TEST_SET_SHA.into(),
     );
@@ -122,7 +131,10 @@ fn anyone_can_submit_once_open() {
     contract.open();
     testing_env!(context("contributor.testnet").build());
     let _ = contract.submit(CONFIG.into());
-    assert_eq!(contract.get_evaluation(0).unwrap().evaluation.submitter, account("contributor.testnet"));
+    assert_eq!(
+        contract.get_evaluation(0).unwrap().evaluation.submitter,
+        account("contributor.testnet")
+    );
 }
 
 #[test]
@@ -159,14 +171,26 @@ fn matching_passing_verdict_is_recorded_as_passed() {
     testing_env!(context("owner.testnet").build());
     let _ = contract.submit(CONFIG.into());
 
-    let raw = verdict(true, &[], &sha256_hex(RULES.as_bytes()), &sha256_hex(CONFIG.as_bytes()), TEST_SET_SHA);
-    let status = settle(&mut contract, 0, PromiseResult::Successful(raw.clone().into_bytes()));
+    let raw = verdict(
+        true,
+        &[],
+        &sha256_hex(RULES.as_bytes()),
+        &sha256_hex(CONFIG.as_bytes()),
+        TEST_SET_SHA,
+    );
+    let status = settle(
+        &mut contract,
+        0,
+        PromiseResult::Successful(raw.clone().into_bytes()),
+    );
 
     assert_eq!(status, EvaluationStatus::Passed);
     let evaluation = contract.get_evaluation(0).unwrap().evaluation;
     assert_eq!(evaluation.verdict.as_deref(), Some(raw.as_str()));
     assert!(evaluation.settled_at.is_some());
-    assert!(get_logs().iter().any(|log| log.contains("\"event\":\"evaluation_settled\"")));
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"evaluation_settled\"")));
 }
 
 #[test]
@@ -182,8 +206,18 @@ fn failing_verdict_keeps_the_evaluator_reasons() {
         &sha256_hex(CONFIG.as_bytes()),
         TEST_SET_SHA,
     );
-    assert_eq!(settle(&mut contract, 0, PromiseResult::Successful(raw.into_bytes())), EvaluationStatus::Failed);
-    assert_eq!(contract.get_evaluation(0).unwrap().evaluation.reasons, ["gate_accuracy", "gate_cost"]);
+    assert_eq!(
+        settle(
+            &mut contract,
+            0,
+            PromiseResult::Successful(raw.into_bytes())
+        ),
+        EvaluationStatus::Failed
+    );
+    assert_eq!(
+        contract.get_evaluation(0).unwrap().evaluation.reasons,
+        ["gate_accuracy", "gate_cost"]
+    );
 }
 
 #[test]
@@ -211,9 +245,18 @@ fn judge_rejects_results_that_do_not_match_the_commitments() {
         (returned(b"null".to_vec()), "execution_failed"),
         (returned(Vec::new()), "execution_failed"),
         (returned(b"{\"passed\":true}".to_vec()), "verdict_malformed"),
-        (returned(verdict(true, &[], &other, &config, TEST_SET_SHA).into_bytes()), "rules_mismatch"),
-        (returned(verdict(true, &[], &rules, &other, TEST_SET_SHA).into_bytes()), "config_mismatch"),
-        (returned(verdict(true, &[], &rules, &config, "").into_bytes()), "test_set_mismatch"),
+        (
+            returned(verdict(true, &[], &other, &config, TEST_SET_SHA).into_bytes()),
+            "rules_mismatch",
+        ),
+        (
+            returned(verdict(true, &[], &rules, &other, TEST_SET_SHA).into_bytes()),
+            "config_mismatch",
+        ),
+        (
+            returned(verdict(true, &[], &rules, &config, "").into_bytes()),
+            "test_set_mismatch",
+        ),
     ];
     for (output, expected) in cases {
         let (status, reasons, _) = judge(output);
@@ -235,11 +278,17 @@ fn opening_freezes_commitments() {
 fn draft_commitments_can_be_updated_by_the_owner() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let replacement = EvaluatorBuild { url: "https://example.com/e.wasm".into(), sha256: "f".repeat(64) };
+    let replacement = EvaluatorBuild {
+        url: "https://example.com/e.wasm".into(),
+        sha256: "f".repeat(64),
+    };
     contract.set_evaluator(replacement.clone());
     contract.set_rules("{\"version\":1}".into());
     assert_eq!(contract.get_challenge().evaluator, replacement);
-    assert_eq!(contract.get_challenge().rules_sha256, sha256_hex(b"{\"version\":1}"));
+    assert_eq!(
+        contract.get_challenge().rules_sha256,
+        sha256_hex(b"{\"version\":1}")
+    );
 }
 
 #[test]

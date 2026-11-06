@@ -76,7 +76,8 @@ pub fn post(
                 .map_err(|e| format!("request write failed: {e:?}"))?;
         }
     }
-    OutgoingBody::finish(outgoing_body, None).map_err(|e| format!("request finish failed: {e:?}"))?;
+    OutgoingBody::finish(outgoing_body, None)
+        .map_err(|e| format!("request finish failed: {e:?}"))?;
 
     let options = RequestOptions::new();
     options
@@ -103,7 +104,9 @@ pub fn post(
     };
 
     let status = response.status();
-    let incoming_body = response.consume().map_err(|()| "response body unavailable")?;
+    let incoming_body = response
+        .consume()
+        .map_err(|()| "response body unavailable")?;
     let mut out = Vec::new();
     {
         let stream = incoming_body

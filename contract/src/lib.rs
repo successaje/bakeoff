@@ -168,16 +168,25 @@ impl Contract {
     pub fn submit(&mut self, config_json: String) -> Promise {
         let submitter = env::predecessor_account_id();
         if self.status == ChallengeStatus::Draft {
-            require!(submitter == self.owner, "challenge is not open for submissions");
+            require!(
+                submitter == self.owner,
+                "challenge is not open for submissions"
+            );
         }
         require!(!config_json.is_empty(), "config_json is empty");
-        require!(config_json.len() <= MAX_CONFIG_BYTES, "config_json exceeds 16 KiB");
+        require!(
+            config_json.len() <= MAX_CONFIG_BYTES,
+            "config_json exceeds 16 KiB"
+        );
         let deposit = env::attached_deposit();
         require!(
             deposit >= MIN_EXECUTION_DEPOSIT,
             "attach at least 0.025 NEAR for the sealed evaluation"
         );
-        require!(env::prepaid_gas() >= MIN_SUBMIT_GAS, "attach at least 200 Tgas");
+        require!(
+            env::prepaid_gas() >= MIN_SUBMIT_GAS,
+            "attach at least 200 Tgas"
+        );
 
         let config_sha256 = sha256_hex(config_json.as_bytes());
         let id = self.evaluations.len();
@@ -242,7 +251,10 @@ impl Contract {
             Err(_) => OutlayerResult::CallFailed,
         };
         let evaluation = self.evaluations.get_mut(id).expect("unknown evaluation");
-        require!(evaluation.status == EvaluationStatus::Pending, "evaluation already settled");
+        require!(
+            evaluation.status == EvaluationStatus::Pending,
+            "evaluation already settled"
+        );
 
         let (status, reasons, verdict) = judge_output(
             &output,
@@ -265,16 +277,25 @@ impl Contract {
     /// Freezes the challenge's commitments and admits submissions from anyone.
     pub fn open(&mut self) {
         self.assert_owner();
-        require!(self.status == ChallengeStatus::Draft, "challenge is already open");
+        require!(
+            self.status == ChallengeStatus::Draft,
+            "challenge is already open"
+        );
         self.status = ChallengeStatus::Open;
-        emit("challenge_opened", json!({ "rules_sha256": self.rules_sha256 }));
+        emit(
+            "challenge_opened",
+            json!({ "rules_sha256": self.rules_sha256 }),
+        );
     }
 
     /// Replaces the evaluator build while the challenge is a draft.
     pub fn set_evaluator(&mut self, evaluator: EvaluatorBuild) {
         self.assert_draft_owner();
         assert_sha256_hex(&evaluator.sha256, "evaluator.sha256");
-        emit("evaluator_changed", json!({ "url": evaluator.url, "sha256": evaluator.sha256 }));
+        emit(
+            "evaluator_changed",
+            json!({ "url": evaluator.url, "sha256": evaluator.sha256 }),
+        );
         self.evaluator = evaluator;
     }
 
@@ -283,7 +304,10 @@ impl Contract {
     pub fn set_test_set(&mut self, test_set_sha256: String, secrets: SecretsLocation) {
         self.assert_draft_owner();
         assert_sha256_hex(&test_set_sha256, "test_set_sha256");
-        emit("test_set_changed", json!({ "test_set_sha256": test_set_sha256 }));
+        emit(
+            "test_set_changed",
+            json!({ "test_set_sha256": test_set_sha256 }),
+        );
         self.test_set_sha256 = test_set_sha256;
         self.secrets = secrets;
     }
@@ -293,7 +317,10 @@ impl Contract {
         self.assert_draft_owner();
         self.rules_sha256 = sha256_hex(rules_json.as_bytes());
         self.rules_json = rules_json;
-        emit("rules_changed", json!({ "rules_sha256": self.rules_sha256 }));
+        emit(
+            "rules_changed",
+            json!({ "rules_sha256": self.rules_sha256 }),
+        );
     }
 
     pub fn get_challenge(&self) -> ChallengeView {
@@ -317,7 +344,11 @@ impl Contract {
         })
     }
 
-    pub fn get_evaluations(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<EvaluationView> {
+    pub fn get_evaluations(
+        &self,
+        from_index: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<EvaluationView> {
         let from = from_index.unwrap_or(0);
         let limit = limit.unwrap_or(50).min(100);
         (from..self.evaluations.len().min(from.saturating_add(limit)))
@@ -326,12 +357,18 @@ impl Contract {
     }
 
     fn assert_owner(&self) {
-        require!(env::predecessor_account_id() == self.owner, "only the challenge owner may do this");
+        require!(
+            env::predecessor_account_id() == self.owner,
+            "only the challenge owner may do this"
+        );
     }
 
     fn assert_draft_owner(&self) {
         self.assert_owner();
-        require!(self.status == ChallengeStatus::Draft, "commitments are frozen once a challenge opens");
+        require!(
+            self.status == ChallengeStatus::Draft,
+            "commitments are frozen once a challenge opens"
+        );
     }
 }
 
@@ -351,7 +388,11 @@ fn judge_output(
     test_set_sha256: &str,
 ) -> (EvaluationStatus, Vec<String>, Option<String>) {
     let rejected = |reason: &str, verdict: Option<String>| {
-        (EvaluationStatus::Rejected, vec![reason.to_string()], verdict)
+        (
+            EvaluationStatus::Rejected,
+            vec![reason.to_string()],
+            verdict,
+        )
     };
     let bytes = match output {
         OutlayerResult::Returned(bytes) => bytes.as_slice(),
@@ -398,13 +439,21 @@ fn sha256_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     env::sha256_array(bytes)
         .iter()
-        .flat_map(|b| [HEX[(b >> 4) as usize] as char, HEX[(b & 0xf) as usize] as char])
+        .flat_map(|b| {
+            [
+                HEX[(b >> 4) as usize] as char,
+                HEX[(b & 0xf) as usize] as char,
+            ]
+        })
         .collect()
 }
 
 fn assert_sha256_hex(value: &str, field: &str) {
     require!(
-        value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+        value.len() == 64
+            && value
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
         format!("{field} must be 64 lowercase hex characters")
     );
 }
