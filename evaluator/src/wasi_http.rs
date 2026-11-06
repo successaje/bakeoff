@@ -36,7 +36,14 @@ pub fn post(
     let target = Target::parse(url)?;
 
     let fields = Fields::new();
-    for (name, value) in headers {
+    // Without an explicit length the host sends the body chunked, which
+    // some servers refuse.
+    let content_length = body.len().to_string();
+    for (name, value) in headers
+        .iter()
+        .copied()
+        .chain(std::iter::once(("content-length", content_length.as_str())))
+    {
         fields
             .append(&name.to_string(), &value.as_bytes().to_vec())
             .map_err(|e| format!("invalid header {name}: {e:?}"))?;

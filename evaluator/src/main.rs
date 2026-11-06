@@ -109,6 +109,23 @@ mod transport {
             max_tokens: u32,
             temperature: Option<f64>,
         ) -> Result<ChatCompletion, String> {
+            let result = self.call(model, messages, max_tokens, temperature);
+            // stderr stays in the worker's logs; only the verdict is returned.
+            if let Err(e) = &result {
+                eprintln!("model call to {model} failed: {e}");
+            }
+            result
+        }
+    }
+
+    impl WasiChatClient {
+        fn call(
+            &self,
+            model: &str,
+            messages: &[ChatMessage],
+            max_tokens: u32,
+            temperature: Option<f64>,
+        ) -> Result<ChatCompletion, String> {
             let body = openai::request_body(model, messages, max_tokens, temperature);
             let response = wasi_http::post(
                 &self.endpoint,
