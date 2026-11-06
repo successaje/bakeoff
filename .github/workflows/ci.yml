@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Lint, unit tests and local evaluation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Score example candidates under wasmtime
+        run: scripts/run-local.sh
+      - name: Check each example reaches its expected outcome
+        run: |
+          python3 - <<'EOF'
+          import json
+          expected = {
+              "baseline": ["gate_cost"],
+              "small-model": ["gate_accuracy"],
+              "routed": [],
+              "card-in-summary": ["gate_leaks"],
+              "webhook-tool": ["policy_tool"],
+          }
+          for name, reasons in expected.items():
+              verdict = json.load(open(f"target/verdicts/{name}.json"))
+              assert verdict["reasons"] == reasons, (name, verdict["reasons"])
+              assert verdict["passed"] == (not reasons), name
+              print(f"{name}: ok")
+          EOF
+
+  sandbox:
+    name: Contract end-to-end in a NEAR sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-near
+        run: cargo install cargo-near --locked
+      - run: scripts/test-sandbox.sh
