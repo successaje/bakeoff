@@ -1,0 +1,16 @@
+[package]
+name = "bakeoff-integration-tests"
+description = "Sandbox tests of the challenge contract against a mock OutLayer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dev-dependencies]
+anyhow = "1"
+bakeoff-evaluator = { path = "../evaluator" }
+near-workspaces = "0.24"
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
