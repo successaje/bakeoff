@@ -1,0 +1,15 @@
+/target
+**/target
+*.wasm
+!examples/**/*.wasm
+
+# Local credentials and deployment state
+.env
+.env.*
+!.env.example
+.deploy/
+
+# Tooling
+.DS_Store
+__pycache__/
+*.pyc
