@@ -139,7 +139,10 @@ pub struct Contract {
 #[near]
 impl Contract {
     #[init]
+    /// `owner` is explicit because deploy-and-initialise transactions are
+    /// signed by the contract account itself, so the caller is not the sponsor.
     pub fn new(
+        owner: AccountId,
         outlayer: AccountId,
         evaluator: EvaluatorBuild,
         secrets: SecretsLocation,
@@ -149,7 +152,7 @@ impl Contract {
         assert_sha256_hex(&evaluator.sha256, "evaluator.sha256");
         assert_sha256_hex(&test_set_sha256, "test_set_sha256");
         Self {
-            owner: env::predecessor_account_id(),
+            owner,
             status: ChallengeStatus::Draft,
             outlayer,
             evaluator,

@@ -54,6 +54,7 @@ INIT_ARGS=$(python3 -I - "$RULES_FILE" "$OUTLAYER" "$EVALUATOR_URL" "$EVALUATOR_
 import json, sys
 rules, outlayer, url, sha, profile, owner, test_set_sha = sys.argv[1:]
 print(json.dumps({
+    "owner": owner,
     "outlayer": outlayer,
     "evaluator": {"url": url, "sha256": sha},
     "secrets": {"profile": profile, "owner": owner},

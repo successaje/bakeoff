@@ -113,11 +113,15 @@ async fn setup() -> Result<Setup> {
     let outlayer = worker.dev_deploy(&wasm("mock_outlayer")?).await?;
     outlayer.call("new").transact().await?.into_result()?;
 
-    let test_set = read(TEST_SET)?;
+    // Canonical form, as stored in the OutLayer secret: no trailing newlines.
+    let test_set = read(TEST_SET)?.trim_end_matches('\n').to_string();
     let challenge = worker.dev_deploy(&wasm("bakeoff_contract")?).await?;
-    owner
-        .call(challenge.id(), "new")
+    // Initialised by the contract account itself, as near-cli's
+    // deploy-with-init does; the owner is named explicitly.
+    challenge
+        .call("new")
         .args_json(json!({
+            "owner": owner.id(),
             "outlayer": outlayer.id(),
             "evaluator": {
                 "url": format!("https://test.fastfs.io/{}/outlayer.testnet/{EVALUATOR_SHA256}.wasm", owner.id()),

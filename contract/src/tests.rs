@@ -25,6 +25,7 @@ fn context(predecessor: &str) -> VMContextBuilder {
 fn new_contract() -> Contract {
     testing_env!(context("owner.testnet").build());
     Contract::new(
+        account("owner.testnet"),
         account("outlayer.testnet"),
         EvaluatorBuild {
             url: "https://test.fastfs.io/owner.testnet/outlayer.testnet/evaluator.wasm".into(),
@@ -64,6 +65,27 @@ fn settle(contract: &mut Contract, id: u32, result: PromiseResult) -> Evaluation
 }
 
 #[test]
+fn owner_is_the_named_sponsor_even_when_the_contract_initialises_itself() {
+    // near-cli's deploy-with-init signs `new` as the contract account.
+    testing_env!(context("challenge.bakeoff.testnet").build());
+    let contract = Contract::new(
+        account("owner.testnet"),
+        account("outlayer.testnet"),
+        EvaluatorBuild {
+            url: "https://x".into(),
+            sha256: EVALUATOR_SHA.into(),
+        },
+        SecretsLocation {
+            profile: "bakeoff".into(),
+            owner: account("owner.testnet"),
+        },
+        RULES.into(),
+        TEST_SET_SHA.into(),
+    );
+    assert_eq!(contract.get_challenge().owner, account("owner.testnet"));
+}
+
+#[test]
 fn new_challenge_is_a_draft_with_hashed_rules() {
     let contract = new_contract();
     let view = contract.get_challenge();
@@ -87,6 +109,7 @@ fn sha256_hex_matches_known_vector() {
 fn rejects_malformed_commitments() {
     testing_env!(context("owner.testnet").build());
     Contract::new(
+        account("owner.testnet"),
         account("outlayer.testnet"),
         EvaluatorBuild {
             url: "https://x".into(),
