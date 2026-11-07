@@ -22,9 +22,10 @@ echo "==> Submitting $CANDIDATE as evaluation $id"
 started=$(date +%s)
 # The transaction stays open until OutLayer resumes its yield, which can take
 # longer than the RPC node waits, so an RPC timeout here is expected; the
-# contract is polled for the outcome either way.
+# contract is polled for the outcome either way. Of the 0.035 NEAR, 0.01 pays
+# for the evaluation record and OutLayer refunds what the run does not use.
 near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
-  prepaid-gas '300.0 Tgas' attached-deposit '0.025 NEAR' \
+  prepaid-gas '300.0 Tgas' attached-deposit '0.035 NEAR' \
   sign-as "$SIGNER" network-config testnet sign-with-keychain send \
   || echo "(RPC did not wait for the outcome; polling the contract)"
 
@@ -59,3 +60,19 @@ if e.get("verdict"):
         if key in metrics:
             print(f"{key}:".ljust(22) + str(metrics[key]))
 EOF
+
+# A pass that wins the bounty is paid a block or two after the verdict.
+for _ in 1 2 3 4 5 6; do
+  award=$(tools/near_view.py testnet "$CHALLENGE" get_challenge | python3 -c '
+import json, sys
+c, id = json.load(sys.stdin), int(sys.argv[1])
+a = c.get("award")
+if a and a["evaluation"] == id:
+    state = "paid" if a["paid"] else ("in flight" if a["in_flight"] else "owed; anyone may call claim_award")
+    amount, winner = int(a["amount"]) / 1e24, a["winner"]
+    print("award:".ljust(22) + f"{amount:g} NEAR to {winner}, {state}")
+' "$id")
+  case "$award" in *"in flight"*) sleep 2 ;; *) break ;; esac
+done
+[ -n "$award" ] && echo "$award"
+exit 0
