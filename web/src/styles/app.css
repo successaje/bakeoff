@@ -180,16 +180,19 @@
 .run-actions .icon-btn { width: 36px; height: 36px; }
 .run-actions .icon-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* A highlight sweeping across text that is still in progress. The fill, not
+ * the colour, goes transparent, so on-color can sweep the text's own colour. */
 .shimmer-text {
   background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%) 0 0 / 250% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   animation: text-shimmer 1.6s linear infinite;
 }
+.shimmer-text.on-color { background-image: linear-gradient(90deg, currentColor 0%, currentColor 40%, color-mix(in srgb, currentColor 35%, var(--text)) 50%, currentColor 60%, currentColor 100%); }
 @keyframes text-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   .run *, .shimmer-text { animation: none !important; transition: none !important; }
-  .shimmer-text { color: var(--muted); background: none; }
+  .shimmer-text { background: none; -webkit-text-fill-color: currentColor; }
 }
 
 /* ---------- Stats band ---------- */
@@ -619,3 +622,10 @@
 .evidence a svg { width: 14px; height: 14px; }
 @media (max-width: 640px) { .evidence > div { grid-template-columns: 1fr; gap: 4px; } }
 .result-nav { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+
+/* A result that just settled or appeared: the row glows once and its badge settles in. */
+.result-row.just-changed td { animation: row-flash 2.4s var(--ease-out); }
+.result-row.just-changed .badge { animation: badge-settle 420ms var(--ease-out); }
+@keyframes row-flash { 0%, 20% { background: var(--accent-soft); } 100% { background: transparent; } }
+@keyframes badge-settle { from { opacity: 0.3; transform: scale(0.86); } }
+@media (prefers-reduced-motion: reduce) { .result-row.just-changed td, .result-row.just-changed .badge { animation: none; } }

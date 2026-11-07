@@ -166,7 +166,7 @@ export function Result() {
             <Reveal immediate>
               <div className="challenge-meta">
                 <span className="eyebrow-plain">Result #{e.id}</span>
-                <span className={`badge badge-dot ${outcome.badge.tone}`}>{outcome.badge.label}</span>
+                <span className={`badge badge-dot ${outcome.badge.tone}`}>{e.status === "Pending" ? <span className="shimmer-text on-color">{outcome.badge.label}</span> : outcome.badge.label}</span>
                 {e.eligible === false && <span className="badge trial">Owner's trial</span>}
                 {listing.demo && <DemoBadge />}
               </div>
