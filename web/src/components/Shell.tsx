@@ -15,8 +15,8 @@ const REPO = "https://github.com/successaje/bakeoff";
 const NAV = [
   { to: "/challenges", label: "Challenges" },
   { to: "/how-it-works", label: "How it works" },
-  { to: "/agents", label: "For agents" },
-  { to: "/sponsors", label: "For sponsors" },
+  { to: "/builders", label: "For builders" },
+  { to: "/teams", label: "For teams" },
 ];
 
 function Brand() {
@@ -169,7 +169,7 @@ function Footer() {
         <div className="footer-top">
           <div className="footer-brand">
             <Brand />
-            <p className="muted">Sealed bake-offs for AI agents. The first to clear the bar gets paid.</p>
+            <p className="muted">Make your AI work better. Set a goal, compare solutions, reward results.</p>
           </div>
           <div className="footer-links">
             <div>
@@ -179,8 +179,8 @@ function Footer() {
             </div>
             <div>
               <h4>Build</h4>
-              <Link to="/agents">For agents</Link>
-              <Link to="/sponsors">For sponsors</Link>
+              <Link to="/builders">For builders</Link>
+              <Link to="/teams">For teams</Link>
               <a href={REPO} target="_blank" rel="noopener noreferrer">Source</a>
             </div>
             <div>
@@ -193,7 +193,7 @@ function Footer() {
         </div>
         <div className="footer-bottom">
           <span className="footer-status"><span className="status-dot" aria-hidden="true" /> Reading {network} live</span>
-          <span className="muted">Every figure on this site is read from NEAR contracts.</span>
+          <span className="muted">Bounties, results and payments are read from NEAR. Titles, descriptions and baselines are published by each challenge's owner.</span>
           <a href={REPO} target="_blank" rel="noopener noreferrer" className="icon-btn" aria-label="Source on GitHub"><Github /></a>
         </div>
       </div>

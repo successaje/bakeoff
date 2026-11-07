@@ -1,17 +1,24 @@
 # Bakeoff web app
 
-The public face of Bakeoff: a static React app that reads every figure straight from NEAR and lets sponsors fund their challenges. It has no backend: NEAR RPC (through FastNEAR), FastFS and the 1Click API all answer browser requests directly.
+The public face of Bakeoff: a static React app that reads bounties, results and payments straight from NEAR and lets sponsors fund their challenges. Titles, descriptions and baselines come from each sponsor's listing in [`public/challenges.json`](public/challenges.json), and the board says so. It has no backend: NEAR RPC (through FastNEAR), FastFS and the 1Click API all answer browser requests directly.
 
 ## Pages
 
 | Page | What it is for |
 |---|---|
-| Home | **Hero:** the sealed enclave as a 3D glass cube, with the latest real verdict beside it. **Live stats** from the contracts. **How a bake-off works.** **Spotlight:** the latest winner against the baseline. Then the challenges, the two audiences, and why the results can be trusted. |
-| Challenges | Every listed challenge, filterable by open, awarded and draft. Each card shows its bounty, a live countdown, its gates and any winner. |
-| Challenge | **Header:** the bounty card and the award. **"The bar":** each metric as a gauge, with the sponsor's baseline, the gate and the winner or best pass. **Tabs:** verdicts, in-browser verification, how to compete, and the sponsor's controls. |
-| For agents | Connecting Claude Code, Codex or any MCP client; the seven tools and what each costs; the safety model. |
-| For sponsors | What a sponsor brings, how the bar is set from their baseline, a challenge's lifecycle, and the ways to fund it. |
-| How it works | One submission end to end; what stays private and what is public; questions. |
+| Home | **Hero:** "Make your AI work better", with *Explore challenges* and *Set up a challenge*, the enclave as a 3D glass cube, and the latest real result beside it. **Live stats** from the contracts. **How a bake-off works.** **From goal to result:** the latest winner against the baseline, linking to its result. Then the challenges, the two audiences, and what can be checked. |
+| Challenges | Every listed challenge, filterable by open, awarded and draft. Each card shows its reward, a live countdown, its requirements and any winner. |
+| Challenge | A story in sections, with a bar to jump between them. **Header:** the reward card and one action: see the winning result, take part, or see the results. **The problem** in the owner's words and figures. **The goal** as one sentence, and each requirement as a gauge against the baseline and the best result. **How it's tested:** what builders can see and what stays hidden. **Results**, each opening its own page. **Take part** and **Rules and verification.** The owner also sees a **Manage** section. |
+| Result | Did it meet each requirement; how it compares with the baseline; the solution's config, to copy or download; the exact request to try it safely; the test's limitations; and the evidence on-chain. |
+| For builders | Connecting Claude Code, Codex or any MCP client; the seven tools and what each costs; the safety model. |
+| For teams | What a team brings, how the requirements come from its baseline, a challenge's lifecycle, the ways to fund it, and what setting one up takes today. |
+| How it works | One submission end to end; what stays hidden and what is public; what you still have to trust; questions. |
+
+`/agents` and `/sponsors`, the guides' earlier addresses, redirect to `/builders` and `/teams`.
+
+## Finding a result's solution
+
+The contract stores only the SHA-256 of each result's config. The result page lists the submitter's transactions to the challenge through [nearblocks](https://nearblocks.io), reads each `submit` transaction's arguments from FastNEAR's archival node, and shows the config only if it hashes to the record. From the config and the rules it rebuilds the chat request the evaluator sent for each ticket, the same way the evaluator does, for the team to download and run beside its current agent.
 
 The challenges listed, with a title, the task and the baseline each sponsor published, are in [`public/challenges.json`](public/challenges.json). Everything else comes from the contracts.
 
@@ -30,22 +37,29 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
 - **Motion.** Pages animate in on arrival, and sections and figures as they scroll into view; tabs and switches slide between options. Everything respects `prefers-reduced-motion`.
 - **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
 
+## Trust and status
+
+- **Demo rounds** carry a Demo badge and a notice saying which parts are real. A listing marks itself as a demo with `"demo": true`.
+- **Awarded and paid** are separate states. Cards say Awarded until the payment lands, and the challenge page explains an unpaid award and how to retry it.
+- **Freshness.** The challenge page shows when it last read the chain and has a Refresh button. While a result is scoring, it re-reads every 10 s.
+- **Sources.** The footer, each challenge's problem and goal sections, and each result say which figures come from the contract and which from the owner's listing. The How it works page lists what users still have to trust.
+
 ## Checks in the browser
 
 - **Rules.** The page hashes the rules the contract serves and compares them with its commitment.
-- **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it.
+- **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it. A download that fails says Could not verify, not Mismatch.
 - **Configs.** Pasting a candidate config finds the evaluations that scored it.
 
-## What a sponsor can do
+## What the owner can do
 
-Connect with [NEAR Connect](https://docs.near.org/web3-apps/tutorials/web-login/near-connector), which offers Meteor, Intear, Ledger, NEAR CLI and other wallets. The page offers each action only while the contract would accept it:
+Connect with [NEAR Connect](https://docs.near.org/web3-apps/tutorials/web-login/near-connector), which offers Meteor, Intear, Ledger, NEAR CLI and other wallets. The challenge page then shows a Manage section to the owner only, and offers each action only while the contract would accept it:
 
 | Action | When |
 |---|---|
-| Fund from the wallet | Draft, or open before the deadline |
+| Add to the reward from the wallet | Draft, or open before the deadline |
 | Open for N hours | Draft |
-| Withdraw the bounty | Draft, or after an unwon deadline with nothing pending |
-| Retry a failed award payment | Any connected account, when an award is owed |
+| Withdraw the reward | Draft, or after an unwon deadline with nothing pending |
+| Retry a failed award payment | Any connected account, from the notice on the challenge or result page |
 | Add wNEAR you hold | One approval unwraps it and funds the bounty |
 | Fund from another chain | Mainnet: see below |
 
@@ -84,6 +98,8 @@ npm test
 ```
 
 The tests cover:
+- finding a result's config from its transaction, and refusing one that does not hash to the record;
+- rebuilding the evaluator's chat request, and checking requirements and the baseline comparison;
 - NEAR amount parsing, refusing anything that is not a plain positive decimal;
 - the transactions the page asks a wallet to sign;
 - the 1Click quote request;

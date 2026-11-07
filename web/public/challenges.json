@@ -12,21 +12,27 @@
         "p95_latency_ms": 18159
       },
       "story": {
-        "headline": "An AI agent cleared the bar on its first sealed try.",
-        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
-      }
+        "headline": "An AI agent met every requirement on its first try.",
+        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single solution."
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     },
     {
       "id": "challenge-20261107093927.finishr.testnet",
-      "title": "Support ticket triage, first bounty round",
+      "title": "Support ticket triage, first reward round",
       "sponsor": "Kettle & Kiln",
-      "summary": "The first bounty round on the same 100 sealed tickets: a hand-written few-shot candidate won it on its only sealed submission.",
+      "summary": "The first reward round on the same 100 hidden tickets: a hand-written few-shot solution won it on its only submission.",
       "tickets": 100,
       "baseline": {
         "accuracy_bp": 8700,
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
-      }
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     }
   ],
   "mainnet": [
@@ -42,9 +48,12 @@
         "p95_latency_ms": 18159
       },
       "story": {
-        "headline": "An AI agent won the first mainnet bounty on its first sealed try.",
-        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
-      }
+        "headline": "An AI agent won the first mainnet reward on its first try.",
+        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single solution."
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     }
   ]
 }

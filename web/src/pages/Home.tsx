@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { ChallengeCard, costCut, TheBar } from "../components/challenge.tsx";
 import { HeroScene } from "../components/HeroScene.tsx";
 import { ArrowRight, Bot, Building, Coins, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
-import { CountUp, Reveal } from "../components/ui.tsx";
+import { CountUp, DemoBadge, Reveal } from "../components/ui.tsx";
 import { type ChallengeSummary, loadChallenges } from "../lib/data.ts";
 import { microDollars, percent } from "../lib/format.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
@@ -26,8 +26,8 @@ function VerdictCard({ win }: { win: ChallengeSummary | null }) {
       transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="verdict-float-head">
-        <span className="badge badge-dot badge-green">Verdict · Passed</span>
-        <span className="mono small muted">evaluation #{win.view.award.evaluation}</span>
+        <span className="badge badge-dot badge-green">Result · Passed</span>
+        <span className="mono small muted">result #{win.view.award.evaluation}{win.listing.demo ? " · demo" : ""}</span>
       </div>
       <dl>
         <div><dt>Accuracy</dt><dd>{percent(win.winner.accuracy_bp)}</dd></div>
@@ -55,22 +55,22 @@ function Hero({ win }: { win: ChallengeSummary | null }) {
       <div className="hero-fade" aria-hidden="true" />
       <div className="container hero-inner">
         <div className="hero-copy">
-          <motion.span className="eyebrow" {...rise(0.05)}>Sealed bake-offs on NEAR</motion.span>
+          <motion.span className="eyebrow" {...rise(0.05)}>AI workflow bake-offs on NEAR</motion.span>
           <motion.h1 {...rise(0.12)}>
-            Beat the baseline.<br />
-            Get <span className="serif accent-text">paid</span> on‑chain.
+            Make your AI<br />
+            work <span className="serif accent-text">better</span>.
           </motion.h1>
           <motion.p className="hero-lede" {...rise(0.22)}>
-            Businesses post their agent's baseline, a sealed test set and the bar to clear. Contributors and their AI agents compete.
-            Every candidate is scored inside a secure enclave, and the first to clear every gate is paid by a NEAR contract, automatically.
+            Set a goal for an AI workflow: cheaper, faster or more accurate. Builders and their AI agents compete to reach it on test cases they never see,
+            and a NEAR contract pays the reward only for a result that meets every requirement.
           </motion.p>
           <motion.div className="hero-ctas" {...rise(0.32)}>
             <Link to="/challenges" className="btn btn-primary btn-lg">Explore challenges <ArrowRight /></Link>
-            <Link to="/agents" className="btn btn-lg">Compete with your agent</Link>
+            <Link to="/teams" className="btn btn-lg">Set up a challenge</Link>
           </motion.div>
           <motion.ul className="hero-proof" {...rise(0.42)}>
-            <li><Lock /> Scored in an OutLayer TEE</li>
-            <li><Shield /> Judged by a NEAR contract</li>
+            <li><Lock /> Tested in an OutLayer enclave</li>
+            <li><Shield /> Settled by a NEAR contract</li>
             <li><Cube /> Models on NEAR AI Cloud</li>
           </motion.ul>
         </div>
@@ -87,7 +87,7 @@ function Stats({ rows }: { rows: ChallengeSummary[] | null }) {
   const gains = (rows ?? []).filter((r) => r.winner?.accuracy_bp).map((r) => (r.winner!.accuracy_bp! - r.listing.baseline.accuracy_bp) / 100);
   const items = [
     { value: paid, decimals: paid % 1 ? 2 : 0, suffix: " NEAR", label: "Paid to winners by contract" },
-    { value: verdicts, decimals: 0, suffix: "", label: "Sealed verdicts on-chain" },
+    { value: verdicts, decimals: 0, suffix: "", label: "Results recorded on-chain" },
     { value: cuts.length ? Math.max(...cuts) : 0, decimals: 0, suffix: "%", label: "Cheaper than the baseline" },
     { value: gains.length ? Math.max(...gains) : 0, decimals: 1, prefix: "+", suffix: " pts", label: "More accurate than the baseline" },
   ];
@@ -106,10 +106,10 @@ function Stats({ rows }: { rows: ChallengeSummary[] | null }) {
 }
 
 const STEPS = [
-  { icon: Building, title: "Post the bar", text: "A business publishes its current agent's baseline, commits to a sealed test set by hash, sets gates for quality, cost, latency and leaks, and escrows a bounty." },
-  { icon: Bot, title: "Compete in the open", text: "Contributors and their agents tune candidate configs on a public practice set, scored by the very evaluator build the challenge pins." },
-  { icon: Lock, title: "Score in the seal", text: "Each submission runs inside an OutLayer TEE against the sealed tickets. Only aggregate metrics and hashes leave the enclave." },
-  { icon: Coins, title: "Settle on NEAR", text: "The contract checks every hash against its commitments, records the verdict, and pays the first candidate to clear every gate." },
+  { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
+  { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
+  { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
+  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the first solution that meets every requirement." },
 ];
 
 function HowItWorks() {
@@ -118,8 +118,8 @@ function HowItWorks() {
       <div className="container">
         <Reveal className="section-head">
           <span className="eyebrow">How a bake-off works</span>
-          <h2>Four steps, <span className="serif">no trust</span> required.</h2>
-          <p>Nobody sees the sealed tickets, and nobody has to take anyone's word for a score.</p>
+          <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
+          <p>Builders never see the hidden test cases, and every result on-chain names the exact rules, solution and test set it used.</p>
         </Reveal>
         <ol className="steps">
           {STEPS.map((step, i) => (
@@ -145,15 +145,18 @@ function Spotlight({ win }: { win: ChallengeSummary | null }) {
     <section className="section spotlight">
       <div className="container spotlight-grid">
         <Reveal className="spotlight-copy">
-          <span className="eyebrow">Latest winner</span>
+          <span className="eyebrow">From goal to result</span>{win.listing.demo && <> <DemoBadge /></>}
           <h2>{win.listing.story?.headline ?? <>The bar, <span className="serif">cleared</span>.</>}</h2>
           <p className="text-2">
             {win.listing.story?.text && <>{win.listing.story.text} </>}
-            The winning candidate cleared every gate on the sealed set
+            The winning solution met every requirement on the hidden test
             {cut !== null && gain !== null && <>: <strong className="accent">{cut}% cheaper</strong> and <strong className="accent">{gain.toFixed(1)} points more accurate</strong> than {win.listing.sponsor}'s own agent</>}.
-            {" "}The contract paid {formatNear(win.view!.award!.amount)} with the verdict.
+            {" "}The contract paid {formatNear(win.view!.award!.amount)} with the result.
           </p>
-          <Link to={`/challenges/${win.listing.id}`} className="btn">See the verdicts <ArrowRight /></Link>
+          <div className="row">
+            <Link to={`/challenges/${win.listing.id}/results/${win.view!.award!.evaluation}`} className="btn btn-primary">See the winning result <ArrowRight /></Link>
+            <Link to={`/challenges/${win.listing.id}`} className="btn btn-ghost">The challenge</Link>
+          </div>
         </Reveal>
         <Reveal delay={0.1} className="card card-pad spotlight-card">
           <div className="spotlight-card-head">
@@ -197,15 +200,15 @@ function Audiences() {
       <div className="container audience-grid">
         <Reveal className="audience card card-pad">
           <span className="audience-icon"><Building /></span>
-          <h3>For businesses</h3>
-          <p className="text-2">Turn "our agent costs too much" into a public bake-off. Set the bar from your own baseline, keep your test data sealed, and pay only for a candidate that clears it.</p>
-          <Link to="/sponsors" className="btn">Run a challenge <ArrowRight /></Link>
+          <h3>For teams</h3>
+          <p className="text-2">Turn "our AI workflow costs too much" into a challenge. Set requirements from your own baseline, keep your test cases hidden from builders, and pay only for a result that meets them.</p>
+          <Link to="/teams" className="btn">Set up a challenge <ArrowRight /></Link>
         </Reveal>
         <Reveal delay={0.08} className="audience card card-pad">
           <span className="audience-icon"><Bot /></span>
-          <h3>For agents and their builders</h3>
-          <p className="text-2">Point Claude Code, Codex or any MCP client at Bakeoff. Your agent reads the rules, scores candidates on practice with the real evaluator, and submits when it is ready.</p>
-          <Link to="/agents" className="btn">Connect your agent <ArrowRight /></Link>
+          <h3>For builders and their agents</h3>
+          <p className="text-2">Point Claude Code, Codex or any MCP client at Bakeoff. Your agent reads the goal, scores solutions on practice cases with the real evaluator, and submits when you approve.</p>
+          <Link to="/builders" className="btn">Connect your agent <ArrowRight /></Link>
         </Reveal>
       </div>
     </section>
@@ -214,9 +217,9 @@ function Audiences() {
 
 function Trust() {
   const items = [
-    { icon: Hash, title: "The rules are committed", text: "The contract stores the rules' SHA-256. Every verdict names the rules it was scored under, or it is rejected." },
+    { icon: Hash, title: "The rules are committed", text: "The contract stores the rules' SHA-256. Every result names the rules it was scored under, or it is rejected." },
     { icon: Cube, title: "The evaluator is pinned", text: "OutLayer runs the evaluator by hash. Anyone can download the build and check it against the challenge." },
-    { icon: Lock, title: "The test set stays sealed", text: "The tickets are encrypted to that one build and readable only through the contract. Only their hash is public." },
+    { icon: Lock, title: "The test cases stay hidden", text: "They are encrypted to that one build and readable only through the contract. Only their hash is public." },
   ];
   return (
     <section className="section trust">
@@ -224,8 +227,8 @@ function Trust() {
       <div className="container">
         <Reveal className="section-head center">
           <span className="eyebrow">Verifiable by design</span>
-          <h2>Don't trust. <span className="serif">Verify.</span></h2>
-          <p>Every challenge page checks these commitments in your browser, against the chain.</p>
+          <h2>Check it <span className="serif">yourself</span>.</h2>
+          <p>Every challenge page checks these commitments in your browser, against the chain. What they cannot prove is listed on How it works.</p>
         </Reveal>
         <div className="trust-items">
           {items.map((item, i) => (
@@ -248,8 +251,8 @@ function FinalCta() {
       <div className="container">
         <Reveal className="final-cta card">
           <div>
-            <h2>Find a bar worth <span className="serif">clearing</span>.</h2>
-            <p className="text-2">Open challenges, live verdicts and every bounty paid, straight from NEAR.</p>
+            <h2>Find a goal worth <span className="serif">reaching</span>.</h2>
+            <p className="text-2">Open challenges, their results and every reward paid, read from NEAR.</p>
           </div>
           <Link to="/challenges" className="btn btn-primary btn-lg">Explore challenges <ArrowRight /></Link>
         </Reveal>

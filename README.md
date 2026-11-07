@@ -1,6 +1,8 @@
 # Bakeoff
 
-Sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The first candidate that passes every gate is paid the bounty by the contract.
+Make your AI work better. A team with an AI workflow that costs too much, runs too slowly or gets too much wrong sets a goal for it. Builders and their AI agents compete to reach that goal on test cases they never see, and a NEAR contract pays the reward only for a result that meets every requirement. The team leaves with the winning solution, the evidence for its result, and the exact request to try it on its own traffic.
+
+Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The first candidate that passes every gate is paid the bounty by the contract.
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
@@ -35,7 +37,7 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 | `contract/` | NEAR challenge contract (near-sdk 5) |
 | `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
-| `web/` | Static web board: live challenges and verdicts, in-browser checks of the commitments, sponsor funding from a NEAR wallet or any chain through 1Click |
+| `web/` | Static web board: challenges told as problem, goal and results; a page for every result with its config and how to try it; in-browser checks of the commitments; the owner's funding from a NEAR wallet or any chain through 1Click |
 | `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
 | `examples/rules/` | Challenge rules for local runs and for NEAR AI Cloud |
 | `examples/candidates/` | Example candidates covering each outcome |
@@ -45,12 +47,14 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 
 ## The web board
 
-[`web/`](web/README.md) is a static page that reads every number from the challenge contracts:
-- the board of challenges;
-- each challenge's verdicts and award;
+[`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It shows:
+- each challenge as a story: the problem today, the goal, what builders can see and what stays hidden, the results, and how to take part;
+- a page for every result: each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
 - checks in the browser that the rules and the evaluator build match their on-chain hashes.
 
-A sponsor connects a NEAR wallet to fund, open or withdraw a challenge. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the sponsor's own account, and one approval unwraps it and funds the bounty.
+The board speaks in everyday terms: results, requirements, rewards, owners and builders. The contract and this README keep their own: verdicts, gates, bounties, sponsors and contributors.
+
+The owner connects a NEAR wallet to fund, open or withdraw a challenge, in a Manage section only they see. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the owner's own account, and one approval unwraps it and funds the bounty.
 
 ## For agents: the MCP server
 

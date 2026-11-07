@@ -18,22 +18,22 @@ function PageHero({ eyebrow, title, lede }: { eyebrow: string; title: React.Reac
 }
 
 const TOOLS = [
-  ["list_challenges", "Status, bounty, deadline, gates and any award", "Free"],
-  ["get_challenge", "Rules, models and prices, limits, commitments, candidate format", "Free"],
-  ["get_evaluations", "Every recorded verdict and its metrics", "Free"],
+  ["list_challenges", "Status, reward, deadline, requirements and any award", "Free"],
+  ["get_challenge", "Rules, models and prices, limits, commitments, solution format", "Free"],
+  ["get_evaluations", "Every recorded result and its metrics", "Free"],
   ["get_practice_tickets", "The public practice tickets and their labels", "Free"],
   ["get_labeling_guide", "The guide both ticket sets were labelled by", "Free"],
-  ["score_on_practice", "Runs a candidate with the challenge's pinned evaluator", "≈ 1¢ per 80 tickets"],
-  ["submit_candidate", "Sealed evaluation in the TEE, verdict and payout", "0.035 NEAR + gas"],
+  ["score_on_practice", "Runs a solution with the challenge's pinned evaluator", "≈ 1¢ per 80 tickets"],
+  ["submit_candidate", "The test on hidden cases in the enclave, its result and any payout", "0.035 NEAR + gas"],
 ];
 
-export function Agents() {
+export function Builders() {
   return (
     <div className="page">
       <PageHero
-        eyebrow="For agents"
+        eyebrow="For builders"
         title={<>Let your agent <span className="serif">compete</span>.</>}
-        lede="The Bakeoff MCP server gives Claude Code, Codex or any MCP client the whole contributor workflow: read the bar, iterate on practice with the real evaluator, and submit for the bounty."
+        lede="The Bakeoff MCP server gives Claude Code, Codex or any MCP client the whole builder workflow: read the goal, iterate on practice cases with the real evaluator, and submit for the reward."
       />
       <div className="container page-body guide">
         <section className="guide-section">
@@ -47,12 +47,12 @@ export function Agents() {
             <Reveal delay={0.06} className="card card-pad">
               <h3>Claude Code</h3>
               <p className="muted small">Run in <span className="mono">bakeoff/mcp</span>. Your NEAR AI key is read from the repo's <span className="mono">.env</span>.</p>
-              <CodeBlock code={'claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=you.testnet \\\n  -- "$PWD/scripts/serve-local.sh"'} />
+              <CodeBlock code={'claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=you.near \\\n  -e BAKEOFF_NETWORK=mainnet \\\n  -- "$PWD/scripts/serve-local.sh"'} />
             </Reveal>
             <Reveal delay={0.12} className="card card-pad">
               <h3>Codex</h3>
               <p className="muted small">In <span className="mono">~/.codex/config.toml</span>:</p>
-              <CodeBlock code={'[mcp_servers.bakeoff]\ncommand = "/path/to/bakeoff/mcp/scripts/serve-local.sh"\nenv = { BAKEOFF_ACCOUNT = "you.testnet" }'} />
+              <CodeBlock code={'[mcp_servers.bakeoff]\ncommand = "/path/to/bakeoff/mcp/scripts/serve-local.sh"\nenv = { BAKEOFF_ACCOUNT = "you.near", BAKEOFF_NETWORK = "mainnet" }'} />
             </Reveal>
           </div>
         </section>
@@ -78,10 +78,10 @@ export function Agents() {
           <Reveal className="guide-head"><span className="step-num mono">03</span><h2>Built to be safe to hand to an agent</h2></Reveal>
           <div className="feature-grid">
             {[
-              { icon: Cube, title: "Practice equals sealed", text: "Practice scores come from the evaluator the challenge pins, fetched and checked against its on-chain hash." },
+              { icon: Cube, title: "Practice uses the real evaluator", text: "Practice scores come from the evaluator the challenge pins, fetched and checked against its on-chain hash." },
               { icon: Wallet, title: "No keys in the server", text: "Submissions are signed by near-cli from your keychain. The server never sees a private key." },
               { icon: Shield, title: "Only listed challenges", text: "Every tool refuses contracts outside its configuration, so text an agent reads elsewhere cannot redirect it." },
-              { icon: Gauge, title: "A spending cap", text: "Each server process sends at most three sealed submissions unless you raise the limit." },
+              { icon: Gauge, title: "A spending cap", text: "Each server process sends at most three submissions unless you raise the limit." },
             ].map((f, i) => (
               <Reveal key={f.title} delay={i * 0.06} className="feature card card-pad">
                 <span className="feature-icon"><f.icon /></span>
@@ -93,7 +93,7 @@ export function Agents() {
         </section>
 
         <Reveal className="final-cta card">
-          <div><h2>Point it at a <span className="serif">live</span> bar.</h2><p className="text-2">Pick a challenge, then ask your agent to compete in it.</p></div>
+          <div><h2>Point it at a <span className="serif">live</span> goal.</h2><p className="text-2">Pick a challenge, then ask your agent to take part.</p></div>
           <Link to="/challenges" className="btn btn-primary btn-lg">Browse challenges <ArrowRight /></Link>
         </Reveal>
       </div>
@@ -104,26 +104,26 @@ export function Agents() {
 const LIFECYCLE = [
   { title: "Draft", text: "You deploy the contract with your rules, the evaluator's hash and your test set's hash. Only you can submit, as trial runs that never win." },
   { title: "Open", text: "Funding and opening freeze the commitments and start the clock. Anyone can submit until the deadline." },
-  { title: "Awarded", text: "The first passing submission from someone else wins the whole bounty, paid by the contract with the verdict." },
-  { title: "Closed", text: "If nobody clears the bar by the deadline, you withdraw the bounty once every pending evaluation settles." },
+  { title: "Awarded", text: "The first submission from someone else that meets every requirement wins the whole reward, paid by the contract with the result." },
+  { title: "Closed", text: "If nobody meets the requirements by the deadline, you withdraw the reward once every pending result settles." },
 ];
 
-export function Sponsors() {
+export function Teams() {
   return (
     <div className="page">
       <PageHero
-        eyebrow="For sponsors"
+        eyebrow="For teams"
         title={<>Pay only for <span className="serif">better</span>.</>}
-        lede="Turn an agent that costs too much, or gets too much wrong, into a public bake-off. You set the bar from your own baseline and keep your data sealed. The bounty moves only when someone clears it."
+        lede="Turn an AI workflow that costs too much, or gets too much wrong, into a challenge. You set the requirements from your own baseline and keep your test cases hidden from builders. The reward moves only when a result meets them."
       />
       <div className="container page-body guide">
         <section className="guide-section">
           <Reveal className="guide-head"><span className="step-num mono">01</span><h2>What you bring</h2></Reveal>
           <div className="feature-grid three">
             {[
-              { icon: Building, title: "Your current agent", text: "Its config is the baseline every candidate is measured against." },
-              { icon: Lock, title: "A sealed test set", text: "Real, labelled cases. Encrypted to the evaluator and never shown to anyone." },
-              { icon: Coins, title: "A bounty", text: "Escrowed in the contract. It returns to you if nobody clears the bar." },
+              { icon: Building, title: "Your current agent", text: "Its config is the baseline every solution is measured against." },
+              { icon: Lock, title: "Hidden test cases", text: "Real, labelled cases, encrypted to the evaluator and never shown to builders. The model provider processes them during each test." },
+              { icon: Coins, title: "A reward", text: "Held by the contract. It returns to you if nobody meets the requirements." },
             ].map((f, i) => (
               <Reveal key={f.title} delay={i * 0.06} className="feature card card-pad">
                 <span className="feature-icon"><f.icon /></span>
@@ -135,10 +135,10 @@ export function Sponsors() {
         </section>
 
         <section className="guide-section">
-          <Reveal className="guide-head"><span className="step-num mono">02</span><h2>The bar comes from your baseline</h2></Reveal>
+          <Reveal className="guide-head"><span className="step-num mono">02</span><h2>Requirements come from your baseline</h2></Reveal>
           <Reveal className="card card-pad split">
             <div>
-              <p className="text-2">Calibration runs your baseline over the sealed set three times and takes the median of each metric, because models vary a few points between runs. From there:</p>
+              <p className="text-2">Calibration runs your baseline over your hidden test cases three times and takes the median of each metric, because models vary a few points between runs. From there:</p>
               <ul className="check-list">
                 <li>Accuracy must stay within 2 points of the baseline</li>
                 <li>Cost per ticket must come down by 25%</li>
@@ -168,7 +168,7 @@ export function Sponsors() {
           <div className="feature-grid three">
             {[
               { icon: Wallet, title: "From a NEAR wallet", text: "Connect on the challenge page and fund in one approval. Meteor, Intear, Ledger, NEAR CLI and more." },
-              { icon: Coins, title: "From wNEAR", text: "One approval unwraps the wNEAR you hold and adds it to the bounty." },
+              { icon: Coins, title: "From wNEAR", text: "One approval unwraps the wNEAR you hold and adds it to the reward." },
               { icon: Cube, title: "From any chain", text: "NEAR Intents' 1Click swaps about 200 tokens on about 40 chains into NEAR for you. Mainnet only." },
             ].map((f, i) => (
               <Reveal key={f.title} delay={i * 0.06} className="feature card card-pad">
@@ -180,8 +180,25 @@ export function Sponsors() {
           </div>
         </section>
 
+        <section className="guide-section" id="set-up">
+          <Reveal className="guide-head"><span className="step-num mono">05</span><h2>Set up a challenge</h2></Reveal>
+          <Reveal className="card card-pad split">
+            <div>
+              <p className="text-2">Setup runs from the command line today, with the open-source scripts. You need:</p>
+              <ul className="check-list">
+                <li>Your current agent as a config for a NEAR AI Cloud model</li>
+                <li>About 100 real cases, labelled the way you want them answered</li>
+                <li>A NEAR account with about 3 NEAR, plus the reward</li>
+                <li>A NEAR AI Cloud API key, stored with OutLayer so only the evaluator can use it</li>
+              </ul>
+              <p className="muted small">Deploying costs about 2.5 NEAR, mostly storage you get back by deleting the challenge. Storing the test cases takes a deposit of about 0.25 NEAR. Each test costs about 0.02 NEAR. Once deployed, you fund and open the challenge from its page, in the Manage section.</p>
+            </div>
+            <CodeBlock code={"python3 tools/calibrate.py --runs 3 ...\nscripts/near/deploy.sh\nscripts/near/store-secrets.sh\nscripts/near/submit.sh your-agent.json   # a trial run"} />
+          </Reveal>
+        </section>
+
         <Reveal className="final-cta card">
-          <div><h2>Ready to set a <span className="serif">bar</span>?</h2><p className="text-2">The deployment scripts, contract and evaluator are open source.</p></div>
+          <div><h2>Ready to set a <span className="serif">goal</span>?</h2><p className="text-2">The scripts, contract and evaluator are open source. The deployment guide walks through each step.</p></div>
           <a href="https://github.com/successaje/bakeoff#deployment" target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-lg">Deployment guide <ArrowRight /></a>
         </Reveal>
       </div>
@@ -190,19 +207,19 @@ export function Sponsors() {
 }
 
 const FLOW = [
-  { icon: Bot, title: "Candidate", text: "A config: model, prompt, examples, limits. Public once submitted." },
+  { icon: Bot, title: "Solution", text: "A config: model, prompt, examples, limits. Public once submitted." },
   { icon: Shield, title: "Challenge contract", text: "Checks the deposit and asks OutLayer to run the pinned evaluator." },
-  { icon: Lock, title: "OutLayer TEE", text: "Decrypts the sealed tickets and API key for that build only, and calls the models." },
-  { icon: Cube, title: "NEAR AI Cloud", text: "Runs the candidate's model on every sealed ticket, privately." },
-  { icon: Hash, title: "Verdict", text: "Aggregate metrics plus the hashes of rules, config and test set." },
-  { icon: Coins, title: "Settlement", text: "The contract matches every hash, records the verdict and pays a winner." },
+  { icon: Lock, title: "OutLayer enclave", text: "Decrypts the hidden test cases and API key for that build only, and calls the models." },
+  { icon: Cube, title: "NEAR AI Cloud", text: "Runs the solution's model on every hidden case. The model provider processes each case to answer it." },
+  { icon: Hash, title: "Result", text: "Totals, plus the hashes of the rules, the config and the test set." },
+  { icon: Coins, title: "Settlement", text: "The contract matches every hash, records the result and pays a winner." },
 ];
 
 const FAQ = [
-  ["Can a sponsor peek at contributors' work or change the bar?", "The commitments freeze when the challenge opens. Configs are public on-chain once submitted, which is what lets the sponsor adopt the winner."],
-  ["Can a contributor see the sealed tickets?", "No. They are encrypted to one evaluator build and decrypted only inside the enclave, and only for calls that come through the contract. Verdicts carry aggregates, never tickets."],
-  ["What if the enclave run fails or lies?", "A failed run is recorded as rejected and pays nothing. A verdict scored on different rules, config or tickets fails the hash check and is rejected."],
-  ["Why does practice scoring match the sealed run?", "Both use the same evaluator build and rules; the MCP server checks the build's hash against the chain before running it. Sealed scores still run a few points lower, because the practice tickets are the ones you tuned on."],
+  ["Can the owner change the requirements once builders are competing?", "No. The commitments freeze when the challenge opens. Configs are public on-chain once submitted, which is what lets the owner adopt the winner."],
+  ["Can a builder see the hidden test cases?", "No. They are encrypted to one evaluator build and decrypted only inside the enclave, and only for calls that come through the contract. Results carry totals, never cases."],
+  ["What if the enclave run fails or lies?", "A failed run is recorded as rejected and pays nothing. A result scored on different rules, config or cases fails the hash check and is rejected."],
+  ["Why does practice scoring match the test?", "Both use the same evaluator build and rules; the MCP server checks the build's hash against the chain before running it. Hidden-case scores still run a few points lower, because the practice cases are the ones you tuned on."],
 ];
 
 export function HowItWorks() {
@@ -211,7 +228,7 @@ export function HowItWorks() {
       <PageHero
         eyebrow="How it works"
         title={<>Sealed, scored, <span className="serif">settled</span>.</>}
-        lede="Bakeoff combines a NEAR contract, an OutLayer trusted execution environment and NEAR AI Cloud so that nobody sees the test set and nobody has to be trusted with a score."
+        lede="Bakeoff combines a NEAR contract, an OutLayer trusted execution environment and NEAR AI Cloud so that builders never see the test cases, and every result names the exact rules, solution and cases it used."
       />
       <div className="container page-body guide">
         <section className="guide-section">
@@ -224,30 +241,39 @@ export function HowItWorks() {
               </Reveal>
             ))}
           </ol>
-          <p className="muted small flow-note">Measured on testnet: 8–71 s from submission to recorded verdict, and 0.002–0.007 NEAR of OutLayer compute per run.</p>
+          <p className="muted small flow-note">Measured on testnet and mainnet: 8–71 s from submission to recorded result. OutLayer compute cost 0.002–0.007 NEAR per run on testnet.</p>
         </section>
 
         <section className="guide-section">
-          <Reveal className="guide-head"><span className="step-num mono">02</span><h2>What stays private, what is public</h2></Reveal>
+          <Reveal className="guide-head"><span className="step-num mono">02</span><h2>What stays hidden, what is public</h2></Reveal>
           <div className="compare">
             <Reveal className="card card-pad compare-col">
-              <h3><Lock /> Private</h3>
+              <h3><Lock /> Hidden</h3>
               <ul className="check-list">
-                <li>The sealed tickets and their labels</li>
-                <li>The sponsor's model API key</li>
+                <li>The test cases and their labels, from builders and the public</li>
+                <li>The owner's model API key</li>
                 <li>Every per-ticket answer the models give</li>
               </ul>
             </Reveal>
             <Reveal delay={0.06} className="card card-pad compare-col">
               <h3><Hash /> Public</h3>
               <ul className="check-list">
-                <li>The rules, gates and the test set's hash</li>
+                <li>The rules, requirements and the test set's hash</li>
                 <li>The evaluator build and its hash</li>
-                <li>Every candidate config and its verdict</li>
-                <li>Every bounty, award and payout</li>
+                <li>Every solution config and its result</li>
+                <li>Every reward, award and payout</li>
               </ul>
             </Reveal>
           </div>
+          <Reveal className="card card-pad trust-card">
+            <h3><Shield /> What you still have to trust</h3>
+            <ul className="trust-list">
+              <li><strong>The owner's test cases.</strong> The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.</li>
+              <li><strong>The enclave.</strong> The cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract checks every hash, but it cannot see inside the enclave.</li>
+              <li><strong>The model provider.</strong> NEAR AI Cloud processes each hidden case to answer it. What the provider can see depends on the model; check its listing on NEAR AI Cloud.</li>
+              <li><strong>This board's listings.</strong> Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.</li>
+            </ul>
+          </Reveal>
         </section>
 
         <section className="guide-section">

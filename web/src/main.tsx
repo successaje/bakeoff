@@ -7,7 +7,7 @@ import "./styles/base.css";
 import "./styles/app.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createHashRouter, RouterProvider } from "react-router";
+import { createHashRouter, Navigate, RouterProvider } from "react-router";
 import { ErrorBoundary, PageError } from "./components/ErrorBoundary.tsx";
 import { Shell } from "./components/Shell.tsx";
 import { SessionProvider } from "./lib/session.tsx";
@@ -28,8 +28,12 @@ const router = createHashRouter([
       // Other pages load when first visited.
       { path: "/challenges", lazy: () => import("./pages/Challenges.tsx").then((m) => ({ Component: m.Challenges })), ErrorBoundary: PageError },
       { path: "/challenges/:id", lazy: () => import("./pages/Challenge.tsx").then((m) => ({ Component: m.Challenge })), ErrorBoundary: PageError },
-      { path: "/agents", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Agents })), ErrorBoundary: PageError },
-      { path: "/sponsors", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Sponsors })), ErrorBoundary: PageError },
+      { path: "/challenges/:id/results/:n", lazy: () => import("./pages/Result.tsx").then((m) => ({ Component: m.Result })), ErrorBoundary: PageError },
+      { path: "/builders", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Builders })), ErrorBoundary: PageError },
+      { path: "/teams", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Teams })), ErrorBoundary: PageError },
+      // The guides' earlier addresses, kept for links already shared.
+      { path: "/agents", element: <Navigate to="/builders" replace /> },
+      { path: "/sponsors", element: <Navigate to="/teams" replace /> },
       { path: "/how-it-works", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.HowItWorks })), ErrorBoundary: PageError },
       { path: "*", lazy: () => import("./pages/NotFound.tsx").then((m) => ({ Component: () => <m.NotFound /> })), ErrorBoundary: PageError },
     ],

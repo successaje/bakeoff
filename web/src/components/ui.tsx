@@ -177,3 +177,18 @@ export function ActionButton({ label, run, primary = false, disabled = false }: 
     </div>
   );
 }
+
+/** Marks a demonstration round wherever its result appears. */
+export function DemoBadge() {
+  return <span className="badge badge-amber" title="A demonstration round run by the Bakeoff team">Demo</span>;
+}
+
+/** What a demonstration round is, and which parts of it are real. */
+export function DemoNotice({ sponsor, network }: { sponsor: string; network: Network }) {
+  return (
+    <p className="notice demo-notice">
+      <strong>Demonstration round.</strong> {sponsor} is a fictional store, and the Bakeoff team runs both its account and the competing ones.
+      The contract, the scoring on hidden cases and the payment are real{network === "testnet" ? ", in testnet NEAR" : ", on NEAR mainnet"}.
+    </p>
+  );
+}
