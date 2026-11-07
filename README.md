@@ -126,6 +126,12 @@ To score candidates against NEAR AI Cloud from your machine, put `BAKEOFF_LLM_AP
 scripts/run-local.sh --rules examples/rules/near-ai.json
 ```
 
+The web board and the MCP server have their own tests: run `npm test` in `web/` and in `mcp/`. To run the board on your machine against the live contracts (Node 24+):
+
+```bash
+cd web && npm ci && npm run dev
+```
+
 ## Deployment
 
 Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
