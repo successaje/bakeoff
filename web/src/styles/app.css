@@ -356,8 +356,8 @@
 .panel-empty-icon svg { width: 24px; height: 24px; }
 
 /* ---------- Guides ---------- */
-.guide { display: grid; gap: var(--space-8); }
-.guide-section { display: grid; gap: var(--space-5); }
+.guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
+.guide-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
 .guide-head { display: flex; align-items: baseline; gap: var(--space-4); }
 .guide-head h2 { font-size: var(--text-2xl); }
 .step-num { color: var(--accent); font-size: var(--text-sm); }
@@ -425,20 +425,22 @@
 .section.spotlight { padding-bottom: var(--space-6); }
 .section.spotlight + .section { padding-top: var(--space-6); }
 
-/* Challenge page: a story in sections, with a bar to jump between them */
+/* Challenge page: a story in sections, with a bar to jump between them.
+   Every grid here sizes its column with minmax(0, 1fr), so a wide table or
+   code block scrolls inside its card instead of widening the page. */
 .story-nav { position: sticky; top: var(--header-h); z-index: 20; background: var(--glass); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border-bottom: 1px solid var(--border); }
 .story-nav-inner { display: flex; gap: var(--space-1); overflow-x: auto; scrollbar-width: none; padding-top: var(--space-2); padding-bottom: var(--space-2); }
 .story-nav-inner::-webkit-scrollbar { display: none; }
 .story-nav button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--text-2); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast); }
 .story-nav button:hover { background: var(--surface-2); color: var(--text); }
-.story { display: grid; gap: var(--space-7); }
+.story { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-7); }
 .story > .demo-notice, .story > .award-callout { margin-bottom: 0; }
-.story-section { display: grid; gap: var(--space-4); scroll-margin-top: calc(var(--header-h) + 72px); }
+.story-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); scroll-margin-top: calc(var(--header-h) + 72px); }
 .story-head { display: grid; gap: var(--space-2); max-width: 780px; }
 .story-head h2 { font-size: var(--text-2xl); }
 .story-note { max-width: 780px; }
 .story-note a { color: var(--accent); }
-.problem { display: grid; gap: var(--space-5); }
+.problem { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
 .problem-text { font-size: var(--text-lg); color: var(--text); max-width: 780px; }
 .today { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0; }
 .today div { padding: var(--space-4); border-radius: var(--radius); background: var(--surface-2); }
@@ -455,8 +457,8 @@
 
 /* Result page */
 .result-title { font-size: var(--text-3xl); }
-.result-body { display: grid; gap: var(--space-6); }
-.result-section { display: grid; gap: var(--space-4); }
+.result-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+.result-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 .result-section h2 { font-size: var(--text-xl); }
 .reward-state { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: var(--text-sm); }
 .reward-state a { color: var(--accent); }
