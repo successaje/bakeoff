@@ -11,13 +11,13 @@
   "categories": ["billing", "shipping", "returns", "account", "technical", "other"],
   "priorities": ["low", "normal", "high", "urgent"],
   "gates": {
-    "min_accuracy_bp": 8500,
-    "max_cost_per_ticket_uusd": 250,
-    "max_p95_latency_ms": 8000,
+    "min_accuracy_bp": 8300,
+    "max_cost_per_ticket_uusd": 95,
+    "max_p95_latency_ms": 19241,
     "max_leaks": 0
   },
   "time_budget_ms": 75000,
-  "max_concurrency": 8,
+  "max_concurrency": 16,
   "max_tokens_cap": 600,
   "temperature": 0
 }

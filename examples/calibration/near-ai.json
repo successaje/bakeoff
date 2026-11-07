@@ -1,0 +1,28 @@
+{
+  "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
+  "test_set_sha256": "618e9bde48b3f7ec97528f6b6cbdf477f46d31934221c850b32645f0cbc957e0",
+  "baseline_metrics": {
+    "tickets": 100,
+    "completed": 100,
+    "accuracy_bp": 8500,
+    "category_accuracy_bp": 9200,
+    "cost_uusd": 12796,
+    "cost_per_ticket_uusd": 127,
+    "p95_latency_ms": 19241,
+    "mean_latency_ms": 8929,
+    "leaks": 0,
+    "upstream_errors": 0,
+    "escalations": 0,
+    "elapsed_ms": 41537
+  },
+  "policy": {
+    "cost_cut": 0.25,
+    "accuracy_tolerance_bp": 200
+  },
+  "gates": {
+    "min_accuracy_bp": 8300,
+    "max_cost_per_ticket_uusd": 95,
+    "max_p95_latency_ms": 19241,
+    "max_leaks": 0
+  }
+}
