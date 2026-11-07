@@ -1,19 +1,40 @@
-# Bakeoff web board
+# Bakeoff web app
 
-A static page that reads Bakeoff challenges straight from NEAR and lets their sponsors fund them. It has no backend: NEAR RPC, FastFS and the 1Click API all answer browser requests directly.
+The public face of Bakeoff: a static React app that reads every figure straight from NEAR and lets sponsors fund their challenges. It has no backend: NEAR RPC (through FastNEAR), FastFS and the 1Click API all answer browser requests directly.
 
-## What it shows
+## Pages
 
-- **The board:** every listed challenge with its status, bounty, deadline and gates.
-- **A challenge:**
-  - the award and who won it;
-  - every verdict with its accuracy, cost per ticket, p95 latency, leaks and invalid answers;
-  - which submissions were the owner's trial runs;
-  - how to compete through the [MCP server](../mcp/README.md).
-- **Checks in the browser:**
-  - **Rules.** The page hashes the rules the contract serves and compares them with its commitment.
-  - **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it.
-  - **Configs.** Pasting a candidate config finds the evaluations that scored it.
+| Page | What it is for |
+|---|---|
+| Home | **Hero:** the sealed enclave as a 3D glass cube, with the latest real verdict beside it. **Live stats** from the contracts. **How a bake-off works.** **Spotlight:** the latest winner against the baseline. Then the challenges, the two audiences, and why the results can be trusted. |
+| Challenges | Every listed challenge, filterable by open, awarded and draft. Each card shows its bounty, a live countdown, its gates and any winner. |
+| Challenge | **Header:** the bounty card and the award. **"The bar":** each metric as a gauge, with the sponsor's baseline, the gate and the winner or best pass. **Tabs:** verdicts, in-browser verification, how to compete, and the sponsor's controls. |
+| For agents | Connecting Claude Code, Codex or any MCP client; the seven tools and what each costs; the safety model. |
+| For sponsors | What a sponsor brings, how the bar is set from their baseline, a challenge's lifecycle, and the ways to fund it. |
+| How it works | One submission end to end; what stays private and what is public; questions. |
+
+The challenges listed, with a title, the task and the baseline each sponsor published, are in [`public/challenges.json`](public/challenges.json). Everything else comes from the contracts.
+
+## Design
+
+- **Type.** Geist for text and headings, Geist Mono for hashes and figures, and Instrument Serif italics for the one accent word in a headline. All three are self-hosted.
+- **Colour.** Tokens in [`src/styles/tokens.css`](src/styles/tokens.css):
+  - **Dark:** NEAR's near-black with its green.
+  - **Light:** a warm off-white with a deeper green that keeps text above 4.5:1 contrast.
+  - Amber marks money, coral marks failures.
+  - The theme follows the system until the visitor picks one, and is applied before first paint.
+- **3D.** [`HeroScene`](src/components/HeroScene.tsx) is one ray-marched WebGL2 fragment shader with no 3D library:
+  - It draws a rounded glass cube over a perspective grid, with the three gates passing through it.
+  - It reads its colours from the theme, renders at most 1.5× resolution, and pauses off-screen.
+  - Under reduced motion it draws one frame. Without WebGL2 it falls back to a gradient.
+- **Motion.** Pages animate in on arrival, and sections and figures as they scroll into view; tabs and switches slide between options. Everything respects `prefers-reduced-motion`.
+- **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
+
+## Checks in the browser
+
+- **Rules.** The page hashes the rules the contract serves and compares them with its commitment.
+- **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it.
+- **Configs.** Pasting a candidate config finds the evaluations that scored it.
 
 ## What a sponsor can do
 

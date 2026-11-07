@@ -1,0 +1,142 @@
+/*
+ * Design tokens. Dark is NEAR's near-black with its green; light is a warm
+ * off-white with a deeper green that keeps text contrast above 4.5:1.
+ * Amber marks money, coral marks failures. The theme follows the system
+ * until the user picks one ([data-theme] on <html>).
+ */
+
+:root {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: clamp(1.6rem, 1.2rem + 1.4vw, 2.1rem);
+  --text-3xl: clamp(2rem, 1.3rem + 2.6vw, 3.1rem);
+  --text-hero: clamp(2.6rem, 1.2rem + 5.4vw, 5.4rem);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --space-9: 112px;
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  --container: 1180px;
+  --header-h: 64px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur: 260ms;
+  --dur-slow: 600ms;
+
+  color-scheme: dark;
+  --bg: #060807;
+  --bg-elevated: #0b0e0d;
+  --surface: #0f1312;
+  --surface-2: #141a18;
+  --surface-hover: #18201d;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #eef2f0;
+  --text-2: #b4bdb9;
+  --muted: #7d8884;
+  --accent: #00ec97;
+  --accent-strong: #3cf5b0;
+  --accent-text: #03140d;
+  --accent-soft: rgba(0, 236, 151, 0.12);
+  --accent-glow: rgba(0, 236, 151, 0.35);
+  --amber: #ffb547;
+  --amber-soft: rgba(255, 181, 71, 0.12);
+  --coral: #ff6b6b;
+  --coral-soft: rgba(255, 107, 107, 0.12);
+  --sky: #7ab8ff;
+  --sky-soft: rgba(122, 184, 255, 0.12);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 50px -24px rgba(0, 0, 0, 0.8);
+  --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
+  --glass: rgba(10, 13, 12, 0.72);
+  --grid-line: rgba(255, 255, 255, 0.05);
+  /* Read by the hero scene. */
+  --scene-bg: 6 8 7;
+  --scene-grid: 0 236 151;
+  --scene-ink: 238 242 240;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f5f0;
+  --bg-elevated: #fbfaf6;
+  --surface: #ffffff;
+  --surface-2: #f2f1eb;
+  --surface-hover: #ecebe3;
+  --border: rgba(16, 24, 20, 0.09);
+  --border-strong: rgba(16, 24, 20, 0.18);
+  --text: #0c1210;
+  --text-2: #36403c;
+  --muted: #5f6a66;
+  --accent: #00995f;
+  --accent-strong: #007a4c;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(0, 153, 95, 0.1);
+  --accent-glow: rgba(0, 153, 95, 0.25);
+  --amber: #b86b00;
+  --amber-soft: rgba(184, 107, 0, 0.1);
+  --coral: #c8372d;
+  --coral-soft: rgba(200, 55, 45, 0.08);
+  --sky: #2463c7;
+  --sky-soft: rgba(36, 99, 199, 0.08);
+  --shadow: 0 1px 2px rgba(16, 24, 20, 0.04), 0 18px 40px -26px rgba(16, 24, 20, 0.28);
+  --shadow-lg: 0 2px 4px rgba(16, 24, 20, 0.04), 0 40px 80px -40px rgba(16, 24, 20, 0.35);
+  --glass: rgba(251, 250, 246, 0.78);
+  --grid-line: rgba(16, 24, 20, 0.06);
+  --scene-bg: 246 245 240;
+  --scene-grid: 0 153 95;
+  --scene-ink: 12 18 16;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f6f5f0;
+    --bg-elevated: #fbfaf6;
+    --surface: #ffffff;
+    --surface-2: #f2f1eb;
+    --surface-hover: #ecebe3;
+    --border: rgba(16, 24, 20, 0.09);
+    --border-strong: rgba(16, 24, 20, 0.18);
+    --text: #0c1210;
+    --text-2: #36403c;
+    --muted: #5f6a66;
+    --accent: #00995f;
+    --accent-strong: #007a4c;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(0, 153, 95, 0.1);
+    --accent-glow: rgba(0, 153, 95, 0.25);
+    --amber: #b86b00;
+    --amber-soft: rgba(184, 107, 0, 0.1);
+    --coral: #c8372d;
+    --coral-soft: rgba(200, 55, 45, 0.08);
+    --sky: #2463c7;
+    --sky-soft: rgba(36, 99, 199, 0.08);
+    --shadow: 0 1px 2px rgba(16, 24, 20, 0.04), 0 18px 40px -26px rgba(16, 24, 20, 0.28);
+    --shadow-lg: 0 2px 4px rgba(16, 24, 20, 0.04), 0 40px 80px -40px rgba(16, 24, 20, 0.35);
+    --glass: rgba(251, 250, 246, 0.78);
+    --grid-line: rgba(16, 24, 20, 0.06);
+    --scene-bg: 246 245 240;
+    --scene-grid: 0 153 95;
+    --scene-ink: 12 18 16;
+  }
+}

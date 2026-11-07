@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { acceptingSubmissions, type ChallengeView, formatNear, parseNear, sha256Hex, verdictMetrics } from "../src/near.ts";
-import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/oneclick.ts";
-import * as tx from "../src/transactions.ts";
+import { acceptingSubmissions, type ChallengeView, formatNear, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
+import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
+import * as tx from "../src/lib/transactions.ts";
 
 test("NEAR amounts parse exactly and refuse anything else", () => {
   assert.equal(parseNear("1"), 10n ** 24n);
