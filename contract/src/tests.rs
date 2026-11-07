@@ -1,11 +1,15 @@
 use super::*;
-use near_sdk::test_utils::{get_logs, VMContextBuilder};
+use near_sdk::mock::MockAction;
+use near_sdk::test_utils::{get_created_receipts, get_logs, VMContextBuilder};
 use near_sdk::{testing_env, PromiseResult, RuntimeFeesConfig};
 
 const RULES: &str = r#"{"version":1,"endpoint":"https://cloud-api.near.ai/v1/chat/completions"}"#;
 const CONFIG: &str = r#"{"version":1,"model":"z-ai/glm-5.3-flash","system_prompt":"Triage."}"#;
 const TEST_SET_SHA: &str = "1b1730710c80057615229d18513308fc0fa3130b8ac281da54d399522ef5b17a";
 const EVALUATOR_SHA: &str = "5d3d89ae29b70ee2ddc6e3645bd6239974950a70f2fc0b516ae850907a2fa430";
+/// Block time in the tests, and the deadline challenges are opened with.
+const NOW: u64 = 1_800_000_000_000_000_000;
+const CLOSES_AT: u64 = NOW + 3_600_000_000_000;
 
 fn account(name: &str) -> AccountId {
     name.parse().unwrap()
@@ -17,9 +21,82 @@ fn context(predecessor: &str) -> VMContextBuilder {
         .current_account_id(account("challenge.bakeoff.testnet"))
         .predecessor_account_id(account(predecessor))
         .signer_account_id(account(predecessor))
-        .attached_deposit(NearToken::from_millinear(25))
-        .prepaid_gas(Gas::from_tgas(300));
+        .attached_deposit(NearToken::from_millinear(35))
+        .prepaid_gas(Gas::from_tgas(300))
+        .block_timestamp(NOW);
     builder
+}
+
+/// A call that runs at `time`, by `predecessor`, with `deposit` attached.
+fn call_at(predecessor: &str, time: u64, deposit: NearToken) {
+    let mut ctx = context(predecessor);
+    ctx.block_timestamp(time).attached_deposit(deposit);
+    testing_env!(ctx.build());
+}
+
+/// A callback that runs at `time` and sees `result` from the promise it follows.
+fn callback_at(time: u64, result: PromiseResult) {
+    let mut ctx = context("challenge.bakeoff.testnet");
+    ctx.block_timestamp(time)
+        .attached_deposit(NearToken::from_yoctonear(0));
+    testing_env!(
+        ctx.build(),
+        near_sdk::test_vm_config(),
+        RuntimeFeesConfig::test(),
+        Default::default(),
+        vec![result]
+    );
+}
+
+/// Transfers the last call created, as (receiver, amount).
+fn transfers() -> Vec<(AccountId, NearToken)> {
+    get_created_receipts()
+        .into_iter()
+        .flat_map(|r| {
+            let receiver = r.receiver_id.clone();
+            r.actions.into_iter().filter_map(move |a| match a {
+                MockAction::Transfer { deposit, .. } => Some((receiver.clone(), deposit)),
+                _ => None,
+            })
+        })
+        .collect()
+}
+
+fn near(amount: u128) -> NearToken {
+    NearToken::from_near(amount)
+}
+
+/// A draft funded with `bounty` NEAR, then opened until `CLOSES_AT`.
+fn open_challenge(bounty: u128) -> Contract {
+    let mut contract = new_contract();
+    if bounty > 0 {
+        call_at("owner.testnet", NOW, near(bounty));
+        contract.fund();
+    }
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    contract
+}
+
+fn submit_at(contract: &mut Contract, submitter: &str, time: u64) -> u32 {
+    call_at(submitter, time, NearToken::from_millinear(35));
+    let _ = contract.submit(CONFIG.into());
+    contract.get_challenge().evaluations - 1
+}
+
+fn passing_verdict() -> String {
+    verdict(
+        true,
+        &[],
+        &sha256_hex(RULES.as_bytes()),
+        &sha256_hex(CONFIG.as_bytes()),
+        TEST_SET_SHA,
+    )
+}
+
+fn settle_at(contract: &mut Contract, id: u32, time: u64, verdict: &str) -> EvaluationStatus {
+    callback_at(time, PromiseResult::Successful(verdict.as_bytes().to_vec()));
+    contract.on_evaluation_result(id)
 }
 
 fn new_contract() -> Contract {
@@ -151,7 +228,7 @@ fn others_cannot_submit_to_a_draft() {
 fn anyone_can_submit_once_open() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    contract.open();
+    contract.open(U64(CLOSES_AT));
     testing_env!(context("contributor.testnet").build());
     let _ = contract.submit(CONFIG.into());
     assert_eq!(
@@ -161,21 +238,22 @@ fn anyone_can_submit_once_open() {
 }
 
 #[test]
-#[should_panic(expected = "attach at least 0.025 NEAR")]
-fn submission_requires_the_execution_deposit() {
+#[should_panic(expected = "attach at least 0.035 NEAR")]
+fn submission_requires_the_execution_deposit_and_record_fee() {
     let mut contract = new_contract();
     let mut ctx = context("owner.testnet");
-    ctx.attached_deposit(NearToken::from_millinear(10));
+    // Enough for OutLayer alone, not for the record as well.
+    ctx.attached_deposit(NearToken::from_millinear(30));
     testing_env!(ctx.build());
     let _ = contract.submit(CONFIG.into());
 }
 
 #[test]
-#[should_panic(expected = "attach at least 200 Tgas")]
+#[should_panic(expected = "attach at least 220 Tgas")]
 fn submission_requires_enough_gas() {
     let mut contract = new_contract();
     let mut ctx = context("owner.testnet");
-    ctx.prepaid_gas(Gas::from_tgas(100));
+    ctx.prepaid_gas(Gas::from_tgas(210));
     testing_env!(ctx.build());
     let _ = contract.submit(CONFIG.into());
 }
@@ -293,7 +371,7 @@ fn judge_rejects_results_that_do_not_match_the_commitments() {
 fn opening_freezes_commitments() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    contract.open();
+    contract.open(U64(CLOSES_AT));
     contract.set_rules("{}".into());
 }
 
@@ -319,7 +397,7 @@ fn draft_commitments_can_be_updated_by_the_owner() {
 fn only_the_owner_can_open() {
     let mut contract = new_contract();
     testing_env!(context("contributor.testnet").build());
-    contract.open();
+    contract.open(U64(CLOSES_AT));
 }
 
 #[test]
@@ -334,4 +412,277 @@ fn evaluations_are_paginated() {
     assert_eq!(page.iter().map(|e| e.id).collect::<Vec<_>>(), [1, 2]);
     assert_eq!(contract.get_evaluations(Some(4), None).len(), 1);
     assert!(contract.get_evaluations(Some(9), None).is_empty());
+}
+
+#[test]
+fn submission_keeps_the_record_fee_and_forwards_the_rest() {
+    let mut contract = open_challenge(0);
+    call_at("contributor.testnet", NOW, NearToken::from_millinear(50));
+    let _ = contract.submit(CONFIG.into());
+    let forwarded: Vec<NearToken> = get_created_receipts()
+        .into_iter()
+        .flat_map(|r| r.actions)
+        .filter_map(|a| match a {
+            MockAction::FunctionCallWeight {
+                method_name,
+                attached_deposit,
+                ..
+            } if method_name == b"request_execution" => Some(attached_deposit),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(forwarded, [NearToken::from_millinear(40)]);
+    assert_eq!(contract.get_challenge().pending, 1);
+}
+
+#[test]
+fn owner_funds_the_bounty_in_draft_and_while_open() {
+    let mut contract = new_contract();
+    call_at("owner.testnet", NOW, near(3));
+    contract.fund();
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    call_at("owner.testnet", NOW, near(2));
+    contract.fund();
+    assert_eq!(contract.get_challenge().bounty, near(5));
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"bounty_funded\"")));
+}
+
+#[test]
+#[should_panic(expected = "only the challenge owner may do this")]
+fn only_the_owner_funds_the_bounty() {
+    let mut contract = new_contract();
+    call_at("contributor.testnet", NOW, near(1));
+    contract.fund();
+}
+
+#[test]
+#[should_panic(expected = "closes_at must be in the future")]
+fn a_challenge_cannot_open_with_a_past_deadline() {
+    let mut contract = new_contract();
+    testing_env!(context("owner.testnet").build());
+    contract.open(U64(NOW));
+}
+
+#[test]
+fn the_first_eligible_pass_wins_and_is_paid_the_bounty() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    assert!(contract.get_evaluation(id).unwrap().evaluation.eligible);
+
+    let status = settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    assert_eq!(status, EvaluationStatus::Passed);
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Awarded);
+    assert_eq!(challenge.bounty, NearToken::from_yoctonear(0));
+    assert_eq!(challenge.pending, 0);
+    assert_eq!(
+        challenge.award,
+        Some(Award {
+            evaluation: id,
+            winner: account("contributor.testnet"),
+            amount: near(5),
+            paid: false,
+            in_flight: true,
+        })
+    );
+    assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
+
+    callback_at(NOW + 2, PromiseResult::Successful(Vec::new()));
+    contract.on_award_paid();
+    let award = contract.get_challenge().award.unwrap();
+    assert!(award.paid && !award.in_flight);
+}
+
+#[test]
+fn owner_passes_never_win_the_bounty() {
+    let mut contract = new_contract();
+    call_at("owner.testnet", NOW, near(5));
+    contract.fund();
+    let draft_trial = submit_at(&mut contract, "owner.testnet", NOW);
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    let open_trial = submit_at(&mut contract, "owner.testnet", NOW);
+
+    for id in [draft_trial, open_trial] {
+        assert!(!contract.get_evaluation(id).unwrap().evaluation.eligible);
+        assert_eq!(
+            settle_at(&mut contract, id, NOW + 1, &passing_verdict()),
+            EvaluationStatus::Passed
+        );
+        assert!(transfers().is_empty());
+    }
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Open);
+    assert_eq!(challenge.bounty, near(5));
+    assert!(challenge.award.is_none());
+}
+
+#[test]
+fn a_later_pass_is_recorded_but_does_not_change_the_award() {
+    let mut contract = open_challenge(5);
+    let first = submit_at(&mut contract, "alice.testnet", NOW);
+    let second = submit_at(&mut contract, "bob.testnet", NOW);
+    settle_at(&mut contract, second, NOW + 1, &passing_verdict());
+    assert_eq!(
+        settle_at(&mut contract, first, NOW + 2, &passing_verdict()),
+        EvaluationStatus::Passed
+    );
+    assert!(transfers().is_empty());
+    assert_eq!(
+        contract.get_challenge().award.unwrap().winner,
+        account("bob.testnet")
+    );
+}
+
+#[test]
+fn a_failing_verdict_leaves_the_bounty_in_escrow() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    let raw = verdict(
+        false,
+        &["gate_cost"],
+        &sha256_hex(RULES.as_bytes()),
+        &sha256_hex(CONFIG.as_bytes()),
+        TEST_SET_SHA,
+    );
+    assert_eq!(
+        settle_at(&mut contract, id, NOW + 1, &raw),
+        EvaluationStatus::Failed
+    );
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Open);
+    assert_eq!(challenge.bounty, near(5));
+    assert!(transfers().is_empty());
+}
+
+#[test]
+#[should_panic(expected = "the challenge is closed")]
+fn submissions_stop_once_the_bounty_is_awarded() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "alice.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    submit_at(&mut contract, "bob.testnet", NOW + 2);
+}
+
+#[test]
+#[should_panic(expected = "the deadline for submissions has passed")]
+fn submissions_stop_at_the_deadline() {
+    let mut contract = open_challenge(5);
+    submit_at(&mut contract, "contributor.testnet", CLOSES_AT);
+}
+
+#[test]
+fn a_submission_made_before_the_deadline_can_win_after_it() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", CLOSES_AT - 1);
+    settle_at(
+        &mut contract,
+        id,
+        CLOSES_AT + 60_000_000_000,
+        &passing_verdict(),
+    );
+    assert_eq!(contract.get_challenge().status, ChallengeStatus::Awarded);
+    assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
+}
+
+#[test]
+fn a_failed_award_payment_can_be_claimed_again() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    callback_at(NOW + 2, PromiseResult::Failed);
+    contract.on_award_paid();
+    let award = contract.get_challenge().award.unwrap();
+    assert!(!award.paid && !award.in_flight);
+
+    call_at("anyone.testnet", NOW + 3, NearToken::from_yoctonear(0));
+    contract.claim_award();
+    assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
+    assert!(contract.get_challenge().award.unwrap().in_flight);
+}
+
+#[test]
+#[should_panic(expected = "a payment is already in flight")]
+fn an_award_is_not_sent_twice_while_a_payment_is_in_flight() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    call_at("contributor.testnet", NOW + 2, NearToken::from_yoctonear(0));
+    contract.claim_award();
+}
+
+#[test]
+fn the_owner_may_withdraw_a_draft_bounty() {
+    let mut contract = new_contract();
+    call_at("owner.testnet", NOW, near(3));
+    contract.fund();
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+    assert_eq!(transfers(), [(account("owner.testnet"), near(3))]);
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Draft);
+    assert_eq!(challenge.bounty, NearToken::from_yoctonear(0));
+}
+
+#[test]
+#[should_panic(expected = "the challenge is open until its deadline")]
+fn an_open_bounty_cannot_be_withdrawn_before_the_deadline() {
+    let mut contract = open_challenge(5);
+    call_at("owner.testnet", CLOSES_AT - 1, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+}
+
+#[test]
+#[should_panic(expected = "evaluations submitted before the deadline are still pending")]
+fn the_bounty_waits_for_pending_evaluations() {
+    let mut contract = open_challenge(5);
+    submit_at(&mut contract, "contributor.testnet", CLOSES_AT - 1);
+    call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+}
+
+#[test]
+fn an_unwon_bounty_returns_to_the_owner_after_the_deadline() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    let raw = verdict(
+        false,
+        &["gate_accuracy"],
+        &sha256_hex(RULES.as_bytes()),
+        &sha256_hex(CONFIG.as_bytes()),
+        TEST_SET_SHA,
+    );
+    settle_at(&mut contract, id, NOW + 1, &raw);
+
+    call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+    assert_eq!(transfers(), [(account("owner.testnet"), near(5))]);
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Closed);
+    assert_eq!(challenge.bounty, NearToken::from_yoctonear(0));
+}
+
+#[test]
+fn a_failed_withdrawal_returns_to_the_bounty() {
+    let mut contract = new_contract();
+    call_at("owner.testnet", NOW, near(3));
+    contract.fund();
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+    callback_at(NOW + 1, PromiseResult::Failed);
+    contract.on_bounty_withdrawn(near(3));
+    assert_eq!(contract.get_challenge().bounty, near(3));
+}
+
+#[test]
+#[should_panic(expected = "the challenge is closed")]
+fn a_closed_challenge_takes_no_more_funds() {
+    let mut contract = open_challenge(5);
+    call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+    call_at("owner.testnet", CLOSES_AT + 1, near(1));
+    contract.fund();
 }

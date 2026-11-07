@@ -8,8 +8,11 @@
 //! recorded as rejected.
 //!
 //! A challenge starts as a draft, in which the owner may adjust its
-//! commitments and run trial evaluations. Opening it freezes the commitments
-//! and admits submissions from anyone.
+//! commitments, escrow a bounty and run trial evaluations. Opening it
+//! freezes the commitments, sets a deadline and admits submissions from
+//! anyone. The first submission that passes every gate wins the bounty,
+//! which the contract pays as soon as the verdict is recorded. If none
+//! passes by the deadline, the owner withdraws the bounty.
 
 use near_sdk::json_types::U64;
 use near_sdk::serde::Deserialize;
@@ -22,12 +25,17 @@ use near_sdk::{
 /// Gas forwarded to `request_execution`. OutLayer reserves its own response
 /// callback out of this.
 const OUTLAYER_GAS: Gas = Gas::from_tgas(150);
-const RESULT_CALLBACK_GAS: Gas = Gas::from_tgas(20);
+/// Enough to judge the verdict and start a bounty payout.
+const RESULT_CALLBACK_GAS: Gas = Gas::from_tgas(30);
+const TRANSFER_CALLBACK_GAS: Gas = Gas::from_tgas(5);
 /// Prepaid gas a submission needs: this call, OutLayer, and the callback.
-const MIN_SUBMIT_GAS: Gas = Gas::from_tgas(200);
+const MIN_SUBMIT_GAS: Gas = Gas::from_tgas(220);
 /// Covers OutLayer's estimate for the resource limits below (0.019 NEAR at
 /// the time of writing). Whatever is unused is refunded to the submitter.
 const MIN_EXECUTION_DEPOSIT: NearToken = NearToken::from_millinear(25);
+/// Kept from each submission to pay for its evaluation record (1 KB of
+/// storage), so submissions cannot lock up the balance that holds the bounty.
+const RECORD_FEE: NearToken = NearToken::from_millinear(10);
 
 const MAX_INSTRUCTIONS: u64 = 1_000_000_000;
 const MAX_MEMORY_MB: u32 = 128;
@@ -37,9 +45,11 @@ const MAX_MEMORY_MB: u32 = 128;
 const MAX_EXECUTION_SECONDS: u64 = 110;
 
 const MAX_CONFIG_BYTES: usize = 16 * 1024;
-const MAX_VERDICT_BYTES: usize = 4 * 1024;
+/// The evaluator's verdicts are under 900 bytes. A longer one is rejected
+/// rather than stored, which keeps a record within what `RECORD_FEE` pays for.
+const MAX_VERDICT_BYTES: usize = 1024;
 const EVENT_STANDARD: &str = "bakeoff";
-const EVENT_VERSION: &str = "1.0.0";
+const EVENT_VERSION: &str = "1.1.0";
 
 /// A published evaluator build, run by URL and pinned by its SHA-256.
 #[near(serializers = [borsh, json])]
@@ -60,8 +70,14 @@ pub struct SecretsLocation {
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChallengeStatus {
+    /// Commitments may change; only the owner may submit.
     Draft,
+    /// Commitments are frozen; anyone may submit until the deadline.
     Open,
+    /// A submission passed and won the bounty.
+    Awarded,
+    /// The deadline passed without a winner and the owner withdrew the bounty.
+    Closed,
 }
 
 #[near(serializers = [borsh, json])]
@@ -83,6 +99,9 @@ pub enum EvaluationStatus {
 pub struct Evaluation {
     pub submitter: AccountId,
     pub config_sha256: String,
+    /// Whether a pass can win the bounty: submitted while the challenge was
+    /// open, by someone other than the owner.
+    pub eligible: bool,
     pub status: EvaluationStatus,
     /// Evaluator reason codes for `Failed`, or the contract's reason for `Rejected`.
     pub reasons: Vec<String>,
@@ -90,6 +109,18 @@ pub struct Evaluation {
     pub verdict: Option<String>,
     pub requested_at: U64,
     pub settled_at: Option<U64>,
+}
+
+/// The bounty won by the first eligible pass.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Award {
+    pub evaluation: u32,
+    pub winner: AccountId,
+    pub amount: NearToken,
+    pub paid: bool,
+    /// A transfer has been sent and its outcome is not known yet.
+    pub in_flight: bool,
 }
 
 #[near(serializers = [json])]
@@ -103,6 +134,13 @@ pub struct ChallengeView {
     pub rules_sha256: String,
     pub test_set_sha256: String,
     pub evaluations: u32,
+    /// Evaluations sent to OutLayer whose verdict has not arrived.
+    pub pending: u32,
+    /// Escrowed and not yet awarded or withdrawn.
+    pub bounty: NearToken,
+    /// Nanoseconds since the Unix epoch; set when the challenge opens.
+    pub closes_at: Option<U64>,
+    pub award: Option<Award>,
 }
 
 #[near(serializers = [json])]
@@ -137,6 +175,10 @@ pub struct Contract {
     rules_sha256: String,
     test_set_sha256: String,
     evaluations: Vector<Evaluation>,
+    pending: u32,
+    bounty: NearToken,
+    closes_at: Option<U64>,
+    award: Option<Award>,
 }
 
 #[near]
@@ -164,20 +206,50 @@ impl Contract {
             rules_json,
             test_set_sha256,
             evaluations: Vector::new(b"e"),
+            pending: 0,
+            bounty: NearToken::from_yoctonear(0),
+            closes_at: None,
+            award: None,
         }
     }
 
+    /// Adds the attached deposit to the bounty. Only the owner funds a
+    /// challenge, so a withdrawal can only ever return money to its source.
+    #[payable]
+    pub fn fund(&mut self) {
+        self.assert_owner();
+        let amount = env::attached_deposit();
+        require!(!amount.is_zero(), "attach the amount to add to the bounty");
+        match self.status {
+            ChallengeStatus::Draft => {}
+            ChallengeStatus::Open => require!(!self.deadline_passed(), "the deadline has passed"),
+            _ => env::panic_str("the challenge is closed"),
+        }
+        self.bounty = self.bounty.saturating_add(amount);
+        emit(
+            "bounty_funded",
+            json!({ "amount": amount, "bounty": self.bounty }),
+        );
+    }
+
     /// Sends a candidate configuration for sealed evaluation. Attach at least
-    /// 0.025 NEAR for OutLayer and 200 Tgas; unused deposit is refunded to
-    /// the caller by OutLayer.
+    /// 0.035 NEAR and 220 Tgas: 0.01 NEAR pays for the evaluation record, and
+    /// the rest goes to OutLayer, which refunds what the run did not use.
     #[payable]
     pub fn submit(&mut self, config_json: String) -> Promise {
         let submitter = env::predecessor_account_id();
-        if self.status == ChallengeStatus::Draft {
-            require!(
+        match self.status {
+            ChallengeStatus::Draft => require!(
                 submitter == self.owner,
                 "challenge is not open for submissions"
-            );
+            ),
+            ChallengeStatus::Open => require!(
+                !self.deadline_passed(),
+                "the deadline for submissions has passed"
+            ),
+            ChallengeStatus::Awarded | ChallengeStatus::Closed => {
+                env::panic_str("the challenge is closed")
+            }
         }
         require!(!config_json.is_empty(), "config_json is empty");
         require!(
@@ -186,28 +258,37 @@ impl Contract {
         );
         let deposit = env::attached_deposit();
         require!(
-            deposit >= MIN_EXECUTION_DEPOSIT,
-            "attach at least 0.025 NEAR for the sealed evaluation"
+            deposit >= MIN_EXECUTION_DEPOSIT.saturating_add(RECORD_FEE),
+            "attach at least 0.035 NEAR: 0.025 for the sealed evaluation and 0.01 for its record"
         );
         require!(
             env::prepaid_gas() >= MIN_SUBMIT_GAS,
-            "attach at least 200 Tgas"
+            "attach at least 220 Tgas"
         );
+        let execution_deposit = deposit.saturating_sub(RECORD_FEE);
 
         let config_sha256 = sha256_hex(config_json.as_bytes());
         let id = self.evaluations.len();
+        let eligible = self.status == ChallengeStatus::Open && submitter != self.owner;
         self.evaluations.push(Evaluation {
             submitter: submitter.clone(),
             config_sha256: config_sha256.clone(),
+            eligible,
             status: EvaluationStatus::Pending,
             reasons: Vec::new(),
             verdict: None,
             requested_at: U64(env::block_timestamp()),
             settled_at: None,
         });
+        self.pending += 1;
         emit(
             "evaluation_requested",
-            json!({ "id": id, "submitter": submitter, "config_sha256": config_sha256 }),
+            json!({
+                "id": id,
+                "submitter": submitter,
+                "config_sha256": config_sha256,
+                "eligible": eligible,
+            }),
         );
 
         let input_data = json!({
@@ -237,7 +318,7 @@ impl Contract {
             .function_call(
                 "request_execution".to_string(),
                 args.to_string().into_bytes(),
-                deposit,
+                execution_deposit,
                 OUTLAYER_GAS,
             )
             .then(
@@ -272,25 +353,128 @@ impl Contract {
         evaluation.reasons = reasons.clone();
         evaluation.verdict = verdict;
         evaluation.settled_at = Some(U64(env::block_timestamp()));
+        let wins = status == EvaluationStatus::Passed
+            && evaluation.eligible
+            && self.status == ChallengeStatus::Open;
+        let winner = evaluation.submitter.clone();
+        self.pending = self.pending.saturating_sub(1);
 
         emit(
             "evaluation_settled",
             json!({ "id": id, "status": status, "reasons": reasons }),
         );
+        // A verdict for a submission made before the deadline still counts
+        // after it: OutLayer answers within the yield window either way.
+        if wins {
+            self.status = ChallengeStatus::Awarded;
+            self.award = Some(Award {
+                evaluation: id,
+                winner,
+                amount: self.bounty,
+                paid: false,
+                in_flight: false,
+            });
+            self.bounty = NearToken::from_yoctonear(0);
+            let award = self.award.as_ref().unwrap();
+            emit(
+                "bounty_awarded",
+                json!({ "id": id, "winner": award.winner, "amount": award.amount }),
+            );
+            self.pay_award();
+        }
         status
     }
 
-    /// Freezes the challenge's commitments and admits submissions from anyone.
-    pub fn open(&mut self) {
+    /// Retries an award payment that failed. Anyone may call it; the money
+    /// only ever goes to the winner.
+    pub fn claim_award(&mut self) {
+        let award = self.award.as_ref().expect("no bounty has been awarded");
+        require!(!award.paid, "the award has been paid");
+        require!(!award.in_flight, "a payment is already in flight");
+        self.pay_award();
+    }
+
+    #[private]
+    pub fn on_award_paid(&mut self) {
+        let paid = env::promise_result_checked(0, 0).is_ok();
+        let award = self.award.as_mut().expect("no bounty has been awarded");
+        award.in_flight = false;
+        award.paid = paid;
+        emit(
+            if paid {
+                "award_paid"
+            } else {
+                "award_payment_failed"
+            },
+            json!({ "id": award.evaluation, "winner": award.winner, "amount": award.amount }),
+        );
+    }
+
+    /// Returns the bounty to the owner: at any time while the challenge is a
+    /// draft, or once the deadline has passed with no winner and no
+    /// evaluation still waiting for its verdict.
+    pub fn withdraw_bounty(&mut self) {
+        self.assert_owner();
+        match self.status {
+            ChallengeStatus::Draft => {}
+            ChallengeStatus::Open => {
+                require!(
+                    self.deadline_passed(),
+                    "the challenge is open until its deadline"
+                );
+                require!(
+                    self.pending == 0,
+                    "evaluations submitted before the deadline are still pending"
+                );
+                self.status = ChallengeStatus::Closed;
+                emit("challenge_closed", json!({}));
+            }
+            _ => env::panic_str("the challenge is closed"),
+        }
+        let amount = self.bounty;
+        require!(!amount.is_zero(), "there is no bounty to withdraw");
+        self.bounty = NearToken::from_yoctonear(0);
+        emit("bounty_withdrawn", json!({ "amount": amount }));
+        Promise::new(self.owner.clone())
+            .transfer(amount)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(TRANSFER_CALLBACK_GAS)
+                    .on_bounty_withdrawn(amount),
+            )
+            .detach();
+    }
+
+    /// Puts a withdrawal that did not arrive back into the bounty.
+    #[private]
+    pub fn on_bounty_withdrawn(&mut self, amount: NearToken) {
+        if env::promise_result_checked(0, 0).is_err() {
+            self.bounty = self.bounty.saturating_add(amount);
+            emit("bounty_withdrawal_failed", json!({ "amount": amount }));
+        }
+    }
+
+    /// Freezes the challenge's commitments and admits submissions from anyone
+    /// until `closes_at`, in nanoseconds since the Unix epoch.
+    pub fn open(&mut self, closes_at: U64) {
         self.assert_owner();
         require!(
             self.status == ChallengeStatus::Draft,
             "challenge is already open"
         );
+        require!(
+            closes_at.0 > env::block_timestamp(),
+            "closes_at must be in the future"
+        );
         self.status = ChallengeStatus::Open;
+        self.closes_at = Some(closes_at);
         emit(
             "challenge_opened",
-            json!({ "rules_sha256": self.rules_sha256 }),
+            json!({
+                "rules_sha256": self.rules_sha256,
+                "closes_at": closes_at,
+                "bounty": self.bounty,
+            }),
         );
     }
 
@@ -340,6 +524,10 @@ impl Contract {
             rules_sha256: self.rules_sha256.clone(),
             test_set_sha256: self.test_set_sha256.clone(),
             evaluations: self.evaluations.len(),
+            pending: self.pending,
+            bounty: self.bounty,
+            closes_at: self.closes_at,
+            award: self.award.clone(),
         }
     }
 
@@ -360,6 +548,30 @@ impl Contract {
         (from..self.evaluations.len().min(from.saturating_add(limit)))
             .filter_map(|id| self.get_evaluation(id))
             .collect()
+    }
+
+    /// Sends the award to the winner. A failed transfer leaves it owed, to be
+    /// retried with `claim_award`.
+    fn pay_award(&mut self) {
+        let award = self.award.as_mut().expect("no bounty has been awarded");
+        if award.amount.is_zero() {
+            award.paid = true;
+            return;
+        }
+        award.in_flight = true;
+        Promise::new(award.winner.clone())
+            .transfer(award.amount)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(TRANSFER_CALLBACK_GAS)
+                    .on_award_paid(),
+            )
+            .detach();
+    }
+
+    fn deadline_passed(&self) -> bool {
+        self.closes_at
+            .is_some_and(|closes_at| env::block_timestamp() >= closes_at.0)
     }
 
     fn assert_owner(&self) {
