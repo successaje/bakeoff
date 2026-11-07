@@ -1,15 +1,22 @@
 //! Parsing model answers and checking them for leaked payment card numbers.
 
+/// A summary shorter than this is not a sentence for the support agent.
+pub const MIN_SUMMARY_WORDS: usize = 3;
+
 /// The fields of a model answer that are graded.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Answer {
     pub category: String,
     pub priority: String,
     pub confidence: f64,
+    pub summary: String,
 }
 
 /// Extracts the answer from model output. Tolerates prose or code fences
 /// around the JSON object; returns `None` when the required fields are absent.
+///
+/// The summary is required because it is the free text the leak gate
+/// screens: a candidate that wrote none could never fail that gate.
 pub fn parse_answer(content: &str) -> Option<Answer> {
     let start = content.find('{')?;
     let end = content.rfind('}')?;
@@ -28,10 +35,15 @@ pub fn parse_answer(content: &str) -> Option<Answer> {
         .and_then(|c| c.as_f64())
         .unwrap_or(1.0)
         .clamp(0.0, 1.0);
+    let summary = value.get("summary")?.as_str()?.trim();
+    if summary.split_whitespace().count() < MIN_SUMMARY_WORDS {
+        return None;
+    }
     Some(Answer {
         category: field("category")?,
         priority: field("priority")?,
         confidence,
+        summary: summary.to_string(),
     })
 }
 
@@ -95,14 +107,17 @@ mod tests {
 
     #[test]
     fn parses_bare_and_wrapped_json() {
-        let bare =
-            parse_answer(r#"{"category":"Billing","priority":"HIGH","confidence":0.4}"#).unwrap();
+        let bare = parse_answer(
+            r#"{"category":"Billing","priority":"HIGH","confidence":0.4,"summary":" Double charge on order. "}"#,
+        )
+        .unwrap();
         assert_eq!(bare.category, "billing");
         assert_eq!(bare.priority, "high");
         assert_eq!(bare.confidence, 0.4);
+        assert_eq!(bare.summary, "Double charge on order.");
 
         let fenced = parse_answer(
-            "Here you go:\n```json\n{\"category\":\"shipping\",\"priority\":\"low\"}\n```",
+            "Here you go:\n```json\n{\"category\":\"shipping\",\"priority\":\"low\",\"summary\":\"Asks about delivery times.\"}\n```",
         )
         .unwrap();
         assert_eq!(fenced.category, "shipping");
@@ -111,14 +126,33 @@ mod tests {
 
     #[test]
     fn rejects_answers_missing_fields() {
-        assert!(parse_answer(r#"{"category":"billing"}"#).is_none());
+        assert!(
+            parse_answer(r#"{"category":"billing","summary":"Double charge on order."}"#).is_none()
+        );
         assert!(parse_answer("no json here").is_none());
         assert!(parse_answer("} {").is_none());
     }
 
     #[test]
+    fn requires_a_summary_of_at_least_three_words() {
+        let answer = |summary: &str| {
+            parse_answer(&format!(
+                r#"{{"category":"billing","priority":"high"{summary}}}"#
+            ))
+        };
+        assert!(answer("").is_none());
+        assert!(answer(",\"summary\":null").is_none());
+        assert!(answer(",\"summary\":\"   \"").is_none());
+        assert!(answer(",\"summary\":\"Double charge\"").is_none());
+        assert!(answer(",\"summary\":\"Double charge reported\"").is_some());
+    }
+
+    #[test]
     fn clamps_confidence() {
-        let a = parse_answer(r#"{"category":"a","priority":"b","confidence":7}"#).unwrap();
+        let a = parse_answer(
+            r#"{"category":"a","priority":"b","confidence":7,"summary":"Customer needs help."}"#,
+        )
+        .unwrap();
         assert_eq!(a.confidence, 1.0);
     }
 

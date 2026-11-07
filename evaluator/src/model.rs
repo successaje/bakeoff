@@ -97,6 +97,9 @@ pub struct CandidateConfig {
 pub struct Example {
     pub ticket: String,
     pub answer: Label,
+    /// Shown to the model as the example answer's summary.
+    #[serde(default)]
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

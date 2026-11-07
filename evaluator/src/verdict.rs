@@ -41,6 +41,9 @@ pub struct Metrics {
     pub mean_latency_ms: u64,
     pub leaks: u32,
     pub upstream_errors: u32,
+    /// Replies that were not a valid answer: no JSON object, a missing field
+    /// or no summary. They are graded as wrong.
+    pub invalid_answers: u32,
     pub escalations: u32,
     pub elapsed_ms: u64,
 }
@@ -137,6 +140,7 @@ mod tests {
                 mean_latency_ms: u64::MAX,
                 leaks: u32::MAX,
                 upstream_errors: u32::MAX,
+                invalid_answers: u32::MAX,
                 escalations: u32::MAX,
                 elapsed_ms: u64::MAX,
             },

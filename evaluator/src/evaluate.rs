@@ -322,6 +322,7 @@ fn summarize(results: &[(usize, TicketResult)], tickets: &[Ticket]) -> Metrics {
     let mut category_correct = 0u32;
     let mut leaks = 0u32;
     let mut upstream_errors = 0u32;
+    let mut invalid_answers = 0u32;
     let mut cost_uusd = 0.0_f64;
     let mut latencies: Vec<u64> = Vec::with_capacity(results.len());
 
@@ -331,6 +332,8 @@ fn summarize(results: &[(usize, TicketResult)], tickets: &[Ticket]) -> Metrics {
         latencies.push(result.latency_ms);
         if result.failed && result.answer.is_none() {
             upstream_errors += 1;
+        } else if result.answer.is_none() {
+            invalid_answers += 1;
         }
         if result.outputs.iter().any(|o| contains_card_number(o)) {
             leaks += 1;
@@ -366,6 +369,7 @@ fn summarize(results: &[(usize, TicketResult)], tickets: &[Ticket]) -> Metrics {
         },
         leaks,
         upstream_errors,
+        invalid_answers,
         escalations: 0,
         elapsed_ms: 0,
     }
@@ -405,15 +409,16 @@ fn base_messages(rules: &Rules, config: &CandidateConfig) -> Vec<ChatMessage> {
         output_contract(rules)
     ))];
     for example in &config.examples {
+        let mut answer = serde_json::json!({
+            "category": example.answer.category,
+            "priority": example.answer.priority,
+            "confidence": 1.0,
+        });
+        if let Some(summary) = &example.summary {
+            answer["summary"] = summary.as_str().into();
+        }
         messages.push(ChatMessage::user(example.ticket.clone()));
-        messages.push(ChatMessage::assistant(
-            serde_json::json!({
-                "category": example.answer.category,
-                "priority": example.answer.priority,
-                "confidence": 1.0,
-            })
-            .to_string(),
-        ));
+        messages.push(ChatMessage::assistant(answer.to_string()));
     }
     messages
 }
@@ -424,7 +429,8 @@ fn output_contract(rules: &Rules) -> String {
     format!(
         "Respond with only a JSON object with these keys: \"category\" (one of: {}), \
          \"priority\" (one of: {}), \"confidence\" (a number from 0 to 1) and \
-         \"summary\" (one sentence for the support agent).",
+         \"summary\" (one sentence for the support agent). An answer without a \
+         summary counts as wrong.",
         rules.categories.join(", "),
         rules.priorities.join(", ")
     )
@@ -495,6 +501,7 @@ mod tests {
         limits: Vec<Duration>,
         windows: Vec<usize>,
         leak_card: bool,
+        omit_summary: bool,
         fail_model: Option<&'static str>,
     }
 
@@ -506,6 +513,7 @@ mod tests {
                 limits: Vec::new(),
                 windows: Vec::new(),
                 leak_card: false,
+                omit_summary: false,
                 fail_model: None,
             }
         }
@@ -533,13 +541,20 @@ mod tests {
             let summary = if self.leak_card && ticket.contains("4111") {
                 "Card 4111 1111 1111 1111"
             } else {
-                "ok"
+                "Customer needs help."
+            };
+            let content = if self.omit_summary {
+                format!(
+                    r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence}}}"#
+                )
+            } else {
+                format!(
+                    r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence},"summary":"{summary}"}}"#
+                )
             };
             ChatOutcome {
                 result: Ok(ChatCompletion {
-                    content: format!(
-                        r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence},"summary":"{summary}"}}"#
-                    ),
+                    content,
                     prompt_tokens: 1_000,
                     completion_tokens: 100,
                 }),
@@ -706,6 +721,38 @@ mod tests {
         let v = evaluate(ROUTED, &mut client, &clock);
         assert_eq!(v.metrics.as_ref().unwrap().leaks, 1);
         assert_eq!(v.reasons, vec![Reason::GateLeaks]);
+    }
+
+    #[test]
+    fn answers_without_a_summary_are_graded_wrong() {
+        let (mut client, clock) = setup();
+        client.omit_summary = true;
+        let v = evaluate(
+            r#"{"version":1,"model":"large","system_prompt":"Triage."}"#,
+            &mut client,
+            &clock,
+        );
+        let m = v.metrics.as_ref().unwrap();
+        assert_eq!(m.invalid_answers, 4);
+        assert_eq!(m.upstream_errors, 0);
+        assert_eq!(m.accuracy_bp, 0);
+        assert!(v.reasons.contains(&Reason::GateAccuracy));
+    }
+
+    #[test]
+    fn example_summaries_are_shown_to_the_model() {
+        let rules: Rules = serde_json::from_str(RULES).unwrap();
+        let config: CandidateConfig = serde_json::from_str(
+            r#"{"version":1,"model":"small","system_prompt":"Triage.","examples":[
+                {"ticket":"Charged twice","answer":{"category":"billing","priority":"high"},"summary":"Customer was charged twice."},
+                {"ticket":"Where is it","answer":{"category":"shipping","priority":"normal"}}]}"#,
+        )
+        .unwrap();
+        let messages = base_messages(&rules, &config);
+        let answer =
+            |i: usize| -> serde_json::Value { serde_json::from_str(&messages[i].content).unwrap() };
+        assert_eq!(answer(2)["summary"], "Customer was charged twice.");
+        assert!(answer(4).get("summary").is_none());
     }
 
     #[test]
