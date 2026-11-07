@@ -47,7 +47,7 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 
 ## The web board
 
-[`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It shows:
+The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet by default. [`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It shows:
 - each challenge as a story: the problem today, the goal, what builders can see and what stays hidden, the results, and how to take part;
 - a page for every result: each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
 - checks in the browser that the rules and the evaluator build match their on-chain hashes.
