@@ -19,3 +19,4 @@ data/private/
 
 # Local editor and agent settings
 .claude/
+.vercel
