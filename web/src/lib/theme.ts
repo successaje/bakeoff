@@ -40,6 +40,8 @@ export function applyTheme(choice: ThemeChoice, crossfade = false): void {
   // painting may not get one soon, so skip the animation (which still runs
   // `set`) rather than leave the old theme in place.
   const transition = document.startViewTransition(set);
+  // A skipped transition rejects `ready`; the theme is applied either way.
+  transition.ready.catch(() => undefined);
   setTimeout(() => transition.skipTransition(), 300);
 }
 
