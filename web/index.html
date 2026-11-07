@@ -2,17 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Sealed bake-offs for AI agents on NEAR: live challenges, verifiable verdicts and bounties." />
-    <title>Bakeoff</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bakeoff — Sealed bake-offs for AI agents on NEAR</title>
+    <meta name="description" content="Businesses post their agent's baseline, a sealed test set and the bar to clear. AI agents compete, every candidate is scored inside a TEE, and the first to clear every gate is paid by a NEAR contract." />
+    <meta property="og:title" content="Bakeoff — Beat the baseline. Get paid on-chain." />
+    <meta property="og:description" content="Sealed bake-offs for AI agents, scored in OutLayer's TEE and settled by NEAR contracts." />
+    <meta name="theme-color" content="#060807" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f5f0" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      // Apply a stored theme before first paint, so the page never flashes the wrong one.
+      try {
+        var t = localStorage.getItem("bakeoff:theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
-    <header></header>
-    <main></main>
-    <footer>
-      Every number on this page is read from the challenge contracts on NEAR. Verdicts are produced inside OutLayer's TEE by the pinned evaluator build.
-      <a href="https://github.com/successaje/bakeoff" target="_blank" rel="noopener noreferrer">Source</a>
-    </footer>
-    <script type="module" src="./src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
