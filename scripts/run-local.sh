@@ -52,10 +52,10 @@ printf '%-22s %-7s %-24s %9s %12s %9s %6s %10s %9s\n' \
   candidate passed reasons accuracy cost/ticket p95 leaks escalated elapsed
 for candidate in "${candidates[@]}"; do
   name=$(basename "$candidate" .json)
+  # Forwarded by name so neither value appears in a process listing.
   verdict=$(python3 tools/make_request.py --rules "$RULES" --config "$candidate" \
-    | wasmtime run -S http \
-        --env BAKEOFF_LLM_API_KEY="$API_KEY" \
-        --env BAKEOFF_TEST_SET="$(cat "$TEST_SET")" \
+    | BAKEOFF_LLM_API_KEY="$API_KEY" BAKEOFF_TEST_SET="$(cat "$TEST_SET")" \
+      wasmtime run -S http --env BAKEOFF_LLM_API_KEY --env BAKEOFF_TEST_SET \
         "$WASM" 2>"target/verdicts/$name.log")
   printf '%s\n' "$verdict" > "target/verdicts/$name.json"
   python3 - "$name" "$verdict" <<'EOF'
