@@ -24,8 +24,16 @@ pub struct Rules {
     pub priorities: Vec<String>,
     pub gates: Gates,
     /// Wall-clock budget for the whole run. A run that exceeds it fails.
+    /// Capped well inside NEAR's yield window; see `policy::MAX_TIME_BUDGET_MS`.
     #[serde(default = "default_time_budget_ms")]
     pub time_budget_ms: u64,
+    /// Model calls in flight at once.
+    #[serde(default = "default_max_concurrency")]
+    pub max_concurrency: usize,
+    /// Extra request body fields a candidate may set per model, such as
+    /// reasoning controls. Empty means none.
+    #[serde(default)]
+    pub allowed_request_options: Vec<String>,
     #[serde(default = "default_max_tokens_cap")]
     pub max_tokens_cap: u32,
     /// Upper bound on the system prompt plus all examples, in characters.
@@ -72,6 +80,9 @@ pub struct CandidateConfig {
     pub examples: Vec<Example>,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
+    /// Extra request body fields for `model`, limited to the rules' list.
+    #[serde(default)]
+    pub request_options: BTreeMap<String, serde_json::Value>,
     /// Optional second model for answers below a confidence threshold.
     #[serde(default)]
     pub escalation: Option<Escalation>,
@@ -95,6 +106,9 @@ pub struct Escalation {
     /// Escalate when the first answer's confidence is below this value, or
     /// when the first answer cannot be parsed.
     pub below_confidence: f64,
+    /// Extra request body fields for the escalation model.
+    #[serde(default)]
+    pub request_options: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -120,7 +134,11 @@ pub struct Label {
 }
 
 fn default_time_budget_ms() -> u64 {
-    150_000
+    75_000
+}
+
+fn default_max_concurrency() -> usize {
+    8
 }
 
 fn default_max_tokens_cap() -> u32 {

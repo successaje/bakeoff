@@ -3,9 +3,33 @@
 
 use crate::model::{CandidateConfig, Rules, Ticket, SCHEMA_VERSION};
 use crate::verdict::Reason;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 const MAX_TEST_SET_TICKETS: usize = 500;
+const MAX_CONCURRENCY: usize = 32;
+const MAX_REQUEST_OPTIONS_BYTES: usize = 2048;
+
+/// OutLayer resolves a request by resuming a NEAR yield, which times out
+/// after 200 blocks, about 119 seconds at testnet's block time. The run, the
+/// download before it and the resolve transaction after it must all fit, so
+/// a run may not be budgeted more than this.
+pub const MAX_TIME_BUDGET_MS: u64 = 100_000;
+
+/// Request body fields the evaluator always sets itself.
+const RESERVED_REQUEST_FIELDS: &[&str] = &[
+    "model",
+    "messages",
+    "max_tokens",
+    "max_completion_tokens",
+    "temperature",
+    "stream",
+    "stream_options",
+    "n",
+    "tools",
+    "tool_choice",
+    "functions",
+    "function_call",
+];
 
 pub fn check_rules(rules: &Rules) -> Result<(), String> {
     if rules.version != SCHEMA_VERSION {
@@ -26,6 +50,25 @@ pub fn check_rules(rules: &Rules) -> Result<(), String> {
     }
     if rules.categories.is_empty() || rules.priorities.is_empty() {
         return Err("categories and priorities must not be empty".into());
+    }
+    if rules.time_budget_ms == 0 || rules.time_budget_ms > MAX_TIME_BUDGET_MS {
+        return Err(format!(
+            "time_budget_ms must be between 1 and {MAX_TIME_BUDGET_MS} to fit NEAR's yield window"
+        ));
+    }
+    if rules.max_concurrency == 0 || rules.max_concurrency > MAX_CONCURRENCY {
+        return Err(format!(
+            "max_concurrency must be between 1 and {MAX_CONCURRENCY}"
+        ));
+    }
+    if let Some(field) = rules
+        .allowed_request_options
+        .iter()
+        .find(|f| RESERVED_REQUEST_FIELDS.contains(&f.as_str()))
+    {
+        return Err(format!(
+            "{field} is set by the evaluator and cannot be allowed"
+        ));
     }
     if rules.gates.min_accuracy_bp > 10_000 {
         return Err("min_accuracy_bp must be at most 10000".into());
@@ -75,6 +118,10 @@ pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (R
             format!("tool {} is not allowed", tool.name),
         ));
     }
+    check_request_options(rules, &config.request_options)?;
+    if let Some(escalation) = &config.escalation {
+        check_request_options(rules, &escalation.request_options)?;
+    }
     if config.max_tokens == 0 || config.max_tokens > rules.max_tokens_cap {
         return Err((
             Reason::PolicyLimits,
@@ -100,6 +147,31 @@ pub fn check_candidate(rules: &Rules, config: &CandidateConfig) -> Result<(), (R
                 "prompt and examples exceed {} characters",
                 rules.max_prompt_chars
             ),
+        ));
+    }
+    Ok(())
+}
+
+fn check_request_options(
+    rules: &Rules,
+    options: &BTreeMap<String, serde_json::Value>,
+) -> Result<(), (Reason, String)> {
+    if let Some(field) = options
+        .keys()
+        .find(|field| !rules.allowed_request_options.contains(field))
+    {
+        return Err((
+            Reason::PolicyLimits,
+            format!("request option {field} is not allowed"),
+        ));
+    }
+    let size = serde_json::to_vec(options)
+        .map(|v| v.len())
+        .unwrap_or(usize::MAX);
+    if size > MAX_REQUEST_OPTIONS_BYTES {
+        return Err((
+            Reason::PolicyLimits,
+            format!("request options exceed {MAX_REQUEST_OPTIONS_BYTES} bytes"),
         ));
     }
     Ok(())
@@ -156,6 +228,7 @@ mod tests {
                     "large": {"input_usd_per_mtok": 2.0, "output_usd_per_mtok": 10.0}
                 },
                 "allowed_tools": ["order_lookup"],
+                "allowed_request_options": ["reasoning_effort"],
                 "categories": ["billing", "shipping"],
                 "priorities": ["low", "high"],
                 "gates": {"min_accuracy_bp": 8000, "max_cost_per_ticket_uusd": 1000, "max_p95_latency_ms": 5000, "max_leaks": 0}
@@ -231,6 +304,44 @@ mod tests {
                 .0,
             Reason::PolicyLimits
         );
+    }
+
+    #[test]
+    fn limits_request_options_to_the_rules() {
+        let allowed = config(
+            r#"{"version":1,"model":"small","system_prompt":"x","request_options":{"reasoning_effort":"low"}}"#,
+        );
+        assert!(check_candidate(&rules(), &allowed).is_ok());
+
+        let unknown = config(
+            r#"{"version":1,"model":"small","system_prompt":"x","request_options":{"logit_bias":{"1":100}}}"#,
+        );
+        let (reason, detail) = check_candidate(&rules(), &unknown).unwrap_err();
+        assert_eq!(reason, Reason::PolicyLimits);
+        assert!(detail.contains("logit_bias"));
+
+        let escalation = config(
+            r#"{"version":1,"model":"small","system_prompt":"x","escalation":{"model":"large","below_confidence":0.5,"request_options":{"seed":1}}}"#,
+        );
+        assert_eq!(
+            check_candidate(&rules(), &escalation).unwrap_err().0,
+            Reason::PolicyLimits
+        );
+    }
+
+    #[test]
+    fn rules_cannot_allow_reserved_fields_or_exceed_the_yield_window() {
+        let mut r = rules();
+        r.allowed_request_options.push("messages".into());
+        assert!(check_rules(&r).unwrap_err().contains("messages"));
+
+        let mut r = rules();
+        r.time_budget_ms = MAX_TIME_BUDGET_MS + 1;
+        assert!(check_rules(&r).unwrap_err().contains("yield window"));
+
+        let mut r = rules();
+        r.max_concurrency = 0;
+        assert!(check_rules(&r).is_err());
     }
 
     #[test]
