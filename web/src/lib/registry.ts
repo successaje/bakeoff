@@ -1,7 +1,8 @@
 /**
  * The challenges this board lists, with what the chain does not hold: a
- * title, the task, and the baseline the sponsor published when calibrating
- * the gates. Everything else is read from the contracts.
+ * title, the task, the baseline the sponsor published when calibrating the
+ * gates, and whether it is a demonstration. Everything else is read from the
+ * contracts.
  */
 
 import type { Network } from "./near.ts";
@@ -21,6 +22,11 @@ export interface ListedChallenge {
   baseline: Baseline;
   /** How the bounty was won, when there is something to tell. */
   story?: { headline: string; text: string };
+  /**
+   * A demonstration round: the sponsor is fictional and the Bakeoff team runs
+   * the sponsor's account and the competing ones.
+   */
+  demo?: boolean;
 }
 
 export type Registry = Record<Network, ListedChallenge[]>;

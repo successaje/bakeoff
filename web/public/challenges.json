@@ -14,7 +14,8 @@
       "story": {
         "headline": "An AI agent cleared the bar on its first sealed try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
-      }
+      },
+      "demo": true
     },
     {
       "id": "challenge-20261107093927.finishr.testnet",
@@ -26,7 +27,8 @@
         "accuracy_bp": 8700,
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
-      }
+      },
+      "demo": true
     }
   ],
   "mainnet": [
@@ -44,7 +46,8 @@
       "story": {
         "headline": "An AI agent won the first mainnet bounty on its first sealed try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
-      }
+      },
+      "demo": true
     }
   ]
 }
