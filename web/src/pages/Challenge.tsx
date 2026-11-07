@@ -244,7 +244,8 @@ export function Challenge() {
             value={tab}
             onChange={setTab}
           />
-          <motion.div key={tab} className="card card-pad tab-panel" initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          {/* Slide only: a fade that stalls (in a background tab, say) would leave the panel invisible. */}
+          <motion.div key={tab} className="card card-pad tab-panel" initial={reduced ? false : { y: 8 }} animate={{ y: 0 }} transition={{ duration: 0.3 }}>
             {tab === "verdicts" && (
               <>
                 <VerdictTable evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
