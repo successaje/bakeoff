@@ -97,6 +97,7 @@ Challenge `challenge-20261107005328.finishr.testnet`, evaluator `99f78452…5785
 | 2 | `few-shot` | Failed: `gate_accuracy` | 82.0% | 48 µ$ | 2.0 s | 15.2 s | 9.1 s, 35.9M instr. | [FnSW5fow…](https://testnet.nearblocks.io/txns/FnSW5fowiZVJcy2jxpeW2NQaGSrbRTwbgcznSTuNPGPb) |
 | 3 | `small-model` | Failed: `gate_accuracy` | 78.0% | 41 µ$ | 2.6 s | 19.9 s | 14.0 s, 23.1M instr. | [2kKvVxWq…](https://testnet.nearblocks.io/txns/2kKvVxWqvbXboRLm8WAwFGXH3QaFUfDCveYm3C7uXZdu) |
 | 4 | `baseline` | Failed: `gate_cost` | 88.0% | 121 µ$ | 16.8 s | 67.2 s | 58.4 s, 23.6M instr. | [9htB78wY…](https://testnet.nearblocks.io/txns/9htB78wYTvSMxRWzRrJmqQwGqqFByS9EugdBEAjt3xXP) |
+| 5 | `few-shot-redacted` | **Passed** | 91.0% | 87 µ$ | 3.8 s | 70.6 s | 18.4 s, 36.9M instr. | [Av5zV4iN…](https://testnet.nearblocks.io/txns/Av5zV4iNArJm6GSF5XaProhs54nGiooiLRK9BPJdDA3q) |
 
 Practice scores overstated sealed ones. Each candidate was scored on the 80 public practice tickets first, under the same gates:
 
@@ -106,9 +107,15 @@ Practice scores overstated sealed ones. Each candidate was scored on the 80 publ
 | `few-shot` | 86.2%, passes | 82.0%, fails accuracy |
 | `few-shot-budgeted` | 93.8%, passes | 88.0%, fails on a leak |
 | `baseline` | 88.8%, fails cost | 88.0%, fails cost |
+| `few-shot-redacted` | 93.8%, passes | 91.0%, **passes** |
 
 - The few-shot candidates' examples are practice tickets, so their practice scores were expected to be inflated; the sealed set measured by how much. Three candidates that passed in public failed sealed.
 - `few-shot-budgeted` cleared accuracy, cost and latency, and was failed for repeating a customer's card number in the one-sentence summary it writes for the support agent. The leak check scans only the model's visible reply, not its reasoning.
+- `few-shot-redacted` was written from that public failure reason alone, without looking at sealed tickets, scored on the practice set, and submitted once. The verdict's `config_sha256` is the SHA-256 of the committed file, `dbf8f262…1c0d`.
+  - The candidate asks for summaries under 12 words that say "the card" instead of a number. It names saved cards under `account`, as the labeling guide does. Its reasoning budget is 96 tokens instead of 128, which pays for the summaries.
+  - `few-shot-budgeted` was cheap partly because it rarely wrote a summary: its examples have none, so the model copied that shape. Asking for a summary adds about 40 output tokens per ticket. The first redacting draft, at a 128-token budget, cost 98 µ$ on practice and failed the cost gate.
+  - The evaluator asks every candidate for a summary but does not require one, so a candidate can avoid the leak gate by writing none. Requiring the summary is an evaluator change for the next build.
 - The baseline scored 88.0% at 121 µ$ here, against 85.0% at 127 µ$ when the gates were calibrated, on the same tickets at temperature 0. Reasoning models vary by a few points between runs, so a candidate within about 3 points of the accuracy gate can pass or fail on a re-run. The calibration's 2-point tolerance is smaller than that variation.
 - Storing the 100-ticket set as a secret took a 0.24462 NEAR storage deposit, refundable when the secret is deleted.
+- `few-shot-redacted`'s verdict arrived 70.6 s after submission for an 18.4 s run; the rest was the worker picking up the job.
 - OutLayer charged 0.0011–0.0068 NEAR per run. The baseline used 58.4 s of its 75 s budget, and its verdict arrived 67.2 s after submission, inside the 119 s yield window.

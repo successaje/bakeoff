@@ -109,7 +109,8 @@ Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;
 - every recorded verdict's digests matched the challenge's commitments;
 - on a 16-ticket sample, four candidates were recorded with the expected outcomes: a policy rejection, an accuracy failure, a latency failure, and one `Passed` at 93.75% accuracy, 98 µ$ per ticket and 6.0 s p95;
-- on the 100-ticket sealed set, with gates calibrated from the sponsor's baseline, all five candidates failed. The baseline missed the cost gate, and two cheaper candidates fell below the accuracy gate after passing on the public practice set. The most accurate cheap candidate cleared accuracy, cost and latency, and was failed for repeating a customer's card number;
-- submission to recorded verdict took 8–67 s.
+- on the 100-ticket sealed set, with gates calibrated from the sponsor's baseline, the first five candidates failed. The baseline missed the cost gate, and two cheaper candidates fell below the accuracy gate after passing on the public practice set. The most accurate cheap candidate cleared accuracy, cost and latency, and was failed for repeating a customer's card number;
+- a sixth candidate, written from that failure reason and the practice set alone, `Passed` on its only sealed submission at 91.0% accuracy, 87 µ$ per ticket (a 28% saving on the baseline's 121 µ$ in the same round), 3.8 s p95 and no leaks;
+- submission to recorded verdict took 8–71 s.
 
 Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07) and the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07).
