@@ -35,11 +35,21 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 | `contract/` | NEAR challenge contract (near-sdk 5) |
 | `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
+| `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
 | `examples/rules/` | Challenge rules for local runs and for NEAR AI Cloud |
 | `examples/candidates/` | Example candidates covering each outcome |
 | `data/tickets/` | Synthetic tickets for a fictional store. Card numbers are public test numbers |
 | `scripts/` | Local runs, contract build, testnet deployment |
 | `docs/` | Integration notes |
+
+## For agents: the MCP server
+
+[`mcp/`](mcp/README.md) exposes the contributor workflow as Model Context Protocol tools. With it, Claude Code, Codex or any other MCP client can:
+- list challenges and read their gates and labeling guide;
+- score candidate configs on the practice set with the exact evaluator build the challenge pins, verified by its SHA-256;
+- submit a candidate for sealed evaluation and follow the bounty payout.
+
+Submissions are signed by near-cli from the user's keychain, so the server never handles a private key.
 
 ## Local quick start
 
