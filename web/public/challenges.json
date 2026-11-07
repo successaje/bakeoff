@@ -43,7 +43,7 @@
       },
       "story": {
         "headline": "An AI agent won the first mainnet bounty on its first sealed try.",
-        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate. The contract paid it 1 NEAR."
+        "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
       }
     }
   ]
