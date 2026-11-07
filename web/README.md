@@ -1,6 +1,6 @@
 # Bakeoff web app
 
-The public face of Bakeoff: a static React app that reads every figure straight from NEAR and lets sponsors fund their challenges. It has no backend: NEAR RPC (through FastNEAR), FastFS and the 1Click API all answer browser requests directly.
+The public face of Bakeoff: a static React app that reads bounties, results and payments straight from NEAR and lets sponsors fund their challenges. Titles, descriptions and baselines come from each sponsor's listing in [`public/challenges.json`](public/challenges.json), and the board says so. It has no backend: NEAR RPC (through FastNEAR), FastFS and the 1Click API all answer browser requests directly.
 
 ## Pages
 
@@ -30,10 +30,17 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
 - **Motion.** Pages animate in on arrival, and sections and figures as they scroll into view; tabs and switches slide between options. Everything respects `prefers-reduced-motion`.
 - **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
 
+## Trust and status
+
+- **Demo rounds** carry a Demo badge and a notice saying which parts are real. A listing marks itself as a demo with `"demo": true`.
+- **Awarded and paid** are separate states. Cards say Awarded until the payment lands, and the challenge page explains an unpaid award and how to retry it.
+- **Freshness.** The challenge page shows when it last read the chain and has a Refresh button. While a result is scoring, it re-reads every 10 s.
+- **Sources.** The footer and each challenge's bar say which figures come from the contract and which from the sponsor's listing. The How it works page lists what users still have to trust.
+
 ## Checks in the browser
 
 - **Rules.** The page hashes the rules the contract serves and compares them with its commitment.
-- **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it.
+- **Evaluator.** It downloads the pinned evaluator from FastFS and hashes it. A download that fails says Could not verify, not Mismatch.
 - **Configs.** Pasting a candidate config finds the evaluations that scored it.
 
 ## What a sponsor can do
