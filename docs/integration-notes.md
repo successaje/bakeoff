@@ -154,3 +154,30 @@ Challenge `challenge-20261107093927.finishr.testnet`, evaluator `e1688636…e408
 - OutLayer ran the winning evaluation in 16.2 s using 44.9M instructions, for 0.0026 NEAR.
 - The previous round's passing candidate, `few-shot-redacted`, was not resubmitted. Under the required-summary rule about half its replies are invalid on the practice set.
 - near-cli refuses to send a submission unless the signer can cover the deposit plus the 300 Tgas of prepaid gas at the current price, about 0.34 NEAR in all, although the unused gas is refunded. The first contributor attempt, from a 0.3 NEAR account, was never sent.
+
+## Agent round through the MCP server (2026-11-07)
+
+Challenge `challenge-20261107114823.finishr.testnet`, with the same calibrated rules, evaluator `e1688636…` and 100-ticket sealed set as the bounty round. The sponsor funded and opened it from the web board, and a Claude Code agent competed through the Bakeoff MCP server.
+
+| Step | Who | Transaction |
+|---|---|---|
+| Fund 1 NEAR, signed in the web board through NEAR Connect | owner | [7rHZwpHB…](https://testnet.nearblocks.io/txns/7rHZwpHBnJtfw5DsLT6f1h8PvecyTLGsSL8h7dqmmxq4) |
+| Open until 2026-11-10 12:12 UTC, signed in the web board | owner | [Frs8B985…](https://testnet.nearblocks.io/txns/Frs8B985CsQz5VxBpyMQoXzKNBTLeNjxn43RbsAdj2DA) |
+| `submit_candidate` from the MCP server, signed by near-cli | `contributor.finishr.testnet` | [EuYwexug…](https://testnet.nearblocks.io/txns/EuYwexugUrjZbrUawLLinba6y3yy2xrraZZAnEBFDi4s) |
+
+The agent's first and only sealed submission passed, and the contract paid it the 1 NEAR bounty with the verdict:
+
+| Candidate | Accuracy | Cost per ticket | p95 latency | Leaks | Invalid answers |
+|---|---|---|---|---|---|
+| Baseline, median of the three calibration runs | 87.0% | 128 µ$ | 18.2 s | – | 2–5 |
+| `few-shot-guided`, written by hand, bounty round | 93.0% | 72 µ$ | 2.9 s | 0 | 0 |
+| **Agent's candidate** | **97.0%** | **63 µ$** | 3.5 s | 0 | 0 |
+
+- The agent beat the hand-written winner on both accuracy and cost. Against the baseline's median it is 10 points more accurate and 51% cheaper per ticket, with p95 under a fifth of the baseline's.
+- The config was recovered from the submission transaction's arguments, and its SHA-256 equals the verdict's `config_sha256`, `635e11db…`. It is saved byte for byte as `examples/candidates/near-ai/agent-zero-shot.json`.
+- **What the agent changed.**
+  - It used no few-shot examples, so every call is cheaper on input.
+  - It wrote a 1,985-character prompt that condenses the public labeling guide: what each category covers, tie-breakers for the borderline cases, and the guide's priority rules.
+  - It set `max_tokens` to 70 and `reasoning_effort` to low.
+  - It told the model never to copy a card number into the summary.
+- The config shares nothing with the earlier candidates in this repository beyond the model choice. Its taxonomy and tie-breakers are its own reading of the labeling guide that the MCP server's `get_labeling_guide` tool serves.
