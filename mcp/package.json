@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test test/*.test.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "walkthrough": "node --disable-warning=ExperimentalWarning scripts/walkthrough.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {
