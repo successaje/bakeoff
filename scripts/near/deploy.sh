@@ -1,30 +1,29 @@
 #!/usr/bin/env bash
-# Deploys a draft challenge to NEAR testnet.
+# Deploys a draft challenge to NEAR testnet, or mainnet with NETWORK=mainnet.
 #
 #   1. Builds the evaluator and publishes it to FastFS with the OutLayer CLI.
 #   2. Builds the contract and deploys it to a new sub-account of
 #      BAKEOFF_ACCOUNT, initialised with the rules, the evaluator's URL and
 #      hash, and the test set's hash.
-#   3. Writes the deployment to .deploy/testnet.env for the other scripts.
+#   3. Writes the deployment to .deploy/<network>.env for the other scripts.
 #
 # Prerequisites (see README):
 #   - BAKEOFF_ACCOUNT in .env, with its key in the system keychain (near-cli-rs)
-#   - `outlayer login testnet` completed for the same account
+#   - `outlayer login <network>` completed for the same account
 #
 # Environment overrides: RULES_FILE, TEST_SET_FILE, CHALLENGE_NAME, CHALLENGE_BALANCE
 set -euo pipefail
-cd "$(dirname "$0")/../.."
-[ -f .env ] && set -a && . ./.env && set +a
+. "$(dirname "$0")/env.sh"
 
 : "${BAKEOFF_ACCOUNT:?set BAKEOFF_ACCOUNT in .env}"
+require_mainnet_confirmation "$BAKEOFF_ACCOUNT"
 RULES_FILE="${RULES_FILE:-examples/rules/near-ai.json}"
 TEST_SET_FILE="${TEST_SET_FILE:-data/tickets/sealed-sample.json}"
 CHALLENGE_NAME="${CHALLENGE_NAME:-challenge-$(date -u +%Y%m%d%H%M%S)}"
-CHALLENGE_BALANCE="${CHALLENGE_BALANCE:-4 NEAR}"
+# The contract's 186 KB of code locks about 1.9 NEAR of storage.
+CHALLENGE_BALANCE="${CHALLENGE_BALANCE:-2.5 NEAR}"
 CHALLENGE="$CHALLENGE_NAME.$BAKEOFF_ACCOUNT"
-OUTLAYER=outlayer.testnet
 SECRETS_PROFILE=bakeoff
-NETWORK=testnet
 
 for tool in near outlayer cargo python3; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
@@ -78,7 +77,7 @@ near contract deploy "$CHALLENGE" use-file "$CONTRACT_WASM" \
   network-config "$NETWORK" sign-with-keychain send
 
 mkdir -p .deploy
-cat > .deploy/testnet.env <<EOF
+cat > "$DEPLOY_FILE" <<EOF
 CHALLENGE=$CHALLENGE
 OUTLAYER=$OUTLAYER
 SECRETS_PROFILE=$SECRETS_PROFILE
@@ -90,5 +89,5 @@ TEST_SET_SHA256=$TEST_SET_SHA256
 EOF
 
 echo
-echo "Deployed draft challenge $CHALLENGE (details in .deploy/testnet.env)."
-echo "Next: run scripts/testnet/store-secrets.sh yourself, then scripts/testnet/submit.sh <candidate.json>."
+echo "Deployed draft challenge $CHALLENGE on $NETWORK (details in $DEPLOY_FILE)."
+echo "Next: run NETWORK=$NETWORK scripts/near/store-secrets.sh yourself, then trial runs with scripts/near/submit.sh."

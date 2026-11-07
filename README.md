@@ -103,7 +103,7 @@ To score candidates against NEAR AI Cloud from your machine, put `BAKEOFF_LLM_AP
 scripts/run-local.sh --rules examples/rules/near-ai.json
 ```
 
-## Testnet deployment
+## Deployment
 
 Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
 
@@ -118,25 +118,38 @@ Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer 
 3. Copy `.env.example` to `.env` and set `BAKEOFF_ACCOUNT` and `BAKEOFF_LLM_API_KEY` (a NEAR AI Cloud key).
 4. Publish the evaluator and deploy a draft challenge:
    ```bash
-   scripts/testnet/deploy.sh
+   scripts/near/deploy.sh
    ```
 5. Store the sealed test set and API key as secrets bound to the evaluator build:
    ```bash
-   scripts/testnet/store-secrets.sh
+   scripts/near/store-secrets.sh
    ```
    OutLayer CLI 0.2.1 attaches a fixed 0.1 NEAR storage deposit, which covers about 7 KB of secrets. For a larger sealed set, set `OUTLAYER_CLI` to a CLI build that prices the row first ([integration notes](docs/integration-notes.md#outlayer)).
 6. Run trial evaluations while the challenge is a draft; only the owner can submit, and nothing is paid:
    ```bash
-   scripts/testnet/submit.sh examples/candidates/near-ai/routed.json
+   scripts/near/submit.sh examples/candidates/near-ai/routed.json
    ```
 7. Escrow the bounty and open the challenge, here 1 NEAR for 72 hours:
    ```bash
-   scripts/testnet/open.sh 1 72
+   scripts/near/open.sh 1 72
    ```
-   Contributors then submit with the same script from their own account (`scripts/testnet/submit.sh <candidate.json> <account>`). If nobody wins, withdraw after the deadline:
+   Contributors then submit with the same script from their own account (`scripts/near/submit.sh <candidate.json> <account>`). If nobody wins, withdraw after the deadline:
    ```bash
    near contract call-function as-transaction <challenge> withdraw_bounty json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' sign-as <owner> network-config testnet sign-with-keychain send
    ```
+
+### On mainnet
+
+The same scripts deploy to mainnet when you pass `NETWORK=mainnet` and a mainnet account. Values given on the command line take precedence over `.env`. Each network keeps its own deployment record in `.deploy/<network>.env`.
+
+Every script that spends refuses to run on mainnet until you name the paying account a second time, as `MAINNET_CONFIRM`:
+
+```bash
+outlayer login mainnet
+NETWORK=mainnet BAKEOFF_ACCOUNT=you.near MAINNET_CONFIRM=you.near scripts/near/deploy.sh
+```
+
+A mainnet challenge costs about 2.5 NEAR, most of it the contract's refundable storage. On top of that come the 0.245 NEAR secret deposit, about 0.012 NEAR of OutLayer compute per sealed run, and the bounty.
 
 ## Status
 

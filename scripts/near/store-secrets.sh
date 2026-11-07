@@ -13,10 +13,8 @@
 # fixed 0.1 NEAR storage deposit, enough for about 7 KB of secrets; a larger
 # sealed set needs a CLI that prices the row first (docs/integration-notes.md).
 set -euo pipefail
-cd "$(dirname "$0")/../.."
-[ -f .env ] && set -a && . ./.env && set +a
-[ -f .deploy/testnet.env ] || { echo "run scripts/testnet/deploy.sh first" >&2; exit 1; }
-. ./.deploy/testnet.env
+. "$(dirname "$0")/env.sh"
+load_deployment
 
 : "${BAKEOFF_LLM_API_KEY:?set BAKEOFF_LLM_API_KEY in .env}"
 actual_sha=$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], encoding="utf-8").read().rstrip("\n").encode()).hexdigest())' "$TEST_SET_FILE")

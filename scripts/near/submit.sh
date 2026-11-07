@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 # Submits a candidate to the deployed challenge and waits for its verdict.
 #
-# Usage: scripts/testnet/submit.sh <candidate.json> [signer-account]
+# Usage: [NETWORK=mainnet] scripts/near/submit.sh <candidate.json> [signer-account]
 #
 # The signer defaults to BAKEOFF_ACCOUNT, which may submit while the
 # challenge is a draft.
 set -euo pipefail
-cd "$(dirname "$0")/../.."
-[ -f .env ] && set -a && . ./.env && set +a
-[ -f .deploy/testnet.env ] || { echo "run scripts/testnet/deploy.sh first" >&2; exit 1; }
-. ./.deploy/testnet.env
+. "$(dirname "$0")/env.sh"
+load_deployment
 
-CANDIDATE="${1:?usage: scripts/testnet/submit.sh <candidate.json> [signer-account]}"
+CANDIDATE="${1:?usage: scripts/near/submit.sh <candidate.json> [signer-account]}"
 SIGNER="${2:-${BAKEOFF_ACCOUNT:?set BAKEOFF_ACCOUNT in .env}}"
+require_mainnet_confirmation "$SIGNER"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-300}"
 
-id=$(tools/near_view.py testnet "$CHALLENGE" get_challenge | python3 -c 'import json,sys; print(json.load(sys.stdin)["evaluations"])')
+id=$(tools/near_view.py "$NETWORK" "$CHALLENGE" get_challenge | python3 -c 'import json,sys; print(json.load(sys.stdin)["evaluations"])')
 args=$(python3 -I -c 'import json,sys; print(json.dumps({"config_json": open(sys.argv[1], encoding="utf-8").read()}))' "$CANDIDATE")
 
 echo "==> Submitting $CANDIDATE as evaluation $id"
@@ -29,7 +28,7 @@ started=$(date +%s)
 # other failure stops here instead of waiting for a verdict that cannot come.
 if ! output=$(near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
   prepaid-gas '300.0 Tgas' attached-deposit '0.035 NEAR' \
-  sign-as "$SIGNER" network-config testnet sign-with-keychain send 2>&1); then
+  sign-as "$SIGNER" network-config "$NETWORK" sign-with-keychain send 2>&1); then
   if printf '%s' "$output" | grep -q "408 Request Timeout"; then
     echo "(RPC did not wait for the outcome; polling the contract)"
   else
@@ -43,7 +42,7 @@ fi
 
 echo "==> Waiting for the sealed evaluation"
 while :; do
-  evaluation=$(tools/near_view.py testnet "$CHALLENGE" get_evaluation "{\"id\": $id}")
+  evaluation=$(tools/near_view.py "$NETWORK" "$CHALLENGE" get_evaluation "{\"id\": $id}")
   status=$(printf '%s' "$evaluation" | python3 -c 'import json,sys; e=json.load(sys.stdin); print(e["status"] if e else "Missing")')
   if [ "$status" = "Missing" ] && [ $(( $(date +%s) - started )) -gt 60 ]; then
     echo "evaluation $id was never recorded; the submission failed" >&2
@@ -52,7 +51,7 @@ while :; do
   [ "$status" != "Pending" ] && [ "$status" != "Missing" ] && break
   if [ $(( $(date +%s) - started )) -gt "$TIMEOUT_SECONDS" ]; then
     echo "no verdict after ${TIMEOUT_SECONDS}s; check later with:" >&2
-    echo "  tools/near_view.py testnet $CHALLENGE get_evaluation '{\"id\": $id}'" >&2
+    echo "  tools/near_view.py "$NETWORK" $CHALLENGE get_evaluation '{\"id\": $id}'" >&2
     exit 1
   fi
   sleep 5
@@ -75,7 +74,7 @@ EOF
 
 # A pass that wins the bounty is paid a block or two after the verdict.
 for _ in 1 2 3 4 5 6; do
-  award=$(tools/near_view.py testnet "$CHALLENGE" get_challenge | python3 -c '
+  award=$(tools/near_view.py "$NETWORK" "$CHALLENGE" get_challenge | python3 -c '
 import json, sys
 c, id = json.load(sys.stdin), int(sys.argv[1])
 a = c.get("award")
