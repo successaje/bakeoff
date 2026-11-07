@@ -86,7 +86,7 @@ export function sponsorPanel(ctx: FundingContext): HTMLElement {
       action("Open for this many hours", hours, (value) => {
         const n = Number(value);
         if (!Number.isFinite(n) || n <= 0) throw new Error("enter a number of hours");
-        return sendThen([tx.open(id, Date.now() + n * 3_600_000)], "The challenge is open.");
+        return sendThen([tx.open(id, Math.round(Date.now() + n * 3_600_000))], "The challenge is open.");
       }));
   }
 
