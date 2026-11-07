@@ -20,6 +20,10 @@ export interface ListedChallenge {
   summary: string;
   tickets: number;
   baseline: Baseline;
+  /** The workflow as it runs today, in the owner's words. */
+  problem?: string;
+  /** Public practice tickets builders can tune on. */
+  practice_tickets?: number;
   /** How the bounty was won, when there is something to tell. */
   story?: { headline: string; text: string };
   /**

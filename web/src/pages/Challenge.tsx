@@ -1,19 +1,24 @@
+/**
+ * A challenge, told in the order a visitor asks about it: the problem, the
+ * goal, how solutions are tested, the results, how to take part, and how to
+ * check it all. The owner's controls sit in their own Manage section.
+ */
+
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
-import { costCut, TheBar, VerdictTable } from "../components/challenge.tsx";
+import { Link, useLocation, useParams } from "react-router";
+import { costCut, ResultsTable, TheBar } from "../components/challenge.tsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Cube, Hash, Lock, Timer } from "../components/Icons.tsx";
-import { SponsorPanel } from "../components/Sponsor.tsx";
-import { Account, CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal, StatusBadge, Tabs } from "../components/ui.tsx";
+import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
+import { Account, CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal, StatusBadge } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
-import { microDollars, percent, utc } from "../lib/format.ts";
-import { challengeGates, type EvaluationView, formatNear, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
+import { microDollars, percent, seconds, utc } from "../lib/format.ts";
+import { challengeGates, type EvaluationView, formatNear, type Gates, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
+import type { Baseline } from "../lib/registry.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
-
-type Tab = "verdicts" | "verify" | "compete" | "sponsor";
 
 /** The winner's metrics, else the best passing run, else nothing to plot. */
 function bestRun(detail: ChallengeDetail): { metrics: Metrics | null; label: string } {
@@ -21,6 +26,20 @@ function bestRun(detail: ChallengeDetail): { metrics: Metrics | null; label: str
   const passed = detail.evaluations.filter((e) => e.status === "Passed").map(verdictMetrics).filter((m): m is Metrics => m !== null);
   passed.sort((a, b) => (b.accuracy_bp ?? 0) - (a.accuracy_bp ?? 0));
   return { metrics: passed[0] ?? null, label: "Best pass" };
+}
+
+/** The requirements as one sentence a team would say. */
+function goalSentence(gates: Gates, baseline: Baseline): string {
+  const parts: string[] = [];
+  const cut = baseline.cost_per_ticket_uusd ? Math.round((1 - gates.max_cost_per_ticket_uusd / baseline.cost_per_ticket_uusd) * 100) : 0;
+  parts.push(cut > 0
+    ? `cut the cost per ticket by at least ${cut}%, to ${microDollars(gates.max_cost_per_ticket_uusd)} or less`
+    : `keep the cost per ticket at ${microDollars(gates.max_cost_per_ticket_uusd)} or less`);
+  parts.push(`keep accuracy at ${percent(gates.min_accuracy_bp)} or more`);
+  parts.push(`answer 19 tickets in 20 within ${seconds(gates.max_p95_latency_ms)}`);
+  if (gates.max_leaks === 0) parts.push("never repeat a card number");
+  const sentence = `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`;
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 
 /** A check that ran and found a different hash, as opposed to one that could not run. */
@@ -55,12 +74,12 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
   );
 }
 
-function VerifyTab({ detail }: { detail: ChallengeDetail }) {
+function Verification({ detail }: { detail: ChallengeDetail }) {
   const { view } = detail;
   return (
     <div className="verify">
-      <p className="text-2 tab-intro">The contract records a verdict only if it names these exact rules, this candidate and this test set. Check the commitments here, in your browser, against the chain.</p>
-      <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, gates included." run={async () => {
+      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain.</p>
+      <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, requirements included." run={async () => {
         const actual = await sha256Hex(view.rules_json);
         if (actual !== view.rules_sha256) throw new Mismatch(`The served rules hash to ${actual}, not the commitment.`);
         return "The rules the contract serves hash to its commitment.";
@@ -73,7 +92,7 @@ function VerifyTab({ detail }: { detail: ChallengeDetail }) {
         if (actual !== view.evaluator.sha256) throw new Mismatch(`The download hashes to ${actual}, not the pinned build.`);
         return `The ${(bytes.byteLength / 1024).toFixed(0)} KB build at its URL is the pinned one.`;
       }} />
-      <CheckRow icon={Lock} title="Sealed test set" value={view.test_set_sha256} detail="Secret by design: only the hash is public. Each verdict carries the hash of the set it scored, and the contract rejects any that differs." />
+      <CheckRow icon={Lock} title="Hidden test set" value={view.test_set_sha256} detail="Only the hash is public. Each result carries the hash of the set it was scored on, and the contract rejects any that differs." />
     </div>
   );
 }
@@ -83,16 +102,16 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   const [result, setResult] = useState<string | null>(null);
   return (
     <div className="find-config">
-      <h4>Find a submission by its config</h4>
-      <p className="muted small">Every verdict records the SHA-256 of the config it scored. Paste a config to find its evaluations.</p>
-      <textarea className="textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"version": 1, "model": "…", …}' spellCheck={false} aria-label="Candidate config" />
+      <h4>Find a result by its config</h4>
+      <p className="muted small">Every result records the SHA-256 of the config it scored. Paste a config to find its results.</p>
+      <textarea className="textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"version": 1, "model": "…", …}' spellCheck={false} aria-label="Solution config" />
       <div className="row">
         <button type="button" className="btn btn-sm" onClick={async () => {
           // Pasting often drops or adds the file's final newline.
           const variants = [text, `${text.replace(/\n+$/, "")}\n`, text.replace(/\n+$/, "")];
           const hashes = new Set(await Promise.all(variants.map((v) => sha256Hex(v))));
           const ids = new Set(evaluations.filter((e) => hashes.has(e.config_sha256)).map((e) => e.id));
-          setResult(ids.size ? `Matches evaluation ${[...ids].join(", ")}.` : "No evaluation was scored on this config.");
+          setResult(ids.size ? `Matches result ${[...ids].map((i) => `#${i}`).join(", ")}.` : "No result was scored on this config.");
           onFound(ids);
           document.getElementById(`evaluation-${[...ids][0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
         }}>Find</button>
@@ -102,35 +121,60 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   );
 }
 
-function CompeteTab({ detail }: { detail: ChallengeDetail }) {
+function TakePart({ detail }: { detail: ChallengeDetail }) {
   const open = displayStatus(detail.view) === "open";
   return (
     <div className="compete">
       <p className="text-2 tab-intro">
         {open
-          ? "Compete with your own agent through the Bakeoff MCP server. It reads these rules, scores candidates on the public practice set with this challenge's evaluator build, and submits when you approve."
-          : "This challenge is not taking submissions. Its practice set and verdicts stay public, and the MCP server can still score candidates against it."}
+          ? "Builders take part through the Bakeoff MCP server, with Claude Code, Codex or any MCP client. Your agent reads the rules, scores solutions on the practice tickets with this challenge's evaluator, and submits when you approve."
+          : "This challenge is not taking submissions. Its practice tickets and results stay public, and the MCP server can still score solutions against it."}
       </p>
       <ol className="compete-steps">
         <li><span className="mono">1</span><div><h4>Build the server</h4><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
-        <li><span className="mono">2</span><div><h4>Add it to Claude Code</h4><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
-        <li><span className="mono">3</span><div><h4>Ask your agent</h4><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest candidate that clears every gate on the practice set with margin, and ask me before you submit.`} /></div></li>
+        <li><span className="mono">2</span><div><h4>Add it to Claude Code</h4><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
+        <li><span className="mono">3</span><div><h4>Ask your agent</h4><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
       </ol>
       <div className="row">
-        <Link to="/agents" className="btn">Full agent guide <ArrowRight /></Link>
+        <Link to="/builders" className="btn">Full guide for builders <ArrowRight /></Link>
         <span className="muted small">A submission costs 0.035 NEAR plus gas, most of it refunded. Its config becomes public on-chain.</span>
       </div>
     </div>
   );
 }
 
+const SECTIONS = [
+  { id: "problem", label: "Problem" },
+  { id: "goal", label: "Goal" },
+  { id: "testing", label: "How it's tested" },
+  { id: "results", label: "Results" },
+  { id: "take-part", label: "Take part" },
+  { id: "verification", label: "Verification" },
+];
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function Section({ id, title, intro, children }: { id: string; title: string; intro?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section id={id} className="story-section" aria-labelledby={`${id}-title`}>
+      <div className="story-head">
+        <h2 id={`${id}-title`}>{title}</h2>
+        {intro && <p className="text-2">{intro}</p>}
+      </div>
+      <ErrorBoundary>{children}</ErrorBoundary>
+    </section>
+  );
+}
+
 export function Challenge() {
   const { id = "" } = useParams();
+  const location = useLocation();
   const session = useSession();
   const reduced = usePrefersReducedMotion();
   const [version, setVersion] = useState(0);
   const { data, error, loading } = useAsync(() => loadChallenge(id, version > 0), `${id}:${version}`);
-  const [tab, setTab] = useState<Tab>("verdicts");
   const [highlight, setHighlight] = useState<Set<number>>(new Set());
   const refresh = () => {
     forget(id);
@@ -155,6 +199,12 @@ export function Challenge() {
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, id]);
+  // Links such as "All results" name a section to open at.
+  const loaded = data !== null;
+  useEffect(() => {
+    const section = location.hash.replace(/^#/, "");
+    if (loaded && section) requestAnimationFrame(() => scrollToSection(section));
+  }, [loaded, location.hash]);
 
   if (!data) {
     if (error && !loading) {
@@ -178,6 +228,9 @@ export function Challenge() {
   const cut = costCut(listing.baseline, data.winner);
   const closes = nsToDate(view.closes_at);
   const status = displayStatus(view);
+  const isOwner = session.account === view.owner;
+  const sections = isOwner ? [{ id: "manage", label: "Manage" }, ...SECTIONS] : SECTIONS;
+  const winningResult = award ? `/challenges/${id}/results/${award.evaluation}` : null;
 
   return (
     <div className="page challenge-page">
@@ -202,28 +255,46 @@ export function Challenge() {
               </div>
             </motion.div>
             <motion.aside className="bounty-card card" initial={reduced ? false : { opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.7, delay: 0.1 }}>
-              <span className="label"><Coins /> {award ? (award.paid ? "Bounty paid" : "Bounty awarded") : "Bounty in escrow"}</span>
+              <span className="label"><Coins /> {award ? (award.paid ? "Reward paid" : "Reward won, not yet paid") : "Reward held by the contract"}</span>
               <strong className="bounty-amount amber">{formatNear(award?.amount ?? view.bounty ?? "0")}</strong>
               <div className="bounty-rows">
                 <div><span className="muted"><Timer /> {status === "open" ? "Closes in" : "Deadline"}</span><span>{status === "open" ? <Countdown closesAt={view.closes_at} /> : closes ? utc(closes) : "Set when it opens"}</span></div>
-                <div><span className="muted">Verdicts</span><span className="tabular">{view.evaluations}{view.pending ? ` · ${view.pending} scoring` : ""}</span></div>
-                <div><span className="muted">Sealed tickets</span><span className="tabular">{listing.tickets || "–"}</span></div>
+                <div><span className="muted">Results</span><span className="tabular">{view.evaluations}{view.pending ? ` · ${view.pending} scoring` : ""}</span></div>
+                <div><span className="muted">Hidden test tickets</span><span className="tabular">{listing.tickets || "–"}</span></div>
               </div>
-              {award ? (
+              {award && (
                 <div className="bounty-winner">
                   <span className="muted small">Won by</span>
                   <Account id={award.winner} network={network} />
                   {cut !== null && cut > 0 && <span className="badge badge-green">{cut}% cheaper than baseline</span>}
                 </div>
+              )}
+              {winningResult ? (
+                <Link to={winningResult} className="btn btn-primary">See the winning result <ArrowRight /></Link>
               ) : status === "open" ? (
-                <button type="button" className="btn btn-primary" onClick={() => { setTab("compete"); document.getElementById("tabs")?.scrollIntoView({ behavior: "smooth" }); }}>Compete for it <ArrowRight /></button>
-              ) : null}
+                <button type="button" className="btn btn-primary" onClick={() => scrollToSection("take-part")}>Take part <ArrowRight /></button>
+              ) : status === "draft" ? (
+                <p className="muted small">Opens to builders once the owner funds and opens it.</p>
+              ) : (
+                <button type="button" className="btn" onClick={() => scrollToSection("results")}>See the results <ArrowRight /></button>
+              )}
+              {isOwner && <button type="button" className="btn btn-ghost btn-sm" onClick={() => scrollToSection("manage")}>Manage challenge</button>}
             </motion.aside>
           </div>
         </div>
       </div>
 
-      <div className="container page-body">
+      <nav className="story-nav" aria-label="On this page">
+        <div className="container story-nav-inner">
+          {sections.map((s) => (
+            <button key={s.id} type="button" onClick={() => scrollToSection(s.id)}>
+              {s.label}{s.id === "results" && view.evaluations > 0 && <span className="tab-count">{view.evaluations}</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <div className="container page-body story">
         {listing.demo && <DemoNotice sponsor={listing.sponsor} network={network} />}
 
         {award?.paid && data.winner && (
@@ -231,71 +302,114 @@ export function Challenge() {
             <span className="award-glow" aria-hidden="true" />
             <Check />
             <p>
-              <strong>{award.winner}</strong> cleared every gate with evaluation {award.evaluation} — {percent(data.winner.accuracy_bp)} accuracy at {microDollars(data.winner.cost_per_ticket_uusd)} a ticket — and the contract paid {formatNear(award.amount)} with the verdict.
+              <strong>{award.winner}</strong> met every requirement with result #{award.evaluation} ({percent(data.winner.accuracy_bp)} accuracy at {microDollars(data.winner.cost_per_ticket_uusd)} a ticket), and the contract paid {formatNear(award.amount)} with the result.{" "}
+              <Link to={winningResult!}>See the result</Link>
             </p>
           </Reveal>
         )}
         {award && !award.paid && (
           <Reveal className="award-callout pending">
             <Timer />
-            <p>
-              <strong>{award.winner}</strong> won the {formatNear(award.amount)} bounty with evaluation {award.evaluation}.{" "}
-              {award.in_flight ? "The payment is on its way." : "The payment has not completed yet; anyone can retry it from the Sponsor tab."}
-            </p>
+            <div>
+              <p>
+                <strong>{award.winner}</strong> won the {formatNear(award.amount)} reward with result #{award.evaluation}.{" "}
+                {award.in_flight ? "The payment is on its way." : "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner."}
+              </p>
+              <RetryPayment id={id} award={award} onChanged={refresh} />
+            </div>
           </Reveal>
         )}
+
+        {isOwner && (
+          <Section id="manage" title="Manage challenge" intro={<>You are connected as the owner, <strong className="break">{view.owner}</strong>. Only you see this section.</>}>
+            <div className="card card-pad">
+              <ManagePanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />
+            </div>
+          </Section>
+        )}
+
+        <Section id="problem" title="The problem" intro={`What ${listing.sponsor}'s workflow does today, in its own words and figures.`}>
+          <div className="problem card card-pad">
+            <p className="problem-text">{listing.problem ?? listing.summary}</p>
+            {listing.baseline.accuracy_bp > 0 && (
+              <dl className="today">
+                <div><dt>Accuracy today</dt><dd>{percent(listing.baseline.accuracy_bp)}</dd></div>
+                <div><dt>Cost per ticket</dt><dd>{microDollars(listing.baseline.cost_per_ticket_uusd)}</dd></div>
+                <div><dt>p95 latency</dt><dd>{seconds(listing.baseline.p95_latency_ms)}</dd></div>
+              </dl>
+            )}
+            <p className="muted small">Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</p>
+          </div>
+        </Section>
 
         {gates && (
-          <Reveal className="card card-pad bar-card">
-            <div className="card-title-row">
-              <div>
-                <h2>The bar</h2>
-                <p className="muted small">A candidate must clear every gate on the {listing.tickets || ""} sealed tickets. The gates are the contract's rules; the baseline is the figure {listing.sponsor} published, not one the contract measured.</p>
+          <Section id="goal" title="The goal" intro={goalSentence(gates, listing.baseline)}>
+            <div className="card card-pad bar-card">
+              <div className="card-title-row">
+                <p className="muted small">A solution must meet every requirement on the {listing.tickets || ""} hidden tickets. The requirements are the contract's rules.</p>
+                <div className="legend">
+                  <span><i className="legend-baseline" /> Baseline</span>
+                  <span><i className="legend-gate" /> Needed</span>
+                  {best?.metrics && <span><i className="legend-best" /> {best.label}</span>}
+                </div>
               </div>
-              <div className="legend">
-                <span><i className="legend-baseline" /> Baseline</span>
-                <span><i className="legend-gate" /> Gate</span>
-                {best?.metrics && <span><i className="legend-best" /> {best.label}</span>}
-              </div>
+              <TheBar gates={gates} baseline={listing.baseline} best={best?.metrics ?? null} bestLabel={best?.label ?? ""} />
             </div>
-            <TheBar gates={gates} baseline={listing.baseline} best={best?.metrics ?? null} bestLabel={best?.label ?? ""} />
-          </Reveal>
+          </Section>
         )}
 
-        <div className="freshness" aria-live="polite">
-          <span className="muted small">
-            {loading ? "Reading the contract…" : readAt ? <>Read from {network} at {readAt.toISOString().slice(11, 19)} UTC{pending ? ` · ${pending} result${pending > 1 ? "s" : ""} scoring, updating every 10 s` : ""}</> : null}
-          </span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading}>{loading && <span className="spinner" aria-hidden="true" />}Refresh</button>
-        </div>
+        <Section id="testing" title="How it's tested" intro="Builders tune in the open and are scored in private, once, on tickets they never see.">
+          <div className="compare">
+            <div className="card card-pad compare-col">
+              <h3>Builders can see</h3>
+              <ul className="check-list">
+                <li>The rules and requirements, as the contract stores them</li>
+                <li>{listing.practice_tickets ? `${listing.practice_tickets} practice tickets` : "Practice tickets"} with their labels</li>
+                <li>The labelling guide every ticket follows</li>
+                <li>The evaluator build, to score solutions on practice tickets</li>
+              </ul>
+            </div>
+            <div className="card card-pad compare-col">
+              <h3><Lock /> Hidden from builders</h3>
+              <ul className="check-list">
+                <li>{listing.tickets ? `${listing.tickets} test tickets` : "The test tickets"} and their labels</li>
+                <li>The owner's model API key</li>
+                <li>Every per-ticket answer from the test</li>
+              </ul>
+            </div>
+          </div>
+          <p className="muted small story-note">
+            Each submission is scored once, inside an OutLayer enclave, on the hidden tickets; only totals and hashes come out. The tickets are sent to the model on NEAR AI Cloud to be answered. <Link to="/how-it-works">What you still have to trust</Link>
+          </p>
+        </Section>
 
-        <div id="tabs" className="tabs-wrap">
-          <Tabs
-            tabs={[
-              { id: "verdicts", label: "Verdicts", count: data.evaluations.length },
-              { id: "verify", label: "Verify" },
-              { id: "compete", label: "Compete" },
-              { id: "sponsor", label: "Sponsor" },
-            ]}
-            value={tab}
-            onChange={setTab}
-          />
-          {/* Slide only: a fade that stalls (in a background tab, say) would leave the panel invisible. */}
-          <motion.div key={tab} className="card card-pad tab-panel" initial={reduced ? false : { y: 8 }} animate={{ y: 0 }} transition={{ duration: 0.3 }}>
-            <ErrorBoundary>
-              {tab === "verdicts" && (
-                <>
-                  <VerdictTable evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
-                  <hr className="divider" />
-                  <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
-                </>
-              )}
-              {tab === "verify" && <VerifyTab detail={data} />}
-              {tab === "compete" && <CompeteTab detail={data} />}
-              {tab === "sponsor" && <SponsorPanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />}
-            </ErrorBoundary>
-          </motion.div>
-        </div>
+        <Section id="results" title="Results" intro="Every submission's outcome, as the contract recorded it. Open one to see what changed and how to use it.">
+          <div className="freshness" aria-live="polite">
+            <span className="muted small">
+              {loading ? "Reading the contract…" : readAt ? <>Read from {network} at {readAt.toISOString().slice(11, 19)} UTC{pending ? ` · ${pending} result${pending > 1 ? "s" : ""} scoring, updating every 10 s` : ""}</> : null}
+            </span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading}>{loading && <span className="spinner" aria-hidden="true" />}Refresh</button>
+          </div>
+          <div className="card card-pad">
+            <ResultsTable challenge={id} evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
+            <hr className="divider" />
+            <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
+          </div>
+        </Section>
+
+        <Section id="take-part" title="Take part">
+          <div className="card card-pad"><TakePart detail={data} /></div>
+        </Section>
+
+        <Section id="verification" title="Rules and verification">
+          <div className="card card-pad"><Verification detail={data} /></div>
+        </Section>
+
+        {!session.account && (
+          <p className="muted small owner-hint">
+            Own this challenge? <button type="button" className="link-button" onClick={() => void session.signIn()}>Connect the owner's wallet</button> to fund, open or withdraw it.
+          </p>
+        )}
       </div>
     </div>
   );

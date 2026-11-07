@@ -27,7 +27,7 @@ const TOOLS = [
   ["submit_candidate", "Sealed evaluation in the TEE, verdict and payout", "0.035 NEAR + gas"],
 ];
 
-export function Agents() {
+export function Builders() {
   return (
     <div className="page">
       <PageHero
@@ -108,7 +108,7 @@ const LIFECYCLE = [
   { title: "Closed", text: "If nobody clears the bar by the deadline, you withdraw the bounty once every pending evaluation settles." },
 ];
 
-export function Sponsors() {
+export function Teams() {
   return (
     <div className="page">
       <PageHero

@@ -1,12 +1,12 @@
 /**
- * What a connected wallet can do on a challenge: the owner funds, opens and
- * withdraws; anyone can retry a failed award payment. On mainnet, a sponsor
- * can fund from another chain through 1Click.
+ * The challenge owner's controls: fund, open and withdraw, and on mainnet,
+ * fund from another chain through 1Click. Retrying a failed award payment is
+ * open to anyone, so it lives in its own component.
  */
 
 import { useEffect, useState } from "react";
 import { relative, utc } from "../lib/format.ts";
-import { type ChallengeView, formatNear, type NearRpc, type Network, NETWORKS, nsToDate, parseNear } from "../lib/near.ts";
+import { type Award, type ChallengeView, formatNear, type NearRpc, type Network, NETWORKS, nsToDate, parseNear } from "../lib/near.ts";
 import { FINAL_STATUSES, OneClick, type Quote, quoteRequest, type SwapStatus, type Token } from "../lib/oneclick.ts";
 import { useSession } from "../lib/session.tsx";
 import * as tx from "../lib/transactions.ts";
@@ -26,7 +26,7 @@ function deadlinePassed(view: ChallengeView): boolean {
   return closes !== null && Date.now() >= closes.getTime();
 }
 
-export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
+export function ManagePanel({ id, network, view, rpc, onChanged }: Props) {
   const session = useSession();
   const { account, signIn, send } = session;
   const [amount, setAmount] = useState("1");
@@ -53,27 +53,26 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
     return (
       <div className="panel-empty">
         <span className="panel-empty-icon"><Wallet /></span>
-        <p>Connect the sponsor's wallet to fund, open or withdraw this challenge.</p>
+        <p>Connect the owner's wallet to fund, open or withdraw this challenge.</p>
         <button type="button" className="btn btn-primary" onClick={() => void signIn()}>Connect wallet</button>
       </div>
     );
   }
 
-  const award = view.award;
   return (
     <div className="funding">
       {!isOwner && (
-        <p className="notice">Only the sponsor, <strong className="break">{view.owner}</strong>, can fund this challenge. You are connected as <strong className="break">{account}</strong>.</p>
+        <p className="notice">Only the challenge owner, <strong className="break">{view.owner}</strong>, can manage this challenge. You are connected as <strong className="break">{account}</strong>.</p>
       )}
-      {view.bounty === undefined && <p className="notice">This challenge was deployed before bounties existed, so it has nothing to fund.</p>}
+      {view.bounty === undefined && <p className="notice">This challenge was deployed before rewards existed, so it has no reward to fund.</p>}
 
       {isOwner && fundable && (
         <div className="funding-step">
-          <h4>Add to the bounty</h4>
+          <h4>Add to the reward</h4>
           <p className="muted small">Paid from your wallet into the contract's escrow.</p>
           <div className="row">
             <div className="input-suffix"><input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount in NEAR" /><span>NEAR</span></div>
-            <ActionButton primary label="Fund" run={() => sendThen([tx.fund(id, parseNear(amount))], `Added ${amount} NEAR to the bounty.`)} />
+            <ActionButton primary label="Fund" run={() => sendThen([tx.fund(id, parseNear(amount))], `Added ${amount} NEAR to the reward.`)} />
           </div>
         </div>
       )}
@@ -81,7 +80,7 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
       {isOwner && view.status === "Draft" && (
         <div className="funding-step">
           <h4>Open the challenge</h4>
-          <p className="muted small">Freezes the rules, evaluator and test set, and admits submissions from anyone until the deadline.</p>
+          <p className="muted small">Freezes the rules, evaluator and test set, and takes submissions from anyone until the deadline.</p>
           <div className="row">
             <div className="input-suffix"><input className="input" type="number" min="1" value={hours} onChange={(e) => setHours(e.target.value)} aria-label="Hours open" /><span>hours</span></div>
             <ActionButton label="Open" run={() => {
@@ -96,28 +95,22 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
       {isOwner && bounty > 0n && (
         view.status === "Draft" || (view.status === "Open" && deadlinePassed(view) && (view.pending ?? 0) === 0) ? (
           <div className="funding-step">
-            <h4>Withdraw the bounty</h4>
-            <ActionButton label={`Withdraw ${formatNear(bounty)}`} run={() => sendThen([tx.withdrawBounty(id)], "The bounty is on its way back to you.")} />
+            <h4>Withdraw the reward</h4>
+            <ActionButton label={`Withdraw ${formatNear(bounty)}`} run={() => sendThen([tx.withdrawBounty(id)], "The reward is on its way back to you.")} />
           </div>
         ) : view.status === "Open" ? (
           <p className="notice">
             {deadlinePassed(view)
               ? `Withdrawal opens once the ${view.pending} pending evaluation(s) settle; any of them can still win.`
-              : `If nobody wins, you can withdraw the bounty after the deadline, ${utc(nsToDate(view.closes_at))} (${relative(nsToDate(view.closes_at))}).`}
+              : `If nobody wins, you can withdraw the reward after the deadline, ${utc(nsToDate(view.closes_at))} (${relative(nsToDate(view.closes_at))}).`}
           </p>
         ) : null
       )}
 
-      {award && !award.paid && !award.in_flight && (
-        <div className="funding-step">
-          <h4>Retry the award payment</h4>
-          <ActionButton label={`Send ${formatNear(award.amount)} to ${award.winner}`} run={() => sendThen([tx.claimAward(id)], "Payment sent to the winner.")} />
-        </div>
-      )}
 
       {isOwner && fundable && <WnearBlock id={id} network={network} rpc={rpc} account={account} onChanged={onChanged} />}
       {isOwner && fundable && <CrossChain id={id} network={network} rpc={rpc} account={account} onChanged={onChanged} />}
-      {view.status === "Awarded" && <p className="notice">This challenge is settled: the bounty was awarded, so there is nothing left to fund.</p>}
+      {view.status === "Awarded" && <p className="notice">This challenge is settled: the reward was won, so there is nothing left to fund or withdraw.</p>}
     </div>
   );
 }
@@ -137,7 +130,7 @@ function WnearBlock({ id, network, rpc, account, onChanged }: { id: string; netw
       <ActionButton label={`Unwrap and fund ${formatNear(held)}`} run={async () => {
         await send(tx.unwrapAndFund(wrap, id, held));
         onChanged();
-        return "Unwrapped and added to the bounty.";
+        return "Unwrapped and added to the reward.";
       }} />
     </div>
   );
@@ -223,7 +216,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
     return (
       <div className="funding-step subtle">
         <h4><Coins /> Fund from another chain</h4>
-        <p className="muted small">On mainnet, NEAR Intents' 1Click swaps about 200 tokens on about 40 chains into wNEAR in your account, which then funds the bounty in one approval. NEAR Intents has no testnet, so this is mainnet only.</p>
+        <p className="muted small">On mainnet, NEAR Intents' 1Click swaps about 200 tokens on about 40 chains into wNEAR in your account, which then funds the reward in one approval. NEAR Intents has no testnet, so this is mainnet only.</p>
       </div>
     );
   }
@@ -254,7 +247,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
             writeSwap(null);
             setSwap(null);
             onChanged();
-            return `Added ${formatNear(value)} to the bounty.`;
+            return `Added ${formatNear(value)} to the reward.`;
           }} />
         )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => { writeSwap(null); setSwap(null); setStatus(null); }}>Start over</button>
@@ -303,5 +296,24 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Sends a won reward that did not arrive. The contract lets any account call
+ * this, and pays only the recorded winner.
+ */
+export function RetryPayment({ id, award, onChanged }: { id: string; award: Award; onChanged: () => void }) {
+  const { account, signIn, send } = useSession();
+  if (award.paid || award.in_flight) return null;
+  if (!account) {
+    return <button type="button" className="btn btn-sm" onClick={() => void signIn()}>Connect a wallet to retry the payment</button>;
+  }
+  return (
+    <ActionButton label={`Send ${formatNear(award.amount)} to ${award.winner}`} run={async () => {
+      await send([tx.claimAward(id)]);
+      onChanged();
+      return "Payment sent to the winner.";
+    }} />
   );
 }

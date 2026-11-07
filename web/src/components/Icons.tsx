@@ -33,6 +33,7 @@ export const Chevron = (p: IconProps) => <Icon {...p}><path d="m6 9 6 6 6-6" /><
 export const Wallet = (p: IconProps) => <Icon {...p}><path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4h-12A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" /><path d="M20 9h-5a3 3 0 0 0 0 6h5a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1z" /></Icon>;
 export const LogOut = (p: IconProps) => <Icon {...p}><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" /></Icon>;
 export const Hash = (p: IconProps) => <Icon {...p}><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16" /></Icon>;
+export const Download = (p: IconProps) => <Icon {...p}><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></Icon>;
 export const Gauge = (p: IconProps) => <Icon {...p}><path d="M4.5 17a8.5 8.5 0 1 1 15 0" /><path d="m12 13 4-4" /></Icon>;
 export const Github = (p: IconProps) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...p}>

@@ -15,7 +15,9 @@
         "headline": "An AI agent cleared the bar on its first sealed try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
       },
-      "demo": true
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     },
     {
       "id": "challenge-20261107093927.finishr.testnet",
@@ -28,7 +30,9 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
-      "demo": true
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     }
   ],
   "mainnet": [
@@ -47,7 +51,9 @@
         "headline": "An AI agent won the first mainnet bounty on its first sealed try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single candidate."
       },
-      "demo": true
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80
     }
   ]
 }
