@@ -1,11 +1,10 @@
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { ChallengeCard, costCut, TheBar } from "../components/challenge.tsx";
-import { HeroScene } from "../components/HeroScene.tsx";
+import { EvaluationRun } from "../components/EvaluationRun.tsx";
 import { ArrowRight, Bot, Building, Coins, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
 import { CountUp, DemoBadge, Reveal } from "../components/ui.tsx";
 import { type ChallengeSummary, loadChallenges } from "../lib/data.ts";
-import { microDollars, percent } from "../lib/format.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { useSession } from "../lib/session.tsx";
@@ -15,34 +14,7 @@ function latestWin(rows: ChallengeSummary[]): ChallengeSummary | null {
   return rows.filter((r) => r.view?.award?.paid && r.winner).sort((a, b) => b.listing.id.localeCompare(a.listing.id))[0] ?? null;
 }
 
-function VerdictCard({ win }: { win: ChallengeSummary | null }) {
-  const reduced = usePrefersReducedMotion();
-  if (!win?.view?.award || !win.winner) return null;
-  return (
-    <motion.div
-      className="verdict-float"
-      initial={reduced ? false : { opacity: 0, y: 24, rotateX: 12 }}
-      animate={{ opacity: 1, y: 0, rotateX: 0 }}
-      transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <div className="verdict-float-head">
-        <span className="badge badge-dot badge-green">Result · Passed</span>
-        <span className="mono small muted">result #{win.view.award.evaluation}{win.listing.demo ? " · demo" : ""}</span>
-      </div>
-      <dl>
-        <div><dt>Accuracy</dt><dd>{percent(win.winner.accuracy_bp)}</dd></div>
-        <div><dt>Per ticket</dt><dd>{microDollars(win.winner.cost_per_ticket_uusd)}</dd></div>
-        <div><dt>Leaks</dt><dd>{win.winner.leaks ?? 0}</dd></div>
-      </dl>
-      <div className="verdict-float-paid">
-        <Coins />
-        <span>Contract paid <strong className="amber">{formatNear(win.view.award.amount)}</strong></span>
-      </div>
-    </motion.div>
-  );
-}
-
-function Hero({ win }: { win: ChallengeSummary | null }) {
+function Hero({ win, loading }: { win: ChallengeSummary | null; loading: boolean }) {
   const reduced = usePrefersReducedMotion();
   const rise = (delay: number) => ({
     initial: reduced ? false : { opacity: 0, y: 22 },
@@ -51,8 +23,7 @@ function Hero({ win }: { win: ChallengeSummary | null }) {
   });
   return (
     <section className="hero">
-      <HeroScene />
-      <div className="hero-fade" aria-hidden="true" />
+      <div className="hero-backdrop" aria-hidden="true" />
       <div className="container hero-inner">
         <div className="hero-copy">
           <motion.span className="eyebrow" {...rise(0.05)}>AI workflow bake-offs on NEAR</motion.span>
@@ -74,7 +45,9 @@ function Hero({ win }: { win: ChallengeSummary | null }) {
             <li><Cube /> Models on NEAR AI Cloud</li>
           </motion.ul>
         </div>
-        <VerdictCard win={win} />
+        <motion.div className="hero-run" {...rise(0.3)}>
+          <EvaluationRun win={win} loading={loading} />
+        </motion.div>
       </div>
     </section>
   );
@@ -263,11 +236,11 @@ function FinalCta() {
 
 export function Home() {
   const { network } = useSession();
-  const { data } = useAsync(() => loadChallenges(network), network);
+  const { data, loading } = useAsync(() => loadChallenges(network), network);
   const win = data ? latestWin(data) : null;
   return (
     <>
-      <Hero win={win} />
+      <Hero win={win} loading={loading} />
       <Stats rows={data} />
       <HowItWorks />
       <Spotlight win={win} />

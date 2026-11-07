@@ -69,10 +69,6 @@
   --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
   --glass: rgba(10, 13, 12, 0.72);
   --grid-line: rgba(255, 255, 255, 0.05);
-  /* Read by the hero scene. */
-  --scene-bg: 6 8 7;
-  --scene-grid: 0 236 151;
-  --scene-ink: 238 242 240;
 }
 
 :root[data-theme="light"] {
@@ -102,9 +98,6 @@
   --shadow-lg: 0 2px 4px rgba(16, 24, 20, 0.04), 0 40px 80px -40px rgba(16, 24, 20, 0.35);
   --glass: rgba(251, 250, 246, 0.78);
   --grid-line: rgba(16, 24, 20, 0.06);
-  --scene-bg: 246 245 240;
-  --scene-grid: 0 153 95;
-  --scene-ink: 12 18 16;
 }
 
 @media (prefers-color-scheme: light) {
@@ -135,8 +128,5 @@
     --shadow-lg: 0 2px 4px rgba(16, 24, 20, 0.04), 0 40px 80px -40px rgba(16, 24, 20, 0.35);
     --glass: rgba(251, 250, 246, 0.78);
     --grid-line: rgba(16, 24, 20, 0.06);
-    --scene-bg: 246 245 240;
-    --scene-grid: 0 153 95;
-    --scene-ink: 12 18 16;
   }
 }
