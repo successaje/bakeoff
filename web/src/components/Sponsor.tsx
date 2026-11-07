@@ -61,14 +61,14 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
 
   const award = view.award;
   return (
-    <div className="sponsor">
+    <div className="funding">
       {!isOwner && (
         <p className="notice">Only the sponsor, <strong className="break">{view.owner}</strong>, can fund this challenge. You are connected as <strong className="break">{account}</strong>.</p>
       )}
       {view.bounty === undefined && <p className="notice">This challenge was deployed before bounties existed, so it has nothing to fund.</p>}
 
       {isOwner && fundable && (
-        <div className="sponsor-block">
+        <div className="funding-step">
           <h4>Add to the bounty</h4>
           <p className="muted small">Paid from your wallet into the contract's escrow.</p>
           <div className="row">
@@ -79,7 +79,7 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
       )}
 
       {isOwner && view.status === "Draft" && (
-        <div className="sponsor-block">
+        <div className="funding-step">
           <h4>Open the challenge</h4>
           <p className="muted small">Freezes the rules, evaluator and test set, and admits submissions from anyone until the deadline.</p>
           <div className="row">
@@ -95,7 +95,7 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
 
       {isOwner && bounty > 0n && (
         view.status === "Draft" || (view.status === "Open" && deadlinePassed(view) && (view.pending ?? 0) === 0) ? (
-          <div className="sponsor-block">
+          <div className="funding-step">
             <h4>Withdraw the bounty</h4>
             <ActionButton label={`Withdraw ${formatNear(bounty)}`} run={() => sendThen([tx.withdrawBounty(id)], "The bounty is on its way back to you.")} />
           </div>
@@ -109,7 +109,7 @@ export function SponsorPanel({ id, network, view, rpc, onChanged }: Props) {
       )}
 
       {award && !award.paid && !award.in_flight && (
-        <div className="sponsor-block">
+        <div className="funding-step">
           <h4>Retry the award payment</h4>
           <ActionButton label={`Send ${formatNear(award.amount)} to ${award.winner}`} run={() => sendThen([tx.claimAward(id)], "Payment sent to the winner.")} />
         </div>
@@ -131,7 +131,7 @@ function WnearBlock({ id, network, rpc, account, onChanged }: { id: string; netw
   }, [rpc, wrap, account]);
   if (held === 0n) return null;
   return (
-    <div className="sponsor-block">
+    <div className="funding-step">
       <h4>Add your wNEAR</h4>
       <p className="muted small">You hold {formatNear(held).replace("NEAR", "wNEAR")} on {wrap}. One approval unwraps it and funds the challenge.</p>
       <ActionButton label={`Unwrap and fund ${formatNear(held)}`} run={async () => {
@@ -221,7 +221,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
 
   if (network !== "mainnet") {
     return (
-      <div className="sponsor-block subtle">
+      <div className="funding-step subtle">
         <h4><Coins /> Fund from another chain</h4>
         <p className="muted small">On mainnet, NEAR Intents' 1Click swaps about 200 tokens on about 40 chains into wNEAR in your account, which then funds the bounty in one approval. NEAR Intents has no testnet, so this is mainnet only.</p>
       </div>
@@ -236,7 +236,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
 
   if (swap) {
     return (
-      <div className="sponsor-block">
+      <div className="funding-step">
         <h4><Coins /> Fund from another chain</h4>
         <p>Send exactly <strong>{swap.quote.amountInFormatted} {swap.symbol}</strong> on {swap.blockchain} to:</p>
         <pre className="code deposit">{swap.depositAddress}<CopyButton text={swap.depositAddress} label="Copy address" /></pre>
@@ -263,7 +263,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
   }
 
   return (
-    <div className="sponsor-block">
+    <div className="funding-step">
       <h4><Coins /> Fund from another chain</h4>
       <p className="muted small">1Click swaps the token you send into exactly the wNEAR you ask for, delivered to <strong className="break">{account}</strong>. A failed swap is refunded to that account's NEAR Intents balance. 1Click charges 0.25%.</p>
       <div className="row">
@@ -283,7 +283,7 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
         <div className="quote">
           <p>About <strong>{quote.quote.amountInFormatted} {quote.token.symbol}</strong> (≈ ${Number(quote.quote.amountInUsd).toFixed(2)}) buys exactly <strong>{quote.quote.amountOutFormatted} wNEAR</strong>.</p>
           {!quote.registered && (
-            <div className="sponsor-block subtle">
+            <div className="funding-step subtle">
               <p className="small">{account} is not registered with {wrap} yet, so it cannot receive wNEAR. Register first (0.00125 NEAR, refundable):</p>
               <ActionButton label="Register for wNEAR" run={async () => {
                 await send([tx.registerWnear(wrap, account)]);

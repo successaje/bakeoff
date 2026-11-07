@@ -208,7 +208,7 @@ export function Challenge() {
 
       <div className="container page-body">
         {award?.paid && data.winner && (
-          <Reveal className="award-banner">
+          <Reveal className="award-callout">
             <span className="award-glow" aria-hidden="true" />
             <Check />
             <p>
