@@ -31,9 +31,10 @@ export interface Config {
   cacheDir: string;
 }
 
+/** FastNEAR's free endpoints, as the web app uses; near.org's rate-limit bursts. */
 const RPC_URLS: Record<Network, string> = {
-  testnet: "https://rpc.testnet.near.org",
-  mainnet: "https://rpc.mainnet.near.org",
+  testnet: "https://test.rpc.fastnear.com",
+  mainnet: "https://free.rpc.fastnear.com",
 };
 
 interface ConfigFile {

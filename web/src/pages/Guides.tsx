@@ -182,7 +182,7 @@ export function Sponsors() {
 
         <Reveal className="final-cta card">
           <div><h2>Ready to set a <span className="serif">bar</span>?</h2><p className="text-2">The deployment scripts, contract and evaluator are open source.</p></div>
-          <a href="https://github.com/successaje/bakeoff#testnet-deployment" target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-lg">Deployment guide <ArrowRight /></a>
+          <a href="https://github.com/successaje/bakeoff#deployment" target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-lg">Deployment guide <ArrowRight /></a>
         </Reveal>
       </div>
     </div>

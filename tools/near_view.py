@@ -9,9 +9,11 @@ import json
 import sys
 import urllib.request
 
+# FastNEAR's free endpoints: near.org's public RPC rate-limits the polling
+# scripts/near/submit.sh does while it waits for a verdict.
 RPC = {
-    "testnet": "https://rpc.testnet.near.org",
-    "mainnet": "https://rpc.mainnet.near.org",
+    "testnet": "https://test.rpc.fastnear.com",
+    "mainnet": "https://free.rpc.fastnear.com",
 }
 
 

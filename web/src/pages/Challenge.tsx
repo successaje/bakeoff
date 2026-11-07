@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { costCut, TheBar, VerdictTable } from "../components/challenge.tsx";
+import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Cube, Hash, Lock, Timer } from "../components/Icons.tsx";
 import { SponsorPanel } from "../components/Sponsor.tsx";
 import { Account, CodeBlock, CopyButton, Countdown, displayStatus, explorer, Reveal, StatusBadge, Tabs } from "../components/ui.tsx";
@@ -207,7 +208,7 @@ export function Challenge() {
 
       <div className="container page-body">
         {award?.paid && data.winner && (
-          <Reveal className="award-banner">
+          <Reveal className="award-callout">
             <span className="award-glow" aria-hidden="true" />
             <Check />
             <p>
@@ -244,17 +245,20 @@ export function Challenge() {
             value={tab}
             onChange={setTab}
           />
-          <motion.div key={tab} className="card card-pad tab-panel" initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            {tab === "verdicts" && (
-              <>
-                <VerdictTable evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
-                <hr className="divider" />
-                <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
-              </>
-            )}
-            {tab === "verify" && <VerifyTab detail={data} />}
-            {tab === "compete" && <CompeteTab detail={data} />}
-            {tab === "sponsor" && <SponsorPanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />}
+          {/* Slide only: a fade that stalls (in a background tab, say) would leave the panel invisible. */}
+          <motion.div key={tab} className="card card-pad tab-panel" initial={reduced ? false : { y: 8 }} animate={{ y: 0 }} transition={{ duration: 0.3 }}>
+            <ErrorBoundary>
+              {tab === "verdicts" && (
+                <>
+                  <VerdictTable evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
+                  <hr className="divider" />
+                  <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
+                </>
+              )}
+              {tab === "verify" && <VerifyTab detail={data} />}
+              {tab === "compete" && <CompeteTab detail={data} />}
+              {tab === "sponsor" && <SponsorPanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />}
+            </ErrorBoundary>
           </motion.div>
         </div>
       </div>

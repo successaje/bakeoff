@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Starts the built MCP server against the challenges in this repository's
-# testnet config, for an MCP client such as Claude Code or Codex.
+# config for one network, for an MCP client such as Claude Code or Codex.
 #
 #   BAKEOFF_ACCOUNT      required: the account that signs submissions. Use a
 #                        contributor account; the owner's submissions are trials.
+#   BAKEOFF_NETWORK      testnet (default) or mainnet; picks mcp/bakeoff.<network>.json.
 #   BAKEOFF_LLM_API_KEY  NEAR AI Cloud key for practice runs. If unset, it is
 #                        read from the repository's .env, and never printed.
 #
@@ -19,6 +20,7 @@ if [ -z "${BAKEOFF_LLM_API_KEY:-}" ] && [ -f "$repo/.env" ]; then
 fi
 [ -f "$repo/mcp/dist/index.js" ] || { echo "build the server first: (cd mcp && npm ci && npm run build)" >&2; exit 1; }
 
-export BAKEOFF_MCP_CONFIG="${BAKEOFF_MCP_CONFIG:-$repo/mcp/bakeoff.testnet.json}"
+export BAKEOFF_NETWORK="${BAKEOFF_NETWORK:-testnet}"
+export BAKEOFF_MCP_CONFIG="${BAKEOFF_MCP_CONFIG:-$repo/mcp/bakeoff.$BAKEOFF_NETWORK.json}"
 export BAKEOFF_CACHE_DIR="${BAKEOFF_CACHE_DIR:-$repo/target/mcp-cache}"
 exec node "$repo/mcp/dist/index.js"
