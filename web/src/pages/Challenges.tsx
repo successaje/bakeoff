@@ -32,8 +32,8 @@ export function Challenges() {
         <div className="container">
           <Reveal immediate>
             <span className="eyebrow">Challenges on {network}</span>
-            <h1 className="page-title">Every bar, every <span className="serif">verdict</span>.</h1>
-            <p className="page-lede">Each challenge is a NEAR contract with its rules, a sealed test set and a bounty. Pick one to see the bar, the verdicts and how to compete.</p>
+            <h1 className="page-title">Every goal, every <span className="serif">result</span>.</h1>
+            <p className="page-lede">Each challenge is an AI workflow to improve, with requirements, hidden test cases and a reward held by a NEAR contract. Pick one to see the goal, the results and how to take part.</p>
           </Reveal>
         </div>
       </div>
