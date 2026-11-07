@@ -149,6 +149,8 @@ outlayer login mainnet
 NETWORK=mainnet BAKEOFF_ACCOUNT=you.near MAINNET_CONFIRM=you.near scripts/near/deploy.sh
 ```
 
+near-cli's default mainnet RPC is rate-limited. If the deploy stops with "exceeded the rate limit" after creating the account, re-run it with `CHALLENGE_NAME` set to the new account's first label. It then deploys to that account instead of creating another.
+
 A mainnet challenge costs about 2.5 NEAR, most of it the contract's refundable storage. On top of that come the 0.245 NEAR secret deposit, about 0.012 NEAR of OutLayer compute per sealed run, and the bounty.
 
 ## Status

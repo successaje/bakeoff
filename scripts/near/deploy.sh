@@ -65,10 +65,18 @@ print(json.dumps({
 EOF
 )
 
-echo "==> Creating $CHALLENGE"
-near account create-account fund-myself "$CHALLENGE" "$CHALLENGE_BALANCE" \
-  autogenerate-new-keypair save-to-keychain \
-  sign-as "$BAKEOFF_ACCOUNT" network-config "$NETWORK" sign-with-keychain send
+# A deploy that stopped after creating the account (a public RPC's rate limit,
+# say) resumes when re-run with CHALLENGE_NAME set to that account's name.
+# Deploying and initialising share one transaction, so an account that already
+# holds an initialised contract rejects the second attempt as a whole.
+if near account view-account-summary "$CHALLENGE" network-config "$NETWORK" now >/dev/null 2>&1; then
+  echo "==> $CHALLENGE already exists; deploying to it"
+else
+  echo "==> Creating $CHALLENGE"
+  near account create-account fund-myself "$CHALLENGE" "$CHALLENGE_BALANCE" \
+    autogenerate-new-keypair save-to-keychain \
+    sign-as "$BAKEOFF_ACCOUNT" network-config "$NETWORK" sign-with-keychain send
+fi
 
 echo "==> Deploying contract"
 near contract deploy "$CHALLENGE" use-file "$CONTRACT_WASM" \
