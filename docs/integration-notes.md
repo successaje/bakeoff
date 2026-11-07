@@ -70,7 +70,7 @@ All runs use GLM-5.3 Flash. The first run was sequential; the rest had 8 calls i
 - `qwen/qwen3.5-397b-a17b` was too slow for the window: two calls hit the 60 s first-byte timeout and the run cost 721 µ$ per ticket.
 - An account without credits gets HTTP 402 on every call.
 
-## Sealed runs on testnet (2026-11-07)
+## Sealed runs on testnet: 16-ticket sample (2026-11-07)
 
 Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef5`, 16-ticket sealed sample, 8 calls in flight.
 
@@ -78,10 +78,37 @@ Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef
 |---|---|---|---|---|---|---|---|---|
 | 0 | `webhook-tool` | Failed: `policy_tool` | – | – | – | 8.0 s | 0.6 s, 0.89M instr. | [ERAUj8fB…](https://testnet.nearblocks.io/txns/ERAUj8fBNeRe655y82bSsZAVZEHrNbUDVf8w8D1N8Tgj) |
 | 1 | `routed` | Failed: `gate_accuracy` | 81.25% | 43 µ$ | 3.2 s | 12.0 s | 6.5 s, 4.2M instr. | [2tzDUpoT…](https://testnet.nearblocks.io/txns/2tzDUpoTsxdANNpbeZCaW5Fq8Jbx8p4xR3CEjL1gTGwf) |
-| 2 | `baseline` | Failed: `gate_latency` | 93.75% | 114 µ$ | 17.5 s | 32.0 s | 24.4 s in the evaluator | [BiHK5EtD…](https://testnet.nearblocks.io/txns/BiHKq5EtDwC6QYBjm7xk7CCoy5nhy3DW1KshQo8wh7QB) |
+| 2 | `baseline` | Failed: `gate_latency` | 93.75% | 114 µ$ | 17.5 s | 32.0 s | 24.4 s in the evaluator | [BiHKq5Et…](https://testnet.nearblocks.io/txns/BiHKq5EtDwC6QYBjm7xk7CCoy5nhy3DW1KshQo8wh7QB) |
 | 3 | `few-shot-budgeted` | **Passed** | 93.75% | 98 µ$ | 6.0 s | 18.8 s | 12.4 s, 6.6M instr. | [5skf7Zyn…](https://testnet.nearblocks.io/txns/5skf7ZyniwVMjisUgcSE7mAEDCwGCTtbLRDysk97CHqY) |
 
 - Every verdict's digests matched the contract's commitments, so the sealed test set and API key were injected for the pinned build only.
 - OutLayer charged 0.0012–0.0022 NEAR per run and refunded the rest of the 0.025 NEAR deposit.
 - Concurrent outgoing requests work inside OutLayer workers. Sealed results matched the local runs to within run-to-run model variation.
 - The RPC node gives up waiting on long submissions (HTTP 408) while the transaction continues; `submit.sh` polls the contract instead.
+
+## Sealed runs on testnet: 100-ticket set (2026-11-07)
+
+Challenge `challenge-20261107005328.finishr.testnet`, evaluator `99f78452…5785a`, 100-ticket sealed set, 16 calls in flight, 75 s budget. The gates were calibrated from the sponsor's baseline (`examples/calibration/near-ai.json`): accuracy at least 83.0%, cost at most 95 µ$ per ticket, p95 at most 19.2 s, no leaks.
+
+| # | Candidate | Recorded | Accuracy | Cost per ticket | p95 latency | Submission to verdict | OutLayer run | Transaction |
+|---|---|---|---|---|---|---|---|---|
+| 0 | `webhook-tool` | Failed: `policy_tool` | – | – | – | 7.9 s | 0.6 s, 2.5M instr. | [66s7hw55…](https://testnet.nearblocks.io/txns/66s7hw55xdwoQoLdsu2G14KYMehNxzzyPUX4v8uy51WE) |
+| 1 | `few-shot-budgeted` | Failed: `gate_leaks` | 88.0% | 95 µ$ | 7.2 s | 36.9 s | 29.9 s, 36.8M instr. | [7fMNxciq…](https://testnet.nearblocks.io/txns/7fMNxciqcQX7Lf9sypSFtL8HQASrQZb5iQ78dBkCGhTx) |
+| 2 | `few-shot` | Failed: `gate_accuracy` | 82.0% | 48 µ$ | 2.0 s | 15.2 s | 9.1 s, 35.9M instr. | [FnSW5fow…](https://testnet.nearblocks.io/txns/FnSW5fowiZVJcy2jxpeW2NQaGSrbRTwbgcznSTuNPGPb) |
+| 3 | `small-model` | Failed: `gate_accuracy` | 78.0% | 41 µ$ | 2.6 s | 19.9 s | 14.0 s, 23.1M instr. | [2kKvVxWq…](https://testnet.nearblocks.io/txns/2kKvVxWqvbXboRLm8WAwFGXH3QaFUfDCveYm3C7uXZdu) |
+| 4 | `baseline` | Failed: `gate_cost` | 88.0% | 121 µ$ | 16.8 s | 67.2 s | 58.4 s, 23.6M instr. | [9htB78wY…](https://testnet.nearblocks.io/txns/9htB78wYTvSMxRWzRrJmqQwGqqFByS9EugdBEAjt3xXP) |
+
+Practice scores overstated sealed ones. Each candidate was scored on the 80 public practice tickets first, under the same gates:
+
+| Candidate | Practice | Sealed |
+|---|---|---|
+| `small-model` | 83.8%, passes | 78.0%, fails accuracy |
+| `few-shot` | 86.2%, passes | 82.0%, fails accuracy |
+| `few-shot-budgeted` | 93.8%, passes | 88.0%, fails on a leak |
+| `baseline` | 88.8%, fails cost | 88.0%, fails cost |
+
+- The few-shot candidates' examples are practice tickets, so their practice scores were expected to be inflated; the sealed set measured by how much. Three candidates that passed in public failed sealed.
+- `few-shot-budgeted` cleared accuracy, cost and latency, and was failed for repeating a customer's card number in the one-sentence summary it writes for the support agent. The leak check scans only the model's visible reply, not its reasoning.
+- The baseline scored 88.0% at 121 µ$ here, against 85.0% at 127 µ$ when the gates were calibrated, on the same tickets at temperature 0. Reasoning models vary by a few points between runs, so a candidate within about 3 points of the accuracy gate can pass or fail on a re-run. The calibration's 2-point tolerance is smaller than that variation.
+- Storing the 100-ticket set as a secret took a 0.24462 NEAR storage deposit, refundable when the secret is deleted.
+- OutLayer charged 0.0011–0.0068 NEAR per run. The baseline used 58.4 s of its 75 s budget, and its verdict arrived 67.2 s after submission, inside the 119 s yield window.

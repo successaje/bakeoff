@@ -89,6 +89,7 @@ Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer 
    ```bash
    scripts/testnet/store-secrets.sh
    ```
+   OutLayer CLI 0.2.1 attaches a fixed 0.1 NEAR storage deposit, which covers about 7 KB of secrets. For a larger sealed set, set `OUTLAYER_CLI` to a CLI build that prices the row first ([integration notes](docs/integration-notes.md#outlayer)).
 6. Run a sealed evaluation and wait for the verdict:
    ```bash
    scripts/testnet/submit.sh examples/candidates/near-ai/routed.json
@@ -107,7 +108,8 @@ Verified locally:
 Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;
 - every recorded verdict's digests matched the challenge's commitments;
-- four candidates were recorded with the expected outcomes: a policy rejection, an accuracy failure, a latency failure, and one `Passed` at 93.75% accuracy, 98 µ$ per ticket and 6.0 s p95;
-- submission to recorded verdict took 8–32 s.
+- on a 16-ticket sample, four candidates were recorded with the expected outcomes: a policy rejection, an accuracy failure, a latency failure, and one `Passed` at 93.75% accuracy, 98 µ$ per ticket and 6.0 s p95;
+- on the 100-ticket sealed set, with gates calibrated from the sponsor's baseline, all five candidates failed. The baseline missed the cost gate, and two cheaper candidates fell below the accuracy gate after passing on the public practice set. The most accurate cheap candidate cleared accuracy, cost and latency, and was failed for repeating a customer's card number;
+- submission to recorded verdict took 8–67 s.
 
-Results and transaction links are in [docs/integration-notes.md](docs/integration-notes.md#sealed-runs-on-testnet-2026-11-07).
+Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07) and the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07).
