@@ -56,6 +56,14 @@ npm run build
 | `NEAR_CLI`, `WASMTIME` | `near`, `wasmtime` | Binaries to run |
 | `BAKEOFF_CACHE_DIR` | `~/.cache/bakeoff-mcp` | Verified evaluator builds, by SHA-256 |
 
+### From a clone of this repository
+
+`scripts/serve-local.sh` starts the built server against the challenges in [`bakeoff.testnet.json`](bakeoff.testnet.json). It reads `BAKEOFF_LLM_API_KEY` from the repository's `.env` when it is not already set, so the key stays out of your MCP client's config. It refuses to start without `BAKEOFF_ACCOUNT`, so you name the signing account explicitly. Run this from the repository root:
+
+```bash
+claude mcp add bakeoff -e BAKEOFF_ACCOUNT=you.testnet -- "$PWD/mcp/scripts/serve-local.sh"
+```
+
 ### Claude Code
 
 ```bash
