@@ -13,6 +13,18 @@ Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts it
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
+## Built on NEAR
+
+| Piece | What Bakeoff uses it for | Code |
+|---|---|---|
+| NEAR smart contract (near-sdk 5) | Escrows the reward, freezes the hashes of the rules, test set and evaluator build when the challenge opens, records every result, pays the winner and emits NEP-297 events | [`contract/`](contract/) |
+| OutLayer (`outlayer.near`) | Runs the evaluator in a TEE through a NEAR yield and resume. The hidden test set and the model API key are OutLayer secrets, bound to one evaluator build and readable only through the challenge contract | [`contract/src/lib.rs`](contract/src/lib.rs), [`evaluator/`](evaluator/) |
+| NEAR AI Cloud | Serves the models every solution calls; each result's cost comes from the token usage it reports | [`evaluator/src/openai.rs`](evaluator/src/openai.rs) |
+| FastFS | Hosts the evaluator's WebAssembly build, which the contract pins by SHA-256 | [`scripts/near/deploy.sh`](scripts/near/deploy.sh) |
+| NEAR Connect | Wallet sign-in on the board, for an owner to fund, open and withdraw | [`web/src/lib/wallet.ts`](web/src/lib/wallet.ts) |
+| NEAR Intents 1Click | Funding a reward from about 200 tokens on about 40 chains | [`web/src/lib/oneclick.ts`](web/src/lib/oneclick.ts) |
+| near-cli-rs | Signs a builder's submission from the system keychain, so the MCP server never handles a key | [`mcp/src/submit.ts`](mcp/src/submit.ts) |
+
 ## How a sealed evaluation runs
 
 1. A contributor calls `submit(config_json)` on the challenge contract, attaching 0.035 NEAR and 220+ Tgas. The contract keeps 0.01 NEAR to pay for the evaluation record and forwards the rest to OutLayer, which refunds what the run does not use.
