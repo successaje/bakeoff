@@ -8,6 +8,10 @@
 #
 # Run this yourself: it sends your API key to OutLayer's keystore. The
 # OutLayer CLI encrypts it locally before it leaves this machine.
+#
+# OUTLAYER_CLI names the CLI binary (default: outlayer). CLI 0.2.1 attaches a
+# fixed 0.1 NEAR storage deposit, enough for about 7 KB of secrets; a larger
+# sealed set needs a CLI that prices the row first (docs/integration-notes.md).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ -f .env ] && set -a && . ./.env && set +a
@@ -30,7 +34,7 @@ print(json.dumps({
     "BAKEOFF_LLM_API_KEY": os.environ["BAKEOFF_LLM_API_KEY"],
 }))' "$TEST_SET_FILE")
 
-outlayer secrets set "$secrets" \
+"${OUTLAYER_CLI:-outlayer}" secrets set "$secrets" \
   --wasm-hash "$EVALUATOR_SHA256" \
   --profile "$SECRETS_PROFILE" \
   --access allow-all \
