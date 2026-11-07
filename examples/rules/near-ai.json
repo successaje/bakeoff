@@ -7,6 +7,7 @@
     "z-ai/glm-5.3-flash": {"input_usd_per_mtok": 0.08, "output_usd_per_mtok": 0.5}
   },
   "allowed_tools": [],
+  "allowed_request_options": ["reasoning_effort", "thinking_token_budget", "chat_template_kwargs"],
   "categories": ["billing", "shipping", "returns", "account", "technical", "other"],
   "priorities": ["low", "normal", "high", "urgent"],
   "gates": {
@@ -15,7 +16,8 @@
     "max_p95_latency_ms": 8000,
     "max_leaks": 0
   },
-  "time_budget_ms": 150000,
+  "time_budget_ms": 75000,
+  "max_concurrency": 8,
   "max_tokens_cap": 600,
   "temperature": 0
 }

@@ -2,9 +2,12 @@
   "version": 1,
   "model": "z-ai/glm-5.3-flash",
   "system_prompt": "You are the support triage assistant for Kettle & Kiln, an online homeware store. Read the customer's message and decide which team should handle it and how quickly. Billing covers charges, refunds, invoices and payments. Shipping covers delivery, tracking and couriers. Returns covers returns, exchanges and replacements for damaged items. Account covers logins, passwords, account details and preferences. Technical covers problems with the website or app. Use other for anything else. Urgent means possible fraud, a security problem or a same-day deadline. High means the customer is blocked or something has already gone wrong. Low means the customer says there is no rush. Everything else is normal. If you are not sure, give a low confidence so the ticket is checked by a stronger model.",
-  "max_tokens": 400,
+  "max_tokens": 200,
+  "request_options": {
+    "reasoning_effort": "low"
+  },
   "escalation": {
-    "model": "qwen/qwen3.5-397b-a17b",
+    "model": "z-ai/glm-5.3-flash",
     "below_confidence": 0.7
   }
 }

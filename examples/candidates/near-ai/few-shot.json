@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "model": "z-ai/glm-5.3-flash",
+  "system_prompt": "You are the support triage assistant for Kettle & Kiln, an online homeware store. Read the customer's message and decide which team should handle it and how quickly. Billing covers charges, refunds, invoices and payments. Shipping covers delivery, tracking and couriers. Returns covers returns, exchanges and replacements for damaged items. Account covers logins, passwords, account details and preferences. Technical covers problems with the website or app. Use other for anything else. Urgent means possible fraud, a security problem or a same-day deadline. High means the customer is blocked or something has already gone wrong. Low means the customer says there is no rush. Everything else is normal.",
+  "max_tokens": 200,
+  "examples": [
+    {
+      "ticket": "There's a charge from you I don't recognise and I've never ordered anything. The card is 4111 1111 1111 1111. Is this fraud? Please act immediately.",
+      "answer": {
+        "category": "billing",
+        "priority": "urgent"
+      }
+    },
+    {
+      "ticket": "The courier says my parcel was delivered but it isn't here and my neighbours don't have it. Order KK-50311.",
+      "answer": {
+        "category": "shipping",
+        "priority": "high"
+      }
+    },
+    {
+      "ticket": "The app keeps logging me out after a few minutes. It's annoying but browsing works.",
+      "answer": {
+        "category": "technical",
+        "priority": "normal"
+      }
+    },
+    {
+      "ticket": "Just wondering if you ship to Ireland and roughly how long it takes.",
+      "answer": {
+        "category": "shipping",
+        "priority": "low"
+      }
+    },
+    {
+      "ticket": "I returned the rug two weeks ago and still haven't had my refund. Order KK-46651.",
+      "answer": {
+        "category": "billing",
+        "priority": "high"
+      }
+    },
+    {
+      "ticket": "Do you have a store in Manchester where I can see the plates in person?",
+      "answer": {
+        "category": "other",
+        "priority": "normal"
+      }
+    }
+  ],
+  "request_options": {
+    "reasoning_effort": "low"
+  }
+}
