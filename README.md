@@ -1,16 +1,31 @@
 # Bakeoff
 
-Sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules). Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to.
+Sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The first candidate that passes every gate is paid the bounty by the contract.
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
 ## How a sealed evaluation runs
 
-1. A contributor calls `submit(config_json)` on the challenge contract, attaching 0.025 NEAR and 200+ Tgas.
+1. A contributor calls `submit(config_json)` on the challenge contract, attaching 0.035 NEAR and 220+ Tgas. The contract keeps 0.01 NEAR to pay for the evaluation record and forwards the rest to OutLayer, which refunds what the run does not use.
 2. The contract calls `request_execution` on OutLayer with the evaluator pinned by its SHA-256, the challenge rules and the candidate as input, and a reference to the challenge's secrets.
 3. An OutLayer TEE worker runs the evaluator (`wasm32-wasip2`). The evaluator checks the candidate against the rules before spending anything, then triages every sealed ticket through NEAR AI Cloud, measuring accuracy, cost from token usage, latency and card-number leaks.
 4. The evaluator prints a verdict of under 900 bytes: aggregate metrics plus SHA-256 digests of the rules, candidate and test set it scored. No per-ticket data leaves the enclave.
 5. The contract records the verdict as `Passed` or `Failed`, or as `Rejected` if the execution failed or any digest differs from its commitments.
+6. If this is the first `Passed` verdict for a submission made while the challenge was open, by anyone but the owner, the contract awards the bounty and transfers it to the submitter in the same callback.
+
+## The bounty
+
+| Step | Who | Call | Allowed |
+|---|---|---|---|
+| Escrow | owner | `fund()` with the amount attached | while a draft, or open before the deadline |
+| Open | owner | `open(closes_at)`, nanoseconds since the epoch | once, from draft; freezes the commitments |
+| Win | contract | from the result callback | first passing submission made while open, not by the owner |
+| Retry a failed payout | anyone | `claim_award()` | when an award is owed and no payment is in flight |
+| Refund | owner | `withdraw_bounty()` | any time in draft; after the deadline with no winner and no pending evaluation |
+
+- A submission made before the deadline can still win after it. OutLayer answers within the yield window, about two minutes, and the refund waits until it does.
+- The owner's own submissions, in draft or open, are trial runs. Their verdicts are recorded but never win the bounty.
+- Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.1.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `challenge_closed`, `bounty_withdrawn`.
 
 ## Repository layout
 
@@ -90,9 +105,17 @@ Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer 
    scripts/testnet/store-secrets.sh
    ```
    OutLayer CLI 0.2.1 attaches a fixed 0.1 NEAR storage deposit, which covers about 7 KB of secrets. For a larger sealed set, set `OUTLAYER_CLI` to a CLI build that prices the row first ([integration notes](docs/integration-notes.md#outlayer)).
-6. Run a sealed evaluation and wait for the verdict:
+6. Run trial evaluations while the challenge is a draft; only the owner can submit, and nothing is paid:
    ```bash
    scripts/testnet/submit.sh examples/candidates/near-ai/routed.json
+   ```
+7. Escrow the bounty and open the challenge, here 1 NEAR for 72 hours:
+   ```bash
+   scripts/testnet/open.sh 1 72
+   ```
+   Contributors then submit with the same script from their own account (`scripts/testnet/submit.sh <candidate.json> <account>`). If nobody wins, withdraw after the deadline:
+   ```bash
+   near contract call-function as-transaction <challenge> withdraw_bounty json-args '{}' prepaid-gas '30.0 Tgas' attached-deposit '0 NEAR' sign-as <owner> network-config testnet sign-with-keychain send
    ```
 
 ## Status
@@ -103,7 +126,8 @@ Verified locally:
 - verdicts are 345–545 bytes;
 - a 16-ticket run uses 2–4 million instructions;
 - in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
-- in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`.
+- in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`;
+- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
 
 Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;

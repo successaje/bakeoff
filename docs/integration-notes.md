@@ -27,6 +27,9 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - `estimate_execution_cost` returns 0.0190001 NEAR on both testnet and mainnet for 1B instructions, 128 MB and 180 s. Time dominates: 30 s costs about 0.004 NEAR.
 - Unused deposit is refunded to `payer_account_id`, which the contract sets to the submitter.
 
+**Payouts from a callback**
+- The contract pays the bounty from the same callback that records the verdict, as a separate transfer with its own callback. The submission's transaction outcome can therefore arrive a block or two before the payout lands, so clients poll `get_challenge` until the award shows as paid. In the sandbox the transfer and its callback landed within a few seconds.
+
 ## WASI HTTP
 
 - `wasi-http-client` 0.2.1, which OutLayer's AI example uses, writes the whole request body with a single `blocking-write-and-flush`. WASI caps that call at 4096 bytes, and a prompt with examples exceeds it. `evaluator/src/wasi_http.rs` writes in 4 KiB chunks.
@@ -114,7 +117,8 @@ Practice scores overstated sealed ones. Each candidate was scored on the 80 publ
 - `few-shot-redacted` was written from that public failure reason alone, without looking at sealed tickets, scored on the practice set, and submitted once. The verdict's `config_sha256` is the SHA-256 of the committed file, `dbf8f262…1c0d`.
   - The candidate asks for summaries under 12 words that say "the card" instead of a number. It names saved cards under `account`, as the labeling guide does. Its reasoning budget is 96 tokens instead of 128, which pays for the summaries.
   - `few-shot-budgeted` was cheap partly because it rarely wrote a summary: its examples have none, so the model copied that shape. Asking for a summary adds about 40 output tokens per ticket. The first redacting draft, at a 128-token budget, cost 98 µ$ on practice and failed the cost gate.
-  - The evaluator asks every candidate for a summary but does not require one, so a candidate can avoid the leak gate by writing none. Requiring the summary is an evaluator change for the next build.
+  - The evaluator that scored these runs asked every candidate for a summary but did not require one, so a candidate could avoid the leak gate by writing none. The next build requires a summary of at least three words, and counts a reply without one as an invalid, wrong answer (`invalid_answers` in the metrics).
+  - Under that rule, 41 of `few-shot-redacted`'s 80 practice replies are invalid: its examples carry no summary, and the model copies their shape about half the time. Its recorded pass would not hold, because the leak gate was screening only half its replies. Examples can now carry a summary; with summaries on all six, no reply is invalid, and the cost of writing them every time is what the next round has to beat.
 - The baseline scored 88.0% at 121 µ$ here, against 85.0% at 127 µ$ when the gates were calibrated, on the same tickets at temperature 0. Reasoning models vary by a few points between runs, so a candidate within about 3 points of the accuracy gate can pass or fail on a re-run. The calibration's 2-point tolerance is smaller than that variation.
 - Storing the 100-ticket set as a secret took a 0.24462 NEAR storage deposit, refundable when the secret is deleted.
 - `few-shot-redacted`'s verdict arrived 70.6 s after submission for an 18.4 s run; the rest was the worker picking up the job.
