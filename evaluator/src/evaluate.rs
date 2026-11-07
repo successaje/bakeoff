@@ -59,15 +59,24 @@ pub struct ChatCompletion {
 #[derive(Debug, Clone)]
 pub struct ChatOutcome {
     pub result: Result<ChatCompletion, String>,
+    /// From sending the request to reading its response.
     pub latency_ms: u64,
+    /// The request was never sent because the time budget ran out.
+    pub skipped: bool,
 }
 
 /// Transport for model calls. The enclave build talks `wasi:http`; tests
 /// substitute a scripted client.
 pub trait ChatClient {
-    /// Sends `requests` concurrently and returns one outcome per request, in
-    /// order. No request may run longer than `limit`.
-    fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome>;
+    /// Sends `requests` with at most `max_in_flight` outstanding and returns
+    /// one outcome per request, in order. Nothing may be sent, or keep
+    /// running, after `limit`; requests left unsent are marked `skipped`.
+    fn complete_all(
+        &mut self,
+        requests: &[ChatRequest],
+        limit: Duration,
+        max_in_flight: usize,
+    ) -> Vec<ChatOutcome>;
 }
 
 pub trait Clock {
@@ -201,78 +210,75 @@ fn run_tickets(
         )
     };
     let base_messages = base_messages(rules, config);
-    let mut results: Vec<TicketResult> = Vec::with_capacity(tickets.len());
-    let mut escalations = 0u32;
     let mut timed_out = false;
 
-    // Tickets are scored in batches of `max_concurrency`: every first call in
-    // a batch is in flight at once, then every escalation the batch needs.
-    for batch in tickets.chunks(rules.max_concurrency) {
-        if remaining(clock).is_zero() {
+    // Every ticket's first call goes out through one sliding window, then
+    // every escalation the answers call for.
+    let first: Vec<ChatRequest> = tickets
+        .iter()
+        .map(|t| {
+            request(
+                rules,
+                &base_messages,
+                t,
+                &config.model,
+                &config.request_options,
+                config.max_tokens,
+            )
+        })
+        .collect();
+    let mut results: Vec<(usize, TicketResult)> = Vec::with_capacity(tickets.len());
+    for (i, outcome) in client
+        .complete_all(&first, remaining(clock), rules.max_concurrency)
+        .into_iter()
+        .enumerate()
+    {
+        if outcome.skipped {
             timed_out = true;
-            break;
+            continue;
         }
-        let first: Vec<ChatRequest> = batch
+        let mut result = TicketResult::default();
+        result.apply(outcome, |c| price_uusd(rules, &config.model, c));
+        results.push((i, result));
+    }
+
+    let mut escalations = 0u32;
+    if let (Some(escalation), false) = (&config.escalation, timed_out) {
+        let unsure: Vec<usize> = results
             .iter()
-            .map(|t| {
+            .enumerate()
+            .filter(|(_, (_, r))| {
+                r.answer
+                    .as_ref()
+                    .is_none_or(|a| a.confidence < escalation.below_confidence)
+            })
+            .map(|(slot, _)| slot)
+            .collect();
+        let second: Vec<ChatRequest> = unsure
+            .iter()
+            .map(|&slot| {
                 request(
                     rules,
                     &base_messages,
-                    t,
-                    &config.model,
-                    &config.request_options,
+                    &tickets[results[slot].0],
+                    &escalation.model,
+                    &escalation.request_options,
                     config.max_tokens,
                 )
             })
             .collect();
-        let mut batch_results: Vec<TicketResult> = client
-            .complete_all(&first, remaining(clock))
-            .into_iter()
-            .map(|outcome| {
-                let mut result = TicketResult::default();
-                result.apply(outcome, |c| price_uusd(rules, &config.model, c));
-                result
-            })
-            .collect();
-
-        if let Some(escalation) = &config.escalation {
-            let unsure: Vec<usize> = batch_results
-                .iter()
-                .enumerate()
-                .filter(|(_, r)| {
-                    r.answer
-                        .as_ref()
-                        .is_none_or(|a| a.confidence < escalation.below_confidence)
-                })
-                .map(|(i, _)| i)
-                .collect();
-            let limit = remaining(clock);
-            if !unsure.is_empty() && limit.is_zero() {
-                timed_out = true;
-            } else if !unsure.is_empty() {
-                escalations += unsure.len() as u32;
-                let second: Vec<ChatRequest> = unsure
-                    .iter()
-                    .map(|&i| {
-                        request(
-                            rules,
-                            &base_messages,
-                            &batch[i],
-                            &escalation.model,
-                            &escalation.request_options,
-                            config.max_tokens,
-                        )
-                    })
-                    .collect();
-                let outcomes = client.complete_all(&second, limit);
-                for (&i, outcome) in unsure.iter().zip(outcomes) {
-                    batch_results[i].apply(outcome, |c| price_uusd(rules, &escalation.model, c));
+        if !second.is_empty() {
+            let outcomes = client.complete_all(&second, remaining(clock), rules.max_concurrency);
+            for (&slot, outcome) in unsure.iter().zip(outcomes) {
+                if outcome.skipped {
+                    timed_out = true;
+                    continue;
                 }
+                escalations += 1;
+                results[slot]
+                    .1
+                    .apply(outcome, |c| price_uusd(rules, &escalation.model, c));
             }
-        }
-        results.extend(batch_results);
-        if timed_out {
-            break;
         }
     }
 
@@ -311,7 +317,7 @@ fn price_uusd(rules: &Rules, model: &str, completion: &ChatCompletion) -> f64 {
         + completion.completion_tokens as f64 * price.output_usd_per_mtok
 }
 
-fn summarize(results: &[TicketResult], tickets: &[Ticket]) -> Metrics {
+fn summarize(results: &[(usize, TicketResult)], tickets: &[Ticket]) -> Metrics {
     let mut correct = 0u32;
     let mut category_correct = 0u32;
     let mut leaks = 0u32;
@@ -319,7 +325,8 @@ fn summarize(results: &[TicketResult], tickets: &[Ticket]) -> Metrics {
     let mut cost_uusd = 0.0_f64;
     let mut latencies: Vec<u64> = Vec::with_capacity(results.len());
 
-    for (result, ticket) in results.iter().zip(tickets) {
+    for (index, result) in results {
+        let ticket = &tickets[*index];
         cost_uusd += result.cost_uusd;
         latencies.push(result.latency_ms);
         if result.failed && result.answer.is_none() {
@@ -479,12 +486,14 @@ mod tests {
     }
 
     /// Answers from the ticket text: `large` is always right; `small` gets
-    /// ticket 4's priority wrong with low confidence. A batch advances the
-    /// clock by its slowest call, as concurrent calls would.
+    /// ticket 4's priority wrong with low confidence. Calls are scheduled
+    /// like the transport's sliding window and advance the clock to the
+    /// last one's completion.
     struct ScriptedClient {
         now: Rc<Cell<u64>>,
         batches: Vec<Vec<String>>,
         limits: Vec<Duration>,
+        windows: Vec<usize>,
         leak_card: bool,
         fail_model: Option<&'static str>,
     }
@@ -495,6 +504,7 @@ mod tests {
                 now,
                 batches: Vec::new(),
                 limits: Vec::new(),
+                windows: Vec::new(),
                 leak_card: false,
                 fail_model: None,
             }
@@ -506,6 +516,7 @@ mod tests {
                 return ChatOutcome {
                     result: Err("upstream status 503".into()),
                     latency_ms,
+                    skipped: false,
                 };
             }
             let ticket = &request.messages.last().unwrap().content;
@@ -533,18 +544,43 @@ mod tests {
                     completion_tokens: 100,
                 }),
                 latency_ms,
+                skipped: false,
             }
         }
     }
 
     impl ChatClient for ScriptedClient {
-        fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome> {
+        fn complete_all(
+            &mut self,
+            requests: &[ChatRequest],
+            limit: Duration,
+            max_in_flight: usize,
+        ) -> Vec<ChatOutcome> {
             self.batches
                 .push(requests.iter().map(|r| r.model.clone()).collect());
             self.limits.push(limit);
-            let outcomes: Vec<ChatOutcome> = requests.iter().map(|r| self.answer(r)).collect();
-            let slowest = outcomes.iter().map(|o| o.latency_ms).max().unwrap_or(0);
-            self.now.set(self.now.get() + slowest);
+            self.windows.push(max_in_flight);
+            let limit_ms = limit.as_millis() as u64;
+            let mut slots = vec![0u64; max_in_flight.max(1)];
+            let mut finished = 0;
+            let outcomes = requests
+                .iter()
+                .map(|r| {
+                    let slot = (0..slots.len()).min_by_key(|&i| slots[i]).unwrap();
+                    if slots[slot] >= limit_ms {
+                        return ChatOutcome {
+                            result: Err("not sent".into()),
+                            latency_ms: 0,
+                            skipped: true,
+                        };
+                    }
+                    let outcome = self.answer(r);
+                    slots[slot] += outcome.latency_ms;
+                    finished = finished.max(slots[slot]);
+                    outcome
+                })
+                .collect();
+            self.now.set(self.now.get() + finished);
             outcomes
         }
     }
@@ -594,7 +630,7 @@ mod tests {
         let m = v.metrics.clone().unwrap();
         assert_eq!(m.escalations, 1);
         assert_eq!(m.accuracy_bp, 10_000);
-        // One concurrent batch of first calls, then one escalation.
+        // All first calls through one window, then the one escalation.
         assert_eq!(client.batches, [vec!["small"; 4], vec!["large"]]);
         // 4 small calls at 150 µ$ plus one large call at 3000 µ$, over 4 tickets
         assert_eq!(m.cost_uusd, 3_600);
@@ -606,7 +642,7 @@ mod tests {
     }
 
     #[test]
-    fn batches_respect_max_concurrency_and_remaining_budget() {
+    fn calls_share_one_window_and_the_remaining_budget() {
         let (mut client, clock) = setup();
         let rules = RULES.replace(
             "\"time_budget_ms\": 60000",
@@ -614,18 +650,25 @@ mod tests {
         );
         let v = evaluate_request(&rules, ROUTED, Some(TICKETS), &mut client, &clock);
         assert!(v.passed, "{v:?}");
-        let sizes: Vec<usize> = client.batches.iter().map(Vec::len).collect();
-        assert_eq!(sizes, [3, 1, 1]);
-        // Each batch is given what is left of the 60 s budget.
-        assert_eq!(client.limits[0], Duration::from_millis(60_000));
-        assert_eq!(client.limits[1], Duration::from_millis(59_800));
+        assert_eq!(client.windows, [3, 3]);
+        // Four 200 ms calls in three slots finish at 400 ms, leaving 59.6 s
+        // of the budget for the escalation.
+        assert_eq!(
+            client.limits,
+            [Duration::from_millis(60_000), Duration::from_millis(59_600)]
+        );
     }
 
     #[test]
     fn request_options_reach_the_right_model() {
         struct Capture(Vec<ChatRequest>);
         impl ChatClient for Capture {
-            fn complete_all(&mut self, requests: &[ChatRequest], _: Duration) -> Vec<ChatOutcome> {
+            fn complete_all(
+                &mut self,
+                requests: &[ChatRequest],
+                _: Duration,
+                _: usize,
+            ) -> Vec<ChatOutcome> {
                 self.0.extend_from_slice(requests);
                 requests
                     .iter()
@@ -637,6 +680,7 @@ mod tests {
                             completion_tokens: 1,
                         }),
                         latency_ms: 1,
+                        skipped: false,
                     })
                     .collect()
             }

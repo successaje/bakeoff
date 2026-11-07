@@ -113,7 +113,12 @@ mod transport {
     }
 
     impl ChatClient for WasiChatClient {
-        fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome> {
+        fn complete_all(
+            &mut self,
+            requests: &[ChatRequest],
+            limit: Duration,
+            max_in_flight: usize,
+        ) -> Vec<ChatOutcome> {
             let headers = [
                 ("content-type", "application/json"),
                 ("authorization", self.authorization.as_str()),
@@ -126,7 +131,7 @@ mod transport {
                     body: openai::request_body(request),
                 })
                 .collect();
-            wasi_http::post_all(&http_requests, self.timeouts.capped(limit))
+            wasi_http::post_all(&http_requests, self.timeouts, max_in_flight, limit)
                 .into_iter()
                 .zip(requests)
                 .map(|(timed, request)| {
@@ -138,12 +143,13 @@ mod transport {
                         }
                     });
                     // stderr stays in the worker's logs; only the verdict is returned.
-                    if let Err(e) = &result {
+                    if let (Err(e), true) = (&result, timed.started) {
                         eprintln!("model call to {} failed: {e}", request.model);
                     }
                     ChatOutcome {
                         result,
                         latency_ms: timed.elapsed_ms,
+                        skipped: !timed.started,
                     }
                 })
                 .collect()
@@ -165,7 +171,12 @@ mod transport {
     }
 
     impl ChatClient for UnavailableClient {
-        fn complete_all(&mut self, requests: &[ChatRequest], _limit: Duration) -> Vec<ChatOutcome> {
+        fn complete_all(
+            &mut self,
+            requests: &[ChatRequest],
+            _limit: Duration,
+            _max_in_flight: usize,
+        ) -> Vec<ChatOutcome> {
             requests
                 .iter()
                 .map(|_| ChatOutcome {
@@ -173,6 +184,7 @@ mod transport {
                         "network transport is only available in the wasm32-wasip2 build".into(),
                     ),
                     latency_ms: 0,
+                    skipped: false,
                 })
                 .collect()
         }

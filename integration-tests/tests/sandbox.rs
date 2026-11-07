@@ -73,7 +73,12 @@ impl LabelledClient {
 }
 
 impl ChatClient for LabelledClient {
-    fn complete_all(&mut self, requests: &[ChatRequest], _limit: Duration) -> Vec<ChatOutcome> {
+    fn complete_all(
+        &mut self,
+        requests: &[ChatRequest],
+        _limit: Duration,
+        _max_in_flight: usize,
+    ) -> Vec<ChatOutcome> {
         requests
             .iter()
             .map(|request| {
@@ -87,7 +92,11 @@ impl ChatClient for LabelledClient {
                         completion_tokens: 40,
                     })
                     .ok_or_else(|| "unknown ticket".to_string());
-                ChatOutcome { result, latency_ms: 0 }
+                ChatOutcome {
+                    result,
+                    latency_ms: 0,
+                    skipped: false,
+                }
             })
             .collect()
     }
