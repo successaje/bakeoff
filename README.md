@@ -35,12 +35,22 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 | `contract/` | NEAR challenge contract (near-sdk 5) |
 | `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
+| `web/` | Static web board: live challenges and verdicts, in-browser checks of the commitments, sponsor funding from a NEAR wallet or any chain through 1Click |
 | `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
 | `examples/rules/` | Challenge rules for local runs and for NEAR AI Cloud |
 | `examples/candidates/` | Example candidates covering each outcome |
 | `data/tickets/` | Synthetic tickets for a fictional store. Card numbers are public test numbers |
 | `scripts/` | Local runs, contract build, testnet deployment |
 | `docs/` | Integration notes |
+
+## The web board
+
+[`web/`](web/README.md) is a static page that reads every number from the challenge contracts:
+- the board of challenges;
+- each challenge's verdicts and award;
+- checks in the browser that the rules and the evaluator build match their on-chain hashes.
+
+A sponsor connects a NEAR wallet to fund, open or withdraw a challenge. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the sponsor's own account, and one approval unwraps it and funds the bounty.
 
 ## For agents: the MCP server
 
