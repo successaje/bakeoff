@@ -20,15 +20,23 @@ args=$(python3 -I -c 'import json,sys; print(json.dumps({"config_json": open(sys
 
 echo "==> Submitting $CANDIDATE as evaluation $id"
 started=$(date +%s)
+# The transaction stays open until OutLayer resumes its yield, which can take
+# longer than the RPC node waits, so an RPC timeout here is expected; the
+# contract is polled for the outcome either way.
 near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
   prepaid-gas '300.0 Tgas' attached-deposit '0.025 NEAR' \
-  sign-as "$SIGNER" network-config testnet sign-with-keychain send
+  sign-as "$SIGNER" network-config testnet sign-with-keychain send \
+  || echo "(RPC did not wait for the outcome; polling the contract)"
 
 echo "==> Waiting for the sealed evaluation"
 while :; do
   evaluation=$(tools/near_view.py testnet "$CHALLENGE" get_evaluation "{\"id\": $id}")
   status=$(printf '%s' "$evaluation" | python3 -c 'import json,sys; e=json.load(sys.stdin); print(e["status"] if e else "Missing")')
-  [ "$status" != "Pending" ] && break
+  if [ "$status" = "Missing" ] && [ $(( $(date +%s) - started )) -gt 60 ]; then
+    echo "evaluation $id was never recorded; the submission failed" >&2
+    exit 1
+  fi
+  [ "$status" != "Pending" ] && [ "$status" != "Missing" ] && break
   if [ $(( $(date +%s) - started )) -gt "$TIMEOUT_SECONDS" ]; then
     echo "no verdict after ${TIMEOUT_SECONDS}s; check later with:" >&2
     echo "  tools/near_view.py testnet $CHALLENGE get_evaluation '{\"id\": $id}'" >&2
