@@ -1,0 +1,182 @@
+/**
+ * "How a bake-off works" as a scroll story: the steps scroll past on the left
+ * while one panel stays pinned on the right, showing the latest winning
+ * challenge at that step. On narrow screens each step carries its own panel.
+ */
+
+import { AnimatePresence, motion } from "motion/react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { ChallengeSummary } from "../lib/data.ts";
+import { microDollars, percent, seconds, shortHash } from "../lib/format.ts";
+import { usePrefersReducedMotion } from "../lib/hooks.ts";
+import { challengeGates, formatNear } from "../lib/near.ts";
+import { Bot, Building, Check, Coins, Lock } from "./Icons.tsx";
+
+const STEPS = [
+  { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
+  { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
+  { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
+  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the first solution that meets every requirement." },
+];
+
+type Props = { win: ChallengeSummary | null };
+
+function Panel({ title, tag, children }: { title: ReactNode; tag?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="panel">
+      <div className="panel-head"><span>{title}</span>{tag}</div>
+      {children}
+    </div>
+  );
+}
+
+function GoalPanel({ win }: Props) {
+  const gates = win?.view ? challengeGates(win.view) : null;
+  const base = win?.listing.baseline;
+  const reward = win?.view?.award?.amount ?? win?.view?.bounty;
+  const rows = [
+    ["Accuracy", percent(base?.accuracy_bp), gates ? `≥ ${percent(gates.min_accuracy_bp)}` : "–"],
+    ["Cost per ticket", microDollars(base?.cost_per_ticket_uusd), gates ? `≤ ${microDollars(gates.max_cost_per_ticket_uusd)}` : "–"],
+    ["p95 latency", seconds(base?.p95_latency_ms), gates ? `≤ ${seconds(gates.max_p95_latency_ms)}` : "–"],
+    ["Card numbers repeated", "–", gates ? (gates.max_leaks === 0 ? "None" : `≤ ${gates.max_leaks}`) : "–"],
+  ];
+  return (
+    <Panel title={win ? `${win.listing.sponsor} · ${win.listing.title}` : "A challenge"} tag={<span className="badge">Goal</span>}>
+      <div className="panel-table">
+        <div className="panel-row panel-row-head"><span /><span>Today</span><span>Needed</span></div>
+        {rows.map(([label, today, needed], i) => (
+          <div key={label} className="panel-row" style={{ "--i": i } as React.CSSProperties}>
+            <span>{label}</span><span className="mono muted">{today}</span><span className="mono">{needed}</span>
+          </div>
+        ))}
+      </div>
+      <div className="panel-facts">
+        <div style={{ "--i": 4 } as React.CSSProperties}><Lock /><span>Hidden test set</span><span className="mono">{win?.view ? shortHash(win.view.test_set_sha256) : "–"}</span></div>
+        <div style={{ "--i": 5 } as React.CSSProperties}><Coins /><span>Reward held by the contract</span><span className="mono amber">{reward ? formatNear(reward) : "–"}</span></div>
+      </div>
+    </Panel>
+  );
+}
+
+function CompetePanel({ win }: Props) {
+  const lines = [
+    ["get_challenge", "rules, requirements and commitments"],
+    ["get_practice_tickets", `${win?.listing.practice_tickets ?? "the"} public practice tickets`],
+    ["score_on_practice", `evaluator ${win?.view ? shortHash(win.view.evaluator.sha256) : "build"}, checked against its hash`],
+    [null, "edits the prompt, scores again"],
+    ["submit_candidate", "asks you, then submits for the sealed run"],
+  ] as const;
+  return (
+    <Panel title="Your agent, through the Bakeoff MCP server" tag={<span className="badge">Practice</span>}>
+      <div className="term" role="presentation">
+        {lines.map(([tool, note], i) => (
+          <div key={i} className={`term-line ${tool ? "" : "term-comment"}`} style={{ "--i": i } as React.CSSProperties}>
+            {tool ? <><span className="term-prompt">›</span><span className="term-tool">{tool}</span></> : <span className="term-prompt">#</span>}
+            <span className="term-note">{note}</span>
+          </div>
+        ))}
+        <span className="term-cursor" />
+      </div>
+    </Panel>
+  );
+}
+
+function SealedPanel({ win }: Props) {
+  const m = win?.winner;
+  const tickets = m?.tickets ?? win?.listing.tickets ?? 100;
+  const out = [
+    ["accuracy", percent(m?.accuracy_bp)],
+    ["cost per ticket", microDollars(m?.cost_per_ticket_uusd)],
+    ["p95 latency", seconds(m?.p95_latency_ms)],
+    ["leaks", m?.leaks !== undefined ? String(m.leaks) : "–"],
+  ];
+  return (
+    <Panel title="One sealed run" tag={<span className="badge">OutLayer TEE</span>}>
+      <div className="enclave">
+        <div className="enclave-box">
+          <span className="enclave-label"><Lock /> Enclave</span>
+          <div className="enclave-grid" aria-hidden="true">
+            {Array.from({ length: tickets }, (_, i) => <span key={i} style={{ "--d": `${(i * 37) % 23}` } as React.CSSProperties} />)}
+          </div>
+          <span className="enclave-note">{tickets} hidden tickets and the model key, decrypted only here</span>
+        </div>
+        <div className="enclave-flow" aria-hidden="true"><span /></div>
+        <div className="enclave-out">
+          <span className="enclave-label">Only this comes out</span>
+          {out.map(([k, v], i) => (
+            <div key={k} className="panel-row two" style={{ "--i": i } as React.CSSProperties}><span>{k}</span><span className="mono">{v}</span></div>
+          ))}
+          <div className="panel-row panel-note" style={{ "--i": 4 } as React.CSSProperties}>+ the hashes of the rules, solution and test set</div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function RewardPanel({ win }: Props) {
+  const award = win?.view?.award;
+  const checks = ["The rules hash matches its commitment", "The test set hash matches its commitment", "Scored by the pinned evaluator build", "Every requirement is met"];
+  return (
+    <Panel title={award ? `Result #${award.evaluation}` : "The result"} tag={<span className="badge badge-green badge-dot">Passed</span>}>
+      <ul className="panel-checks">
+        {checks.map((c, i) => <li key={c} style={{ "--i": i } as React.CSSProperties}><span className="panel-check"><Check /></span>{c}</li>)}
+      </ul>
+      <div className="panel-pay" style={{ "--i": 4 } as React.CSSProperties}>
+        <Coins />
+        <span>Paid <strong className="amber">{award ? formatNear(award.amount) : "the reward"}</strong> to <span className="mono">{award?.winner ?? "the winner"}</span>, in the same transaction</span>
+      </div>
+    </Panel>
+  );
+}
+
+const PANELS = [GoalPanel, CompetePanel, SealedPanel, RewardPanel];
+
+export function StepStory({ win }: Props) {
+  const reduced = usePrefersReducedMotion();
+  const [active, setActive] = useState(0);
+  const items = useRef<(HTMLLIElement | null)[]>([]);
+
+  useEffect(() => {
+    // The step crossing the middle of the viewport is the active one.
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) if (entry.isIntersecting) setActive(Number((entry.target as HTMLElement).dataset.index));
+    }, { rootMargin: "-48% 0px -48% 0px" });
+    items.current.forEach((item) => item && observer.observe(item));
+    return () => observer.disconnect();
+  }, []);
+
+  const Active = PANELS[active]!;
+  return (
+    <div className="story-steps">
+      <ol className="story-list">
+        {STEPS.map((step, i) => {
+          const Inline = PANELS[i]!;
+          return (
+            <li key={step.title} ref={(el) => { items.current[i] = el; }} data-index={i} className={`story-step ${i === active ? "active" : ""}`}>
+              <span className="story-step-head"><span className="step-icon"><step.icon /></span><span className="mono muted small">0{i + 1}</span></span>
+              <h3>{step.title}</h3>
+              <p className="text-2">{step.text}</p>
+              <div className="story-inline"><Inline win={win} /></div>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="story-stage" aria-hidden="true">
+        <div className="story-progress">
+          {STEPS.map((step, i) => <span key={step.title} className={`${i <= active ? "on" : ""} ${i === active ? "current" : ""}`} />)}
+        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={active}
+            initial={reduced ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -10 }}
+            transition={{ duration: reduced ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Active win={win} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}

@@ -2,7 +2,8 @@ import { motion } from "motion/react";
 import { Link } from "react-router";
 import { ChallengeCard, costCut, TheBar } from "../components/challenge.tsx";
 import { EvaluationRun } from "../components/EvaluationRun.tsx";
-import { ArrowRight, Bot, Building, Coins, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
+import { StepStory } from "../components/StepStory.tsx";
+import { ArrowRight, Bot, Building, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
 import { CountUp, DemoBadge, Reveal } from "../components/ui.tsx";
 import { type ChallengeSummary, loadChallenges } from "../lib/data.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
@@ -78,14 +79,7 @@ function Stats({ rows }: { rows: ChallengeSummary[] | null }) {
   );
 }
 
-const STEPS = [
-  { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
-  { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
-  { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
-  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the first solution that meets every requirement." },
-];
-
-function HowItWorks() {
+function HowItWorks({ win }: { win: ChallengeSummary | null }) {
   return (
     <section className="section">
       <div className="container">
@@ -94,16 +88,7 @@ function HowItWorks() {
           <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
           <p>Builders never see the hidden test cases, and every result on-chain names the exact rules, solution and test set it used.</p>
         </Reveal>
-        <ol className="steps">
-          {STEPS.map((step, i) => (
-            <Reveal as="li" key={step.title} delay={i * 0.08} className="step card card-pad">
-              <span className="step-index mono">0{i + 1}</span>
-              <span className="step-icon"><step.icon /></span>
-              <h3>{step.title}</h3>
-              <p className="text-2">{step.text}</p>
-            </Reveal>
-          ))}
-        </ol>
+        <StepStory win={win} />
       </div>
     </section>
   );
@@ -242,7 +227,7 @@ export function Home() {
     <>
       <Hero win={win} loading={loading} />
       <Stats rows={data} />
-      <HowItWorks />
+      <HowItWorks win={win} />
       <Spotlight win={win} />
       <Live rows={data} />
       <Audiences />
