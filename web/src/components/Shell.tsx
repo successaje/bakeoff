@@ -53,7 +53,7 @@ function NetworkSwitch() {
   const { network, setNetwork } = useSession();
   return (
     <div className="segmented" role="radiogroup" aria-label="Network">
-      {(["testnet", "mainnet"] as Network[]).map((n) => (
+      {(["mainnet", "testnet"] as Network[]).map((n) => (
         <button key={n} type="button" role="radio" aria-checked={n === network} className={n === network ? "active" : ""} onClick={() => setNetwork(n)}>
           {n === network && <motion.span layoutId="network-pill" className="segmented-pill" transition={{ type: "spring", bounce: 0.2, duration: 0.45 }} />}
           <span>{n === "testnet" ? "Testnet" : "Mainnet"}</span>

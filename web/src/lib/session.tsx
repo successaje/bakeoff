@@ -18,11 +18,12 @@ interface Session {
 const SessionContext = createContext<Session | null>(null);
 const KEY = "bakeoff:network";
 
+/** Mainnet unless the visitor picked testnet. */
 function storedNetwork(): Network {
   try {
-    return localStorage.getItem(KEY) === "mainnet" ? "mainnet" : "testnet";
+    return localStorage.getItem(KEY) === "testnet" ? "testnet" : "mainnet";
   } catch {
-    return "testnet";
+    return "mainnet";
   }
 }
 
