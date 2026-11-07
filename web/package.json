@@ -2,6 +2,7 @@
   "name": "bakeoff-web",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT OR Apache-2.0",
   "description": "Public board for Bakeoff challenges: live on-chain state, in-browser verification, and sponsor funding from a NEAR wallet or any chain through 1Click.",
   "type": "module",
   "scripts": {
