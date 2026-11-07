@@ -29,7 +29,7 @@ started=$(date +%s)
 if ! output=$(near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
   prepaid-gas '300.0 Tgas' attached-deposit '0.035 NEAR' \
   sign-as "$SIGNER" network-config "$NETWORK" sign-with-keychain send 2>&1); then
-  if printf '%s' "$output" | grep -q "408 Request Timeout"; then
+  if printf '%s' "$output" | grep -qE "408 Request Timeout|TIMEOUT_ERROR"; then
     echo "(RPC did not wait for the outcome; polling the contract)"
   else
     printf '%s\n' "$output" >&2
