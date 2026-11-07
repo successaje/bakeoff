@@ -181,3 +181,39 @@ The agent's first and only sealed submission passed, and the contract paid it th
   - It set `max_tokens` to 70 and `reasoning_effort` to low.
   - It told the model never to copy a card number into the summary.
 - The config shares nothing with the earlier candidates in this repository beyond the model choice. Its taxonomy and tie-breakers are its own reading of the labeling guide that the MCP server's `get_labeling_guide` tool serves.
+
+## Mainnet round (2026-11-07)
+
+Challenge [`challenge-20261107153920.bakeoff.near`](https://nearblocks.io/address/challenge-20261107153920.bakeoff.near) on NEAR mainnet, owned by `bakeoff.near`. It uses the same rules, evaluator build `e1688636…` and 100-ticket sealed set as the testnet rounds. The evaluator is published at `main.fastfs.io`, and the sealed set and API key are stored on `outlayer.near`, bound to that build and readable only through this challenge.
+
+| Step | Who | Transaction |
+|---|---|---|
+| Publish the evaluator to FastFS | `bakeoff.near` | [8utnPzBY…](https://nearblocks.io/txns/8utnPzBYaDc3NHqMsDXh2gRvLa1K7YWMAAeJuYzLM3rc) |
+| Create the challenge account with 2.5 NEAR | `bakeoff.near` | [FPXGmy75…](https://nearblocks.io/txns/FPXGmy75Pu8XntN62oGZZ6FRurjSuuANpwLQYsVWDieo) |
+| Deploy and initialise the contract | challenge account | [D6uHy3gx…](https://nearblocks.io/txns/D6uHy3gxguprUmG8C3pLKB2WVQgaQuiLPd2QbLCJWR25) |
+| Store the secrets on OutLayer (0.2446 NEAR deposit) | `bakeoff.near` | [3bfDmZZW…](https://nearblocks.io/txns/3bfDmZZWFwwd2swH3dZtRHffts8WohXBuFf8PDRH6hTv) |
+| Owner's trial with the baseline config, while a draft | `bakeoff.near` | [4nCsos2P…](https://nearblocks.io/txns/4nCsos2Piha5frpxucuu9G6RwWWqXDYbgAYRXgoJnYq5) |
+| Fund 1 NEAR, signed in the web board through NEAR Connect | `bakeoff.near` | [7JUea7Ty…](https://nearblocks.io/txns/7JUea7TyVHhdaW4Tbg6F1emANkHf3CD24daaEJGYoBYi) |
+| Open until 2026-11-09 17:02 UTC, signed in the web board | `bakeoff.near` | [8QxhKE18…](https://nearblocks.io/txns/8QxhKE18jstzVQBuAKtEUp8X1QAY8YWXLZ28nzF3Z9JB) |
+| `submit_candidate` from the MCP server, signed by near-cli | `agent.bakeoff.near` | [9PGW15xg…](https://nearblocks.io/txns/9PGW15xgpFqaueAWr9Q6LedH6bvdQWH6aP1njCT22BUy) |
+
+FastFS uploads call a method that does not exist, so explorers list the upload as failed; the indexer serves its arguments as the file. The file served hashes to the pinned `e1688636…`.
+
+| Candidate | Submitter | Outcome | Accuracy | Cost per ticket | p95 latency | Leaks | Invalid answers | Request to verdict |
+|---|---|---|---|---|---|---|---|---|
+| Baseline, owner's trial | `bakeoff.near` | Failed: cost gate | 85.0% | 126 µ$ | 11.5 s | 0 | 3 | 49.8 s |
+| **Agent's candidate** | `agent.bakeoff.near` | **Passed, paid 1 NEAR** | **89.0%** | **51 µ$** | **2.6 s** | 0 | 0 | 18.0 s |
+
+- **How the agent ran.** It ran in a fresh Claude Code session in an empty folder, with the Bakeoff MCP server on mainnet as its only Bakeoff source. It worked from the challenge rules, the labeling guide, the practice tickets and practice scores from the pinned evaluator. This was its first and only sealed submission.
+- **Against the baseline.** The agent is 60% cheaper per ticket than the sponsor's baseline (51 µ$ against 126 µ$ in the trial and 128 µ$ in calibration). Its p95 latency is about a seventh of the gate, and it is more accurate than both the trial (85.0%) and the calibrated median (87.0%).
+- **The config.** It was recovered from the submission's arguments, and its SHA-256 equals the verdict's `config_sha256`, `aedee340…`. It is saved byte for byte as `examples/candidates/near-ai/agent-mainnet.json`. It uses the same model and settings as the testnet agent's winner (`z-ai/glm-5.3-flash`, `reasoning_effort` low, no examples), with its own 1,287-character prompt and `max_tokens` 150.
+- **Payment.** The contract paid the award in the verdict's callback, and `agent.bakeoff.near` went from 0.5 to 1.486 NEAR. Its submission cost 0.0139 NEAR: the 0.035 NEAR deposit less OutLayer's refund, plus gas.
+- **Costs.** `bakeoff.near` was funded with 5.18 NEAR. After the round the three accounts hold 4.906 NEAR, so the round used 0.274 NEAR:
+  - 0.2446 NEAR is the OutLayer storage deposit for the secrets;
+  - everything else came to under 0.03 NEAR in fees.
+
+  The challenge account's 2.5 NEAR mostly pays for the contract's 188 KB of storage. Deleting the account returns it.
+- **Accounts.** The project's author controls both `bakeoff.near` and `agent.bakeoff.near`. The contract pays any account other than its owner. This round shows the whole flow working on mainnet, not a contest between unrelated parties.
+- **Operational notes.**
+  - near.org's public mainnet RPC answered HTTP 429 during the deploy. The scripts, the MCP server and near-cli now use FastNEAR, and a deploy that stops after creating its account resumes into it.
+  - Ad blockers' cosmetic filters hid the web board's funding controls, because of class names such as `sponsor-block`. Those classes are renamed.

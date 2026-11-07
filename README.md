@@ -174,4 +174,12 @@ Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - in an agent round, the sponsor funded and opened a fresh challenge from the web board, and a Claude Code agent competed through the MCP server. Its first sealed submission passed at 97.0% accuracy, 63 µ$ per ticket, 3.5 s p95 and no leaks, beating the hand-written winner, and the contract paid it the 1 NEAR bounty;
 - submission to recorded verdict took 8–71 s.
 
-Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07) and the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07) and the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07).
+Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
+- the same evaluator build and sealed set ran in OutLayer's TEE through `outlayer.near`, with the secrets stored by the owner `bakeoff.near`;
+- the owner's trial of the baseline failed only the cost gate, at 85.0% accuracy and 126 µ$ per ticket;
+- the owner escrowed 1 NEAR and opened the challenge from the web board;
+- a Claude Code agent competed through the MCP server from an empty folder. Its first sealed submission passed at 89.0% accuracy, 51 µ$ per ticket (60% below the baseline), 2.6 s p95 and no leaks;
+- the contract paid it the 1 NEAR bounty 18 s after the submission;
+- the round used under 0.03 NEAR in fees, plus a 0.245 NEAR storage deposit for the secrets.
+
+Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07), the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07), the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07) and the [mainnet round](docs/integration-notes.md#mainnet-round-2026-11-07).
