@@ -27,7 +27,7 @@ function VerdictCard({ win }: { win: ChallengeSummary | null }) {
     >
       <div className="verdict-float-head">
         <span className="badge badge-dot badge-green">Result · Passed</span>
-        <span className="mono small muted">{win.listing.demo ? "demo round · " : ""}result #{win.view.award.evaluation}</span>
+        <span className="mono small muted">result #{win.view.award.evaluation}{win.listing.demo ? " · demo" : ""}</span>
       </div>
       <dl>
         <div><dt>Accuracy</dt><dd>{percent(win.winner.accuracy_bp)}</dd></div>

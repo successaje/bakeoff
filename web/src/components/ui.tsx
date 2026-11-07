@@ -188,7 +188,7 @@ export function DemoNotice({ sponsor, network }: { sponsor: string; network: Net
   return (
     <p className="notice demo-notice">
       <strong>Demonstration round.</strong> {sponsor} is a fictional store, and the Bakeoff team runs both its account and the competing ones.
-      The contract, the sealed scoring and the payment are real{network === "testnet" ? ", in testnet NEAR" : ", on NEAR mainnet"}.
+      The contract, the scoring on hidden cases and the payment are real{network === "testnet" ? ", in testnet NEAR" : ", on NEAR mainnet"}.
     </p>
   );
 }
