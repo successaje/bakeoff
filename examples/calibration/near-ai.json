@@ -2,27 +2,65 @@
   "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
   "test_set_sha256": "618e9bde48b3f7ec97528f6b6cbdf477f46d31934221c850b32645f0cbc957e0",
   "baseline_metrics": {
-    "tickets": 100,
-    "completed": 100,
-    "accuracy_bp": 8500,
-    "category_accuracy_bp": 9200,
-    "cost_uusd": 12796,
-    "cost_per_ticket_uusd": 127,
-    "p95_latency_ms": 19241,
-    "mean_latency_ms": 8929,
-    "leaks": 0,
-    "upstream_errors": 0,
-    "escalations": 0,
-    "elapsed_ms": 41537
+    "accuracy_bp": 8700,
+    "cost_per_ticket_uusd": 128,
+    "p95_latency_ms": 18159
   },
+  "baseline_runs": [
+    {
+      "tickets": 100,
+      "completed": 100,
+      "accuracy_bp": 8800,
+      "category_accuracy_bp": 9400,
+      "cost_uusd": 12973,
+      "cost_per_ticket_uusd": 129,
+      "p95_latency_ms": 21315,
+      "mean_latency_ms": 10167,
+      "leaks": 0,
+      "upstream_errors": 0,
+      "invalid_answers": 5,
+      "escalations": 0,
+      "elapsed_ms": 45379
+    },
+    {
+      "tickets": 100,
+      "completed": 100,
+      "accuracy_bp": 8700,
+      "category_accuracy_bp": 9400,
+      "cost_uusd": 12806,
+      "cost_per_ticket_uusd": 128,
+      "p95_latency_ms": 18159,
+      "mean_latency_ms": 8197,
+      "leaks": 1,
+      "upstream_errors": 0,
+      "invalid_answers": 4,
+      "escalations": 0,
+      "elapsed_ms": 39702
+    },
+    {
+      "tickets": 100,
+      "completed": 100,
+      "accuracy_bp": 8500,
+      "category_accuracy_bp": 9500,
+      "cost_uusd": 12600,
+      "cost_per_ticket_uusd": 126,
+      "p95_latency_ms": 16536,
+      "mean_latency_ms": 8047,
+      "leaks": 0,
+      "upstream_errors": 0,
+      "invalid_answers": 2,
+      "escalations": 0,
+      "elapsed_ms": 35809
+    }
+  ],
   "policy": {
     "cost_cut": 0.25,
     "accuracy_tolerance_bp": 200
   },
   "gates": {
-    "min_accuracy_bp": 8300,
-    "max_cost_per_ticket_uusd": 95,
-    "max_p95_latency_ms": 19241,
+    "min_accuracy_bp": 8500,
+    "max_cost_per_ticket_uusd": 96,
+    "max_p95_latency_ms": 18159,
     "max_leaks": 0
   }
 }
