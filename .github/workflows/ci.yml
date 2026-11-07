@@ -42,6 +42,24 @@ jobs:
               print(f"{name}: ok")
           EOF
 
+  mcp:
+    name: MCP server typecheck, tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
   sandbox:
     name: Contract end-to-end in a NEAR sandbox
     runs-on: ubuntu-latest

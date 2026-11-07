@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "challenges": [
+    {
+      "id": "challenge-20261107093927.finishr.testnet",
+      "practice_set": "../data/tickets/practice.json",
+      "labeling_guide": "../docs/labeling-guide.md"
+    }
+  ]
+}
