@@ -41,7 +41,7 @@ function ThemeToggle() {
       onClick={() => {
         const value = next[choice];
         setChoice(value);
-        applyTheme(value);
+        applyTheme(value, true);
       }}
     >
       {choice === "light" ? <Sun /> : choice === "dark" ? <Moon /> : <Monitor />}

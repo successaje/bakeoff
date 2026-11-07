@@ -12,17 +12,35 @@ export function storedTheme(): ThemeChoice {
   }
 }
 
-export function applyTheme(choice: ThemeChoice): void {
+/**
+ * Applies a theme; `crossfade` animates the change where the browser supports
+ * view transitions. The colours themselves never transition: a transition that
+ * stalls (in a page the browser is not painting) would leave text inheriting
+ * the old theme's colour, unreadable on the new one's surfaces.
+ */
+export function applyTheme(choice: ThemeChoice, crossfade = false): void {
   const root = document.documentElement;
-  if (choice === "system") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", choice);
+  const set = () => {
+    if (choice === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", choice);
+    window.dispatchEvent(new Event("bakeoff:theme"));
+  };
   try {
     if (choice === "system") localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, choice);
   } catch {
     // The choice still applies for this visit.
   }
-  window.dispatchEvent(new Event("bakeoff:theme"));
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!crossfade || reduced || !("startViewTransition" in document)) {
+    set();
+    return;
+  }
+  // The transition runs `set` on its first frame. A page the browser is not
+  // painting may not get one soon, so skip the animation (which still runs
+  // `set`) rather than leave the old theme in place.
+  const transition = document.startViewTransition(set);
+  setTimeout(() => transition.skipTransition(), 300);
 }
 
 /** The theme in effect, resolving "system". */
