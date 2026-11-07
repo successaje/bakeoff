@@ -5,6 +5,10 @@
 //! reads the request the contract sent, runs the real evaluator library on
 //! it, and resumes the request with the verdict.
 //!
+//! The bounty tests follow the money: a funded challenge pays its first
+//! passing contributor, and an unwon bounty returns to the owner after the
+//! deadline.
+//!
 //! Needs the contract wasm files; run through `scripts/test-sandbox.sh`.
 
 use anyhow::{ensure, Context, Result};
@@ -24,6 +28,11 @@ const RULES: &str = "examples/rules/local.json";
 const CANDIDATE: &str = "examples/candidates/routed.json";
 const TEST_SET: &str = "data/tickets/sealed-sample.json";
 const EVALUATOR_SHA256: &str = "5d3d89ae29b70ee2ddc6e3645bd6239974950a70f2fc0b516ae850907a2fa430";
+/// 0.025 NEAR for OutLayer plus the contract's 0.01 NEAR record fee.
+const SUBMIT_DEPOSIT: NearToken = NearToken::from_millinear(35);
+const FORWARDED_DEPOSIT: NearToken = NearToken::from_millinear(25);
+/// Storage the record fee pays for, at 0.00001 NEAR per byte.
+const RECORD_FEE_BYTES: u64 = 1_000;
 
 fn repo_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -54,6 +63,15 @@ struct LabelledClient {
 }
 
 impl LabelledClient {
+    /// Answers every ticket as "other", so the candidate fails accuracy.
+    fn wrong(test_set: &str) -> Result<Self> {
+        let mut client = Self::new(test_set)?;
+        for answer in client.answers.values_mut() {
+            answer.0 = "other".into();
+        }
+        Ok(client)
+    }
+
     fn new(test_set: &str) -> Result<Self> {
         let tickets: Vec<Value> = serde_json::from_str(test_set)?;
         let answers = tickets
@@ -86,7 +104,7 @@ impl ChatClient for LabelledClient {
                     .answers
                     .get(&request.messages.last().unwrap().content)
                     .map(|(category, priority)| ChatCompletion {
-                        content: json!({"category": category, "priority": priority, "confidence": 0.95, "summary": "ok"})
+                        content: json!({"category": category, "priority": priority, "confidence": 0.95, "summary": "Customer needs help."})
                             .to_string(),
                         prompt_tokens: 300,
                         completion_tokens: 40,
@@ -176,6 +194,72 @@ async fn request_args(outlayer: &Contract, id: u32) -> Result<(Value, Value)> {
     Ok((request, args))
 }
 
+async fn challenge_view(challenge: &Contract) -> Result<Value> {
+    Ok(challenge.view("get_challenge").await?.json()?)
+}
+
+async fn block_time_ns(worker: &Worker<Sandbox>) -> Result<u64> {
+    Ok(worker.view_block().await?.timestamp())
+}
+
+/// Funds the challenge with `bounty` and opens it until `closes_at`.
+async fn fund_and_open(
+    owner: &Account,
+    challenge: &Contract,
+    bounty: NearToken,
+    closes_at: u64,
+) -> Result<()> {
+    owner
+        .call(challenge.id(), "fund")
+        .deposit(bounty)
+        .transact()
+        .await?
+        .into_result()?;
+    owner
+        .call(challenge.id(), "open")
+        .args_json(json!({"closes_at": closes_at.to_string()}))
+        .transact()
+        .await?
+        .into_result()?;
+    Ok(())
+}
+
+/// Submits the candidate as `submitter`, plays the worker with `client`, and
+/// waits for the verdict to be recorded.
+async fn evaluate_as(
+    submitter: &Account,
+    setup: &Setup,
+    request_id: u32,
+    client: &mut LabelledClient,
+) -> Result<Value> {
+    let candidate = read(CANDIDATE)?;
+    let submission = submitter
+        .call(setup.challenge.id(), "submit")
+        .args_json(json!({"config_json": candidate}))
+        .deposit(SUBMIT_DEPOSIT)
+        .gas(Gas::from_tgas(300))
+        .transact_async()
+        .await?;
+    wait_for_requests(&setup.outlayer, request_id + 1).await?;
+    let verdict = evaluate_request(
+        &read(RULES)?,
+        &candidate,
+        Some(&setup.test_set),
+        client,
+        &StoppedClock,
+    );
+    setup
+        .owner
+        .call(setup.outlayer.id(), "resolve")
+        .args_json(json!({"request_id": request_id, "output": verdict.to_json()}))
+        .transact()
+        .await?
+        .into_result()?;
+    let outcome = submission.await?;
+    ensure!(outcome.is_success(), "submit failed: {outcome:?}");
+    evaluation(&setup.challenge, request_id).await
+}
+
 async fn evaluation(challenge: &Contract, id: u32) -> Result<Value> {
     Ok(challenge
         .view("get_evaluation")
@@ -200,7 +284,7 @@ async fn sealed_evaluation_round_trip() -> Result<()> {
     let submission = owner
         .call(challenge.id(), "submit")
         .args_json(json!({"config_json": candidate}))
-        .deposit(NearToken::from_millinear(25))
+        .deposit(SUBMIT_DEPOSIT)
         .gas(Gas::from_tgas(300))
         .transact_async()
         .await?;
@@ -212,7 +296,7 @@ async fn sealed_evaluation_round_trip() -> Result<()> {
         request["predecessor"] == json!(challenge.id()),
         "request must come from the challenge"
     );
-    ensure!(request["deposit"] == json!(NearToken::from_millinear(25).as_yoctonear().to_string()));
+    ensure!(request["deposit"] == json!(FORWARDED_DEPOSIT.as_yoctonear().to_string()));
     ensure!(args["source"]["WasmUrl"]["hash"] == json!(EVALUATOR_SHA256));
     ensure!(args["source"]["WasmUrl"]["build_target"] == json!("wasm32-wasip2"));
     ensure!(args["resource_limits"]["max_execution_seconds"] == json!(110));
@@ -304,7 +388,7 @@ async fn untrusted_results_are_rejected() -> Result<()> {
         let submission = owner
             .call(challenge.id(), "submit")
             .args_json(json!({"config_json": candidate}))
-            .deposit(NearToken::from_millinear(25))
+            .deposit(SUBMIT_DEPOSIT)
             .gas(Gas::from_tgas(300))
             .transact_async()
             .await?;
@@ -341,7 +425,7 @@ async fn drafts_refuse_outside_submissions() -> Result<()> {
     let result = stranger
         .call(challenge.id(), "submit")
         .args_json(json!({"config_json": read(CANDIDATE)?}))
-        .deposit(NearToken::from_millinear(25))
+        .deposit(SUBMIT_DEPOSIT)
         .gas(Gas::from_tgas(300))
         .transact()
         .await?;
@@ -350,5 +434,129 @@ async fn drafts_refuse_outside_submissions() -> Result<()> {
         "a draft must refuse submissions from non-owners"
     );
     ensure!(format!("{result:?}").contains("challenge is not open for submissions"));
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
+async fn the_first_passing_contributor_is_paid_the_bounty() -> Result<()> {
+    let setup = setup().await?;
+    let bounty = NearToken::from_near(5);
+    let closes_at = block_time_ns(&setup.worker).await? + 3_600_000_000_000;
+    fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
+    let contributor = setup.worker.dev_create_account().await?;
+    let before = contributor.view_account().await?.balance;
+    let storage_before = setup.challenge.view_account().await?.storage_usage;
+
+    let recorded = evaluate_as(
+        &contributor,
+        &setup,
+        0,
+        &mut LabelledClient::new(&setup.test_set)?,
+    )
+    .await?;
+    ensure!(
+        recorded["status"] == json!("Passed"),
+        "unexpected evaluation: {recorded}"
+    );
+    ensure!(recorded["eligible"] == json!(true));
+
+    // The payout is its own transfer and callback, which land a block or
+    // two after the verdict.
+    let mut view = challenge_view(&setup.challenge).await?;
+    for _ in 0..40 {
+        if view["award"]["paid"] == json!(true) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        view = challenge_view(&setup.challenge).await?;
+    }
+    ensure!(
+        view["status"] == json!("Awarded"),
+        "unexpected challenge: {view}"
+    );
+    ensure!(view["award"]["in_flight"] == json!(false));
+    ensure!(view["award"]["winner"] == json!(contributor.id()));
+    ensure!(view["award"]["amount"] == json!(bounty.as_yoctonear().to_string()));
+    ensure!(
+        view["award"]["paid"] == json!(true),
+        "award not paid: {view}"
+    );
+    ensure!(view["bounty"] == json!("0"));
+
+    // The bounty arrived, less the submission's deposit and its 300 Tgas of
+    // prepaid gas, whose unused part may still be on its way back. Without
+    // the bounty the balance would have gone down.
+    let gained = contributor.view_account().await?.balance.as_yoctonear() as i128
+        - before.as_yoctonear() as i128;
+    let floor = (bounty.as_yoctonear() - NearToken::from_millinear(500).as_yoctonear()) as i128;
+    ensure!(gained > floor, "contributor gained only {gained} yoctoNEAR");
+
+    // The record fee covers the storage the evaluation added.
+    let grown = setup.challenge.view_account().await?.storage_usage - storage_before;
+    ensure!(
+        grown <= RECORD_FEE_BYTES,
+        "an evaluation record took {grown} bytes"
+    );
+
+    let late = contributor
+        .call(setup.challenge.id(), "submit")
+        .args_json(json!({"config_json": read(CANDIDATE)?}))
+        .deposit(SUBMIT_DEPOSIT)
+        .gas(Gas::from_tgas(300))
+        .transact()
+        .await?;
+    ensure!(late.is_failure() && format!("{late:?}").contains("the challenge is closed"));
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
+async fn an_unwon_bounty_returns_to_the_owner_after_the_deadline() -> Result<()> {
+    let setup = setup().await?;
+    let bounty = NearToken::from_near(5);
+    let closes_at = block_time_ns(&setup.worker).await? + 30_000_000_000;
+    fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
+    let contributor = setup.worker.dev_create_account().await?;
+    let recorded = evaluate_as(
+        &contributor,
+        &setup,
+        0,
+        &mut LabelledClient::wrong(&setup.test_set)?,
+    )
+    .await?;
+    ensure!(
+        recorded["status"] == json!("Failed"),
+        "unexpected evaluation: {recorded}"
+    );
+
+    let early = setup
+        .owner
+        .call(setup.challenge.id(), "withdraw_bounty")
+        .transact()
+        .await?;
+    ensure!(early.is_failure() && format!("{early:?}").contains("open until its deadline"));
+
+    while block_time_ns(&setup.worker).await? <= closes_at {
+        setup.worker.fast_forward(50).await?;
+    }
+    let before = setup.owner.view_account().await?.balance;
+    setup
+        .owner
+        .call(setup.challenge.id(), "withdraw_bounty")
+        .transact()
+        .await?
+        .into_result()?;
+    let gained = setup.owner.view_account().await?.balance.as_yoctonear() - before.as_yoctonear();
+    ensure!(
+        gained > bounty.as_yoctonear() - NearToken::from_millinear(10).as_yoctonear(),
+        "owner gained only {gained}"
+    );
+    let view = challenge_view(&setup.challenge).await?;
+    ensure!(
+        view["status"] == json!("Closed"),
+        "unexpected challenge: {view}"
+    );
+    ensure!(view["bounty"] == json!("0"));
     Ok(())
 }
