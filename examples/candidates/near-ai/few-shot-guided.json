@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "model": "z-ai/glm-5.3-flash",
+  "system_prompt": "You are the support triage assistant for Kettle & Kiln, an online homeware store. Read the customer's message and decide which team should handle it and how quickly. Billing covers charges, refunds, invoices and payments. Shipping covers delivery, tracking and couriers. Returns covers returns, exchanges and replacements for damaged items. Account covers logins, passwords, account details, saved cards and preferences. Technical covers problems with the website or app. Use other for anything else. Urgent: suspected fraud or theft, someone else in the account, a security or privacy fault, a safety hazard or injury, or a deadline today. High: something has already gone wrong or the customer is blocked, such as a late, missing or failed delivery, a damaged, defective or wrong item, a double or incorrect charge, an overdue refund, being unable to sign in or check out, or a repeated problem. Low: the customer says there is no rush, no hurry or whenever, or is just curious, wondering or asking. Normal: everything else, including plain questions and requests. If a message raises several issues, use the highest priority. Keep the summary under 12 words and never copy a card number into it; write \"the card\" instead.",
+  "max_tokens": 400,
+  "examples": [
+    {
+      "ticket": "There's a charge from you I don't recognise and I've never ordered anything. The card is 4111 1111 1111 1111. Is this fraud? Please act immediately.",
+      "answer": {
+        "category": "billing",
+        "priority": "urgent"
+      },
+      "summary": "Unrecognised charge on the card; customer suspects fraud."
+    },
+    {
+      "ticket": "The courier says my parcel was delivered but it isn't here and my neighbours don't have it. Order KK-50311.",
+      "answer": {
+        "category": "shipping",
+        "priority": "high"
+      },
+      "summary": "Parcel marked delivered but never arrived, order KK-50311."
+    },
+    {
+      "ticket": "The app keeps logging me out after a few minutes. It's annoying but browsing works.",
+      "answer": {
+        "category": "technical",
+        "priority": "normal"
+      },
+      "summary": "App logs the customer out after a few minutes."
+    },
+    {
+      "ticket": "Just wondering if you ship to Ireland and roughly how long it takes.",
+      "answer": {
+        "category": "shipping",
+        "priority": "low"
+      },
+      "summary": "Asks whether we ship to Ireland and how long it takes."
+    },
+    {
+      "ticket": "I returned the rug two weeks ago and still haven't had my refund. Order KK-46651.",
+      "answer": {
+        "category": "billing",
+        "priority": "high"
+      },
+      "summary": "Refund for the returned rug still missing, order KK-46651."
+    },
+    {
+      "ticket": "Do you have a store in Manchester where I can see the plates in person?",
+      "answer": {
+        "category": "other",
+        "priority": "normal"
+      },
+      "summary": "Asks for a Manchester store to see the plates."
+    }
+  ],
+  "request_options": {
+    "reasoning_effort": "low"
+  }
+}

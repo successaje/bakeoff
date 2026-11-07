@@ -75,7 +75,7 @@ All runs use GLM-5.3 Flash. The first run was sequential; the rest had 8 calls i
 
 ## Sealed runs on testnet: 16-ticket sample (2026-11-07)
 
-Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef5`, 16-ticket sealed sample, 8 calls in flight.
+Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef5`, 16-ticket sealed sample, 8 calls in flight. The challenge account was deleted later the same day to recover its 4 NEAR for the bounty round; its transactions remain on the explorer.
 
 | # | Candidate | Recorded | Accuracy | Cost per ticket | p95 latency | Submission to verdict | OutLayer run | Transaction |
 |---|---|---|---|---|---|---|---|---|
@@ -123,3 +123,34 @@ Practice scores overstated sealed ones. Each candidate was scored on the 80 publ
 - Storing the 100-ticket set as a secret took a 0.24462 NEAR storage deposit, refundable when the secret is deleted.
 - `few-shot-redacted`'s verdict arrived 70.6 s after submission for an 18.4 s run; the rest was the worker picking up the job.
 - OutLayer charged 0.0011–0.0068 NEAR per run. The baseline used 58.4 s of its 75 s budget, and its verdict arrived 67.2 s after submission, inside the 119 s yield window.
+
+## Bounty round on testnet: 100-ticket set (2026-11-07)
+
+Challenge `challenge-20261107093927.finishr.testnet`, evaluator `e1688636…e4081`, which requires a summary in every answer. Same 100-ticket sealed set, 16 calls in flight, 75 s budget.
+
+**Gates.** `tools/calibrate.py` ran the baseline three times and took the median of each metric:
+
+| Baseline run | Accuracy | Cost per ticket | p95 latency | Invalid answers |
+|---|---|---|---|---|
+| 1 | 88.0% | 129 µ$ | 21.3 s | 5 |
+| 2 | 87.0% | 128 µ$ | 18.2 s | 4 |
+| 3 | 85.0% | 126 µ$ | 16.5 s | 2 |
+| Gates | at least 85.0% | at most 96 µ$ | at most 18.2 s | no leaks |
+
+**Lifecycle.** Two owner trials while the challenge was a draft, then a 1 NEAR bounty, then opened until 2026-11-10 10:05 UTC, then one contributor submission:
+
+| # | Submitter | Candidate | Recorded | Accuracy | Cost per ticket | p95 latency | Submission to verdict | Transaction |
+|---|---|---|---|---|---|---|---|---|
+| 0 | owner, trial | `webhook-tool` | Failed: `policy_tool` | – | – | – | 9.7 s | [4Vt4pPkz…](https://testnet.nearblocks.io/txns/4Vt4pPkzvaJM3K1if51H3f1WDe3SNEAUmh9YH5mC6RbV) |
+| 1 | owner, trial | `baseline` | Failed: `gate_cost` | 89.0% | 122 µ$ | 13.8 s | 63.3 s | [3NBTS7wP…](https://testnet.nearblocks.io/txns/3NBTS7wPZ3HgpEC5uUyHwfzNZh3c1Lu3V4Zeycnj35ik) |
+| – | owner | bounty funded, 1 NEAR | | | | | | [GKsP3mGx…](https://testnet.nearblocks.io/txns/GKsP3mGxiE2c8hs42VTQLJiCX46WUuUK3bCbXj9ZcAZp) |
+| – | owner | challenge opened | | | | | | [9EaUzgtN…](https://testnet.nearblocks.io/txns/9EaUzgtNcj5Zwg6T8feSdK2tMka3BomccmMAx8aJC4EM) |
+| 2 | contributor | `few-shot-guided` | **Passed**, awarded 1 NEAR, paid | 93.0% | 72 µ$ | 2.9 s | 22.7 s | [2yTTMHg6…](https://testnet.nearblocks.io/txns/2yTTMHg6KoP7N19o2f3y6qFQ6ZT4KNCwjgn4kCUn3d6x) |
+
+- Against the baseline measured in the same round, the winner was 4.0 points more accurate, 41% cheaper per ticket and 4.8 times faster at p95, with no leaks and no invalid answers.
+- The winning verdict's `config_sha256`, `04ef888e…`, is the SHA-256 of `examples/candidates/near-ai/few-shot-guided.json`. This was its only sealed submission. It was developed on the 80 practice tickets and the public labeling guide: every practice miss of the earlier few-shot candidates was a priority, never a category, so its prompt states the guide's priority rules, and it reasons at low effort.
+- The contract recorded the verdict, awarded the bounty and paid it in the receipts of the submission's own transaction. The contributor's balance went from 1.0000 to 1.9855 NEAR: the 1 NEAR bounty, less the 0.035 NEAR deposit and gas, plus OutLayer's refund of what the run did not use. The challenge is now `Awarded` and refuses further submissions.
+- The contributor is `contributor.finishr.testnet`, a sub-account the sponsor's account created for this demonstration. To the contract it is a separate account like any other; the owner's own submissions are recorded as trials and could not have won.
+- OutLayer ran the winning evaluation in 16.2 s using 44.9M instructions, for 0.0026 NEAR.
+- The previous round's passing candidate, `few-shot-redacted`, was not resubmitted. Under the required-summary rule about half its replies are invalid on the practice set.
+- near-cli refuses to send a submission unless the signer can cover the deposit plus the 300 Tgas of prepaid gas at the current price, about 0.34 NEAR in all, although the unused gas is refunded. The first contributor attempt, from a 0.3 NEAR account, was never sent.
