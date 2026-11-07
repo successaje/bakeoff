@@ -16,3 +16,6 @@ __pycache__/
 
 # Sealed test sets: the sponsor's private data, committed on-chain by hash only
 data/private/
+
+# Local editor and agent settings
+.claude/

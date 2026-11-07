@@ -1,0 +1,22 @@
+{
+  "name": "bakeoff-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Public board for Bakeoff challenges: live on-chain state, in-browser verification, and sponsor funding from a NEAR wallet or any chain through 1Click.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@hot-labs/near-connect": "0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}

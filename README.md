@@ -35,12 +35,22 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 | `contract/` | NEAR challenge contract (near-sdk 5) |
 | `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
+| `web/` | Static web board: live challenges and verdicts, in-browser checks of the commitments, sponsor funding from a NEAR wallet or any chain through 1Click |
 | `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
 | `examples/rules/` | Challenge rules for local runs and for NEAR AI Cloud |
 | `examples/candidates/` | Example candidates covering each outcome |
 | `data/tickets/` | Synthetic tickets for a fictional store. Card numbers are public test numbers |
 | `scripts/` | Local runs, contract build, testnet deployment |
 | `docs/` | Integration notes |
+
+## The web board
+
+[`web/`](web/README.md) is a static page that reads every number from the challenge contracts:
+- the board of challenges;
+- each challenge's verdicts and award;
+- checks in the browser that the rules and the evaluator build match their on-chain hashes.
+
+A sponsor connects a NEAR wallet to fund, open or withdraw a challenge. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the sponsor's own account, and one approval unwraps it and funds the bounty.
 
 ## For agents: the MCP server
 
@@ -146,6 +156,7 @@ Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - on the 100-ticket sealed set, with gates calibrated from the sponsor's baseline, the first five candidates failed. The baseline missed the cost gate, and two cheaper candidates fell below the accuracy gate after passing on the public practice set. The most accurate cheap candidate cleared accuracy, cost and latency, and was failed for repeating a customer's card number;
 - a sixth candidate, written from that failure reason and the practice set alone, `Passed` on its only sealed submission at 91.0% accuracy, 87 µ$ per ticket, 3.8 s p95 and no leaks. That evaluator did not yet require a summary, and about half that candidate's replies had none;
 - in a bounty round on the same sealed set, with an evaluator that requires a summary and gates recalibrated from the median of three baseline runs, the sponsor ran two trials, escrowed 1 NEAR and opened the challenge. A contributor's first submission, `few-shot-guided`, passed at 93.0% accuracy, 72 µ$ per ticket (41% below the baseline's 122 µ$ in the same round), 2.9 s p95 and no leaks, and the contract paid it the bounty in the same transaction;
+- in an agent round, the sponsor funded and opened a fresh challenge from the web board, and a Claude Code agent competed through the MCP server. Its first sealed submission passed at 97.0% accuracy, 63 µ$ per ticket, 3.5 s p95 and no leaks, beating the hand-written winner, and the contract paid it the 1 NEAR bounty;
 - submission to recorded verdict took 8–71 s.
 
-Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07) and the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07).
+Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07) and the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07) and the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07).
