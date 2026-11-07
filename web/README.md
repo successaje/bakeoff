@@ -88,7 +88,11 @@ npm run dev        # http://localhost:5173
 npm run build      # static files in dist/
 ```
 
-The challenges listed for each network are in [`public/challenges.json`](public/challenges.json). The build uses relative paths, so `dist/` can be served from any static host or sub-path. The [Pages workflow](../.github/workflows/pages.yml) publishes it to GitHub Pages when run.
+The challenges listed for each network are in [`public/challenges.json`](public/challenges.json). The build uses relative paths, so `dist/` can be served from any static host or sub-path.
+
+## Deployment
+
+The board is deployed on Vercel at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app). The Vercel project builds `web/` from GitHub: every push to `main` deploys to production, and every pull request gets its own preview. The project's root directory is `web`; Vercel detects Vite, runs `npm run build` and serves `dist/`. The board needs no environment variables, since everything it shows is read from NEAR in the browser.
 
 ## Development
 
