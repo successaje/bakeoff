@@ -49,7 +49,7 @@ export function boardView(page: Page, rows: { id: string; view?: ChallengeView; 
           h("div", { class: "card-head" }, h("h2", {}, id), statusChip(view)),
           h("dl", { class: "facts" },
             h("dt", {}, "Bounty"), h("dd", {}, view.award ? `${formatNear(view.award.amount)} awarded` : view.bounty ? formatNear(view.bounty) : "–"),
-            h("dt", {}, "Deadline"), h("dd", {}, closes ? `${utc(closes)} (${relative(closes)})` : "Not open yet"),
+            h("dt", {}, "Deadline"), h("dd", {}, !closes ? "Not open yet" : view.status === "Open" ? `${utc(closes)} (${relative(closes)})` : utc(closes)),
             h("dt", {}, "Evaluations"), h("dd", {}, String(view.evaluations)),
           ),
           gateList(challengeGates(view)),

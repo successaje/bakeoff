@@ -91,7 +91,7 @@ Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef
 
 ## Sealed runs on testnet: 100-ticket set (2026-11-07)
 
-Challenge `challenge-20261107005328.finishr.testnet`, evaluator `99f78452…5785a`, 100-ticket sealed set, 16 calls in flight, 75 s budget. The gates were calibrated from the sponsor's baseline (`examples/calibration/near-ai.json`): accuracy at least 83.0%, cost at most 95 µ$ per ticket, p95 at most 19.2 s, no leaks.
+Challenge `challenge-20261107005328.finishr.testnet`, evaluator `99f78452…5785a`, 100-ticket sealed set, 16 calls in flight, 75 s budget. The challenge account was deleted later the same day to recover its 3 NEAR for the demo challenge; its transactions remain on the explorer. The gates were calibrated from the sponsor's baseline (`examples/calibration/near-ai.json`): accuracy at least 83.0%, cost at most 95 µ$ per ticket, p95 at most 19.2 s, no leaks.
 
 | # | Candidate | Recorded | Accuracy | Cost per ticket | p95 latency | Submission to verdict | OutLayer run | Transaction |
 |---|---|---|---|---|---|---|---|---|
