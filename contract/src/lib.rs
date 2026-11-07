@@ -31,7 +31,10 @@ const MIN_EXECUTION_DEPOSIT: NearToken = NearToken::from_millinear(25);
 
 const MAX_INSTRUCTIONS: u64 = 1_000_000_000;
 const MAX_MEMORY_MB: u32 = 128;
-const MAX_EXECUTION_SECONDS: u64 = 180;
+/// Below OutLayer's 180 s cap on purpose: the result is delivered by
+/// resuming a NEAR yield, which times out after 200 blocks (about 119 s on
+/// testnet). A run that outlives the yield produces no verdict at all.
+const MAX_EXECUTION_SECONDS: u64 = 110;
 
 const MAX_CONFIG_BYTES: usize = 16 * 1024;
 const MAX_VERDICT_BYTES: usize = 4 * 1024;

@@ -8,7 +8,9 @@
 //! Needs the contract wasm files; run through `scripts/test-sandbox.sh`.
 
 use anyhow::{ensure, Context, Result};
-use bakeoff_evaluator::{evaluate_request, ChatClient, ChatCompletion, ChatMessage, Clock};
+use bakeoff_evaluator::{
+    evaluate_request, ChatClient, ChatCompletion, ChatOutcome, ChatRequest, Clock,
+};
 use near_workspaces::network::Sandbox;
 use near_workspaces::types::{Gas, NearToken};
 use near_workspaces::{Account, Contract, Worker};
@@ -71,23 +73,23 @@ impl LabelledClient {
 }
 
 impl ChatClient for LabelledClient {
-    fn complete(
-        &mut self,
-        _model: &str,
-        messages: &[ChatMessage],
-        _max_tokens: u32,
-        _temperature: Option<f64>,
-    ) -> Result<ChatCompletion, String> {
-        let (category, priority) = self
-            .answers
-            .get(&messages.last().unwrap().content)
-            .ok_or("unknown ticket")?;
-        Ok(ChatCompletion {
-            content: json!({"category": category, "priority": priority, "confidence": 0.95, "summary": "ok"})
-                .to_string(),
-            prompt_tokens: 300,
-            completion_tokens: 40,
-        })
+    fn complete_all(&mut self, requests: &[ChatRequest], _limit: Duration) -> Vec<ChatOutcome> {
+        requests
+            .iter()
+            .map(|request| {
+                let result = self
+                    .answers
+                    .get(&request.messages.last().unwrap().content)
+                    .map(|(category, priority)| ChatCompletion {
+                        content: json!({"category": category, "priority": priority, "confidence": 0.95, "summary": "ok"})
+                            .to_string(),
+                        prompt_tokens: 300,
+                        completion_tokens: 40,
+                    })
+                    .ok_or_else(|| "unknown ticket".to_string());
+                ChatOutcome { result, latency_ms: 0 }
+            })
+            .collect()
     }
 }
 
@@ -204,7 +206,7 @@ async fn sealed_evaluation_round_trip() -> Result<()> {
     ensure!(request["deposit"] == json!(NearToken::from_millinear(25).as_yoctonear().to_string()));
     ensure!(args["source"]["WasmUrl"]["hash"] == json!(EVALUATOR_SHA256));
     ensure!(args["source"]["WasmUrl"]["build_target"] == json!("wasm32-wasip2"));
-    ensure!(args["resource_limits"]["max_execution_seconds"] == json!(180));
+    ensure!(args["resource_limits"]["max_execution_seconds"] == json!(110));
     ensure!(args["response_format"] == json!("Json"));
     ensure!(args["payer_account_id"] == json!(owner.id()));
     ensure!(args["secrets_ref"] == json!({"profile": "bakeoff", "account_id": owner.id()}));

@@ -18,6 +18,7 @@ pub mod verdict;
 pub mod wasi_http;
 
 pub use evaluate::{
-    evaluate_request, ChatClient, ChatCompletion, ChatMessage, Clock, MonotonicClock,
+    evaluate_request, ChatClient, ChatCompletion, ChatMessage, ChatOutcome, ChatRequest, Clock,
+    MonotonicClock,
 };
 pub use verdict::{Digests, Metrics, Reason, Verdict};

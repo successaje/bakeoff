@@ -90,8 +90,8 @@ fn input_invalid(detail: &str) -> Verdict {
 
 #[cfg(target_arch = "wasm32")]
 mod transport {
-    use bakeoff_evaluator::wasi_http::{self, Timeouts};
-    use bakeoff_evaluator::{openai, ChatClient, ChatCompletion, ChatMessage};
+    use bakeoff_evaluator::wasi_http::{self, HttpRequest, Timeouts};
+    use bakeoff_evaluator::{openai, ChatClient, ChatOutcome, ChatRequest};
     use std::time::Duration;
 
     pub struct WasiChatClient {
@@ -106,58 +106,55 @@ mod transport {
             authorization: format!("Bearer {api_key}"),
             timeouts: Timeouts {
                 connect: Duration::from_secs(10),
-                first_byte: Duration::from_secs(60),
-                between_bytes: Duration::from_secs(30),
+                first_byte: Duration::from_secs(45),
+                between_bytes: Duration::from_secs(15),
             },
         }
     }
 
     impl ChatClient for WasiChatClient {
-        fn complete(
-            &mut self,
-            model: &str,
-            messages: &[ChatMessage],
-            max_tokens: u32,
-            temperature: Option<f64>,
-        ) -> Result<ChatCompletion, String> {
-            let result = self.call(model, messages, max_tokens, temperature);
-            // stderr stays in the worker's logs; only the verdict is returned.
-            if let Err(e) = &result {
-                eprintln!("model call to {model} failed: {e}");
-            }
-            result
-        }
-    }
-
-    impl WasiChatClient {
-        fn call(
-            &self,
-            model: &str,
-            messages: &[ChatMessage],
-            max_tokens: u32,
-            temperature: Option<f64>,
-        ) -> Result<ChatCompletion, String> {
-            let body = openai::request_body(model, messages, max_tokens, temperature);
-            let response = wasi_http::post(
-                &self.endpoint,
-                &[
-                    ("content-type", "application/json"),
-                    ("authorization", &self.authorization),
-                ],
-                &body,
-                &self.timeouts,
-            )?;
-            if !(200..300).contains(&response.status) {
-                return Err(format!("upstream status {}", response.status));
-            }
-            openai::parse_response(&response.body)
+        fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome> {
+            let headers = [
+                ("content-type", "application/json"),
+                ("authorization", self.authorization.as_str()),
+            ];
+            let http_requests: Vec<HttpRequest<'_>> = requests
+                .iter()
+                .map(|request| HttpRequest {
+                    url: &self.endpoint,
+                    headers: &headers,
+                    body: openai::request_body(request),
+                })
+                .collect();
+            wasi_http::post_all(&http_requests, self.timeouts.capped(limit))
+                .into_iter()
+                .zip(requests)
+                .map(|(timed, request)| {
+                    let result = timed.value.and_then(|response| {
+                        if (200..300).contains(&response.status) {
+                            openai::parse_response(&response.body)
+                        } else {
+                            Err(format!("upstream status {}", response.status))
+                        }
+                    });
+                    // stderr stays in the worker's logs; only the verdict is returned.
+                    if let Err(e) = &result {
+                        eprintln!("model call to {} failed: {e}", request.model);
+                    }
+                    ChatOutcome {
+                        result,
+                        latency_ms: timed.elapsed_ms,
+                    }
+                })
+                .collect()
         }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 mod transport {
-    use bakeoff_evaluator::{ChatClient, ChatCompletion, ChatMessage};
+    use bakeoff_evaluator::{ChatClient, ChatOutcome, ChatRequest};
+    use std::time::Duration;
 
     /// Native builds have no network transport; the evaluator is meant to be
     /// built for `wasm32-wasip2` and run under OutLayer or wasmtime.
@@ -168,14 +165,16 @@ mod transport {
     }
 
     impl ChatClient for UnavailableClient {
-        fn complete(
-            &mut self,
-            _model: &str,
-            _messages: &[ChatMessage],
-            _max_tokens: u32,
-            _temperature: Option<f64>,
-        ) -> Result<ChatCompletion, String> {
-            Err("network transport is only available in the wasm32-wasip2 build".into())
+        fn complete_all(&mut self, requests: &[ChatRequest], _limit: Duration) -> Vec<ChatOutcome> {
+            requests
+                .iter()
+                .map(|_| ChatOutcome {
+                    result: Err(
+                        "network transport is only available in the wasm32-wasip2 build".into(),
+                    ),
+                    latency_ms: 0,
+                })
+                .collect()
         }
     }
 }

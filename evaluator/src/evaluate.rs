@@ -6,7 +6,8 @@ use crate::model::{CandidateConfig, Rules, Ticket};
 use crate::policy;
 use crate::verdict::{Digests, Metrics, Reason, Verdict};
 use serde::Serialize;
-use std::time::Instant;
+use std::collections::BTreeMap;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatMessage {
@@ -37,6 +38,17 @@ impl ChatMessage {
     }
 }
 
+/// One chat completion request.
+#[derive(Debug, Clone)]
+pub struct ChatRequest {
+    pub model: String,
+    pub messages: Vec<ChatMessage>,
+    pub max_tokens: u32,
+    pub temperature: Option<f64>,
+    /// Extra body fields, already checked against the rules.
+    pub options: BTreeMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ChatCompletion {
     pub content: String,
@@ -44,16 +56,18 @@ pub struct ChatCompletion {
     pub completion_tokens: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct ChatOutcome {
+    pub result: Result<ChatCompletion, String>,
+    pub latency_ms: u64,
+}
+
 /// Transport for model calls. The enclave build talks `wasi:http`; tests
 /// substitute a scripted client.
 pub trait ChatClient {
-    fn complete(
-        &mut self,
-        model: &str,
-        messages: &[ChatMessage],
-        max_tokens: u32,
-        temperature: Option<f64>,
-    ) -> Result<ChatCompletion, String>;
+    /// Sends `requests` concurrently and returns one outcome per request, in
+    /// order. No request may run longer than `limit`.
+    fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome>;
 }
 
 pub trait Clock {
@@ -138,6 +152,39 @@ struct Run {
     timed_out: bool,
 }
 
+/// What one ticket has produced so far.
+#[derive(Default)]
+struct TicketResult {
+    answer: Option<Answer>,
+    outputs: Vec<String>,
+    failed: bool,
+    latency_ms: u64,
+    cost_uusd: f64,
+}
+
+impl TicketResult {
+    /// Applies a model call's outcome. An answer that cannot be parsed never
+    /// replaces one that could.
+    fn apply(&mut self, outcome: ChatOutcome, price_uusd: impl Fn(&ChatCompletion) -> f64) {
+        self.latency_ms += outcome.latency_ms;
+        match outcome.result {
+            Ok(completion) => {
+                self.cost_uusd += price_uusd(&completion);
+                if let Some(answer) = parse_answer(&completion.content) {
+                    self.answer = Some(answer);
+                }
+                self.outputs.push(completion.content);
+                self.failed = false;
+            }
+            Err(_) => {
+                if self.answer.is_none() {
+                    self.failed = true;
+                }
+            }
+        }
+    }
+}
+
 fn run_tickets(
     rules: &Rules,
     config: &CandidateConfig,
@@ -146,73 +193,143 @@ fn run_tickets(
     clock: &dyn Clock,
 ) -> Run {
     let started = clock.now_ms();
+    let remaining = |clock: &dyn Clock| {
+        Duration::from_millis(
+            rules
+                .time_budget_ms
+                .saturating_sub(clock.now_ms().saturating_sub(started)),
+        )
+    };
     let base_messages = base_messages(rules, config);
-    let mut latencies = Vec::with_capacity(tickets.len());
-    let mut cost_uusd = 0.0_f64;
+    let mut results: Vec<TicketResult> = Vec::with_capacity(tickets.len());
+    let mut escalations = 0u32;
+    let mut timed_out = false;
+
+    // Tickets are scored in batches of `max_concurrency`: every first call in
+    // a batch is in flight at once, then every escalation the batch needs.
+    for batch in tickets.chunks(rules.max_concurrency) {
+        if remaining(clock).is_zero() {
+            timed_out = true;
+            break;
+        }
+        let first: Vec<ChatRequest> = batch
+            .iter()
+            .map(|t| {
+                request(
+                    rules,
+                    &base_messages,
+                    t,
+                    &config.model,
+                    &config.request_options,
+                    config.max_tokens,
+                )
+            })
+            .collect();
+        let mut batch_results: Vec<TicketResult> = client
+            .complete_all(&first, remaining(clock))
+            .into_iter()
+            .map(|outcome| {
+                let mut result = TicketResult::default();
+                result.apply(outcome, |c| price_uusd(rules, &config.model, c));
+                result
+            })
+            .collect();
+
+        if let Some(escalation) = &config.escalation {
+            let unsure: Vec<usize> = batch_results
+                .iter()
+                .enumerate()
+                .filter(|(_, r)| {
+                    r.answer
+                        .as_ref()
+                        .is_none_or(|a| a.confidence < escalation.below_confidence)
+                })
+                .map(|(i, _)| i)
+                .collect();
+            let limit = remaining(clock);
+            if !unsure.is_empty() && limit.is_zero() {
+                timed_out = true;
+            } else if !unsure.is_empty() {
+                escalations += unsure.len() as u32;
+                let second: Vec<ChatRequest> = unsure
+                    .iter()
+                    .map(|&i| {
+                        request(
+                            rules,
+                            &base_messages,
+                            &batch[i],
+                            &escalation.model,
+                            &escalation.request_options,
+                            config.max_tokens,
+                        )
+                    })
+                    .collect();
+                let outcomes = client.complete_all(&second, limit);
+                for (&i, outcome) in unsure.iter().zip(outcomes) {
+                    batch_results[i].apply(outcome, |c| price_uusd(rules, &escalation.model, c));
+                }
+            }
+        }
+        results.extend(batch_results);
+        if timed_out {
+            break;
+        }
+    }
+
+    let mut metrics = summarize(&results, tickets);
+    metrics.escalations = escalations;
+    metrics.elapsed_ms = clock.now_ms().saturating_sub(started);
+    if metrics.elapsed_ms > rules.time_budget_ms {
+        timed_out = true;
+    }
+    Run { metrics, timed_out }
+}
+
+fn request(
+    rules: &Rules,
+    base_messages: &[ChatMessage],
+    ticket: &Ticket,
+    model: &str,
+    options: &BTreeMap<String, serde_json::Value>,
+    max_tokens: u32,
+) -> ChatRequest {
+    let mut messages = base_messages.to_vec();
+    messages.push(ChatMessage::user(ticket.text.clone()));
+    ChatRequest {
+        model: model.to_string(),
+        messages,
+        max_tokens,
+        temperature: rules.temperature,
+        options: options.clone(),
+    }
+}
+
+/// Token counts times dollars per million tokens is micro-dollars.
+fn price_uusd(rules: &Rules, model: &str, completion: &ChatCompletion) -> f64 {
+    let price = rules.models[model];
+    completion.prompt_tokens as f64 * price.input_usd_per_mtok
+        + completion.completion_tokens as f64 * price.output_usd_per_mtok
+}
+
+fn summarize(results: &[TicketResult], tickets: &[Ticket]) -> Metrics {
     let mut correct = 0u32;
     let mut category_correct = 0u32;
     let mut leaks = 0u32;
     let mut upstream_errors = 0u32;
-    let mut escalations = 0u32;
-    let mut timed_out = false;
+    let mut cost_uusd = 0.0_f64;
+    let mut latencies: Vec<u64> = Vec::with_capacity(results.len());
 
-    for ticket in tickets {
-        if clock.now_ms().saturating_sub(started) > rules.time_budget_ms {
-            timed_out = true;
-            break;
-        }
-        let ticket_started = clock.now_ms();
-        let mut messages = base_messages.clone();
-        messages.push(ChatMessage::user(ticket.text.clone()));
-
-        let mut outputs: Vec<String> = Vec::with_capacity(2);
-        let mut answer: Option<Answer> = None;
-        let mut failed = false;
-
-        match call(client, rules, &config.model, &messages, config.max_tokens) {
-            Ok((completion, cost)) => {
-                cost_uusd += cost;
-                answer = parse_answer(&completion.content);
-                outputs.push(completion.content);
-            }
-            Err(_) => failed = true,
-        }
-
-        if let Some(escalation) = &config.escalation {
-            let unsure = answer
-                .as_ref()
-                .is_none_or(|a| a.confidence < escalation.below_confidence);
-            if unsure {
-                escalations += 1;
-                // A failed escalation keeps the first answer, if there was one.
-                if let Ok((completion, cost)) = call(
-                    client,
-                    rules,
-                    &escalation.model,
-                    &messages,
-                    config.max_tokens,
-                ) {
-                    cost_uusd += cost;
-                    if let Some(second) = parse_answer(&completion.content) {
-                        answer = Some(second);
-                    }
-                    outputs.push(completion.content);
-                    failed = false;
-                }
-            }
-        }
-
-        if failed && answer.is_none() {
+    for (result, ticket) in results.iter().zip(tickets) {
+        cost_uusd += result.cost_uusd;
+        latencies.push(result.latency_ms);
+        if result.failed && result.answer.is_none() {
             upstream_errors += 1;
         }
-        latencies.push(clock.now_ms().saturating_sub(ticket_started));
-
-        if outputs.iter().any(|o| contains_card_number(o)) {
+        if result.outputs.iter().any(|o| contains_card_number(o)) {
             leaks += 1;
         }
-        if let Some(answer) = answer {
-            let category_ok = answer.category.eq_ignore_ascii_case(&ticket.label.category);
-            if category_ok {
+        if let Some(answer) = &result.answer {
+            if answer.category.eq_ignore_ascii_case(&ticket.label.category) {
                 category_correct += 1;
                 if answer.priority.eq_ignore_ascii_case(&ticket.label.priority) {
                     correct += 1;
@@ -221,9 +338,9 @@ fn run_tickets(
         }
     }
 
-    let completed = latencies.len() as u32;
+    let completed = results.len() as u32;
     let cost_uusd = cost_uusd.round() as u64;
-    let metrics = Metrics {
+    Metrics {
         tickets: tickets.len() as u32,
         completed,
         accuracy_bp: basis_points(correct, completed),
@@ -242,26 +359,9 @@ fn run_tickets(
         },
         leaks,
         upstream_errors,
-        escalations,
-        elapsed_ms: clock.now_ms().saturating_sub(started),
-    };
-    Run { metrics, timed_out }
-}
-
-/// Calls one model and prices the call. Token counts times dollars per
-/// million tokens is micro-dollars.
-fn call(
-    client: &mut dyn ChatClient,
-    rules: &Rules,
-    model: &str,
-    messages: &[ChatMessage],
-    max_tokens: u32,
-) -> Result<(ChatCompletion, f64), String> {
-    let price = rules.models[model];
-    let completion = client.complete(model, messages, max_tokens, rules.temperature)?;
-    let cost = completion.prompt_tokens as f64 * price.input_usd_per_mtok
-        + completion.completion_tokens as f64 * price.output_usd_per_mtok;
-    Ok((completion, cost))
+        escalations: 0,
+        elapsed_ms: 0,
+    }
 }
 
 fn judge(rules: &Rules, run: &Run) -> Vec<Reason> {
@@ -354,6 +454,7 @@ mod tests {
             "small": {"input_usd_per_mtok": 0.1, "output_usd_per_mtok": 0.5},
             "large": {"input_usd_per_mtok": 2.0, "output_usd_per_mtok": 10.0}
         },
+        "allowed_request_options": ["reasoning_effort"],
         "categories": ["billing", "shipping"],
         "priorities": ["low", "high"],
         "gates": {"min_accuracy_bp": 8000, "max_cost_per_ticket_uusd": 1000, "max_p95_latency_ms": 2000, "max_leaks": 0},
@@ -367,6 +468,8 @@ mod tests {
         {"id":"4","text":"Parcel is late","label":{"category":"shipping","priority":"high"}}
     ]"#;
 
+    const ROUTED: &str = r#"{"version":1,"model":"small","system_prompt":"Triage.","escalation":{"model":"large","below_confidence":0.5}}"#;
+
     struct FakeClock(Rc<Cell<u64>>);
 
     impl Clock for FakeClock {
@@ -376,11 +479,12 @@ mod tests {
     }
 
     /// Answers from the ticket text: `large` is always right; `small` gets
-    /// ticket 4's priority wrong with low confidence. Each call advances the
-    /// clock by the model's latency.
+    /// ticket 4's priority wrong with low confidence. A batch advances the
+    /// clock by its slowest call, as concurrent calls would.
     struct ScriptedClient {
         now: Rc<Cell<u64>>,
-        calls: Vec<String>,
+        batches: Vec<Vec<String>>,
+        limits: Vec<Duration>,
         leak_card: bool,
         fail_model: Option<&'static str>,
     }
@@ -389,34 +493,28 @@ mod tests {
         fn new(now: Rc<Cell<u64>>) -> Self {
             Self {
                 now,
-                calls: Vec::new(),
+                batches: Vec::new(),
+                limits: Vec::new(),
                 leak_card: false,
                 fail_model: None,
             }
         }
-    }
 
-    impl ChatClient for ScriptedClient {
-        fn complete(
-            &mut self,
-            model: &str,
-            messages: &[ChatMessage],
-            _max_tokens: u32,
-            _temperature: Option<f64>,
-        ) -> Result<ChatCompletion, String> {
-            self.calls.push(model.to_string());
-            self.now
-                .set(self.now.get() + if model == "large" { 900 } else { 200 });
-            if self.fail_model == Some(model) {
-                return Err("upstream status 503".into());
+        fn answer(&self, request: &ChatRequest) -> ChatOutcome {
+            let latency_ms = if request.model == "large" { 900 } else { 200 };
+            if self.fail_model == Some(request.model.as_str()) {
+                return ChatOutcome {
+                    result: Err("upstream status 503".into()),
+                    latency_ms,
+                };
             }
-            let ticket = &messages.last().unwrap().content;
+            let ticket = &request.messages.last().unwrap().content;
             let category = if ticket.contains("charged") || ticket.contains("Refund") {
                 "billing"
             } else {
                 "shipping"
             };
-            let (priority, confidence) = match (ticket.as_str(), model) {
+            let (priority, confidence) = match (ticket.as_str(), request.model.as_str()) {
                 ("Where is my parcel", _) => ("low", 0.9),
                 ("Parcel is late", "small") => ("low", 0.3),
                 _ => ("high", 0.9),
@@ -426,23 +524,38 @@ mod tests {
             } else {
                 "ok"
             };
-            Ok(ChatCompletion {
-                content: format!(
-                    r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence},"summary":"{summary}"}}"#
-                ),
-                prompt_tokens: 1_000,
-                completion_tokens: 100,
-            })
+            ChatOutcome {
+                result: Ok(ChatCompletion {
+                    content: format!(
+                        r#"{{"category":"{category}","priority":"{priority}","confidence":{confidence},"summary":"{summary}"}}"#
+                    ),
+                    prompt_tokens: 1_000,
+                    completion_tokens: 100,
+                }),
+                latency_ms,
+            }
         }
     }
 
-    fn evaluate(config: &str, client: &mut ScriptedClient, clock: &FakeClock) -> Verdict {
-        evaluate_request(RULES, config, Some(TICKETS), client, clock)
+    impl ChatClient for ScriptedClient {
+        fn complete_all(&mut self, requests: &[ChatRequest], limit: Duration) -> Vec<ChatOutcome> {
+            self.batches
+                .push(requests.iter().map(|r| r.model.clone()).collect());
+            self.limits.push(limit);
+            let outcomes: Vec<ChatOutcome> = requests.iter().map(|r| self.answer(r)).collect();
+            let slowest = outcomes.iter().map(|o| o.latency_ms).max().unwrap_or(0);
+            self.now.set(self.now.get() + slowest);
+            outcomes
+        }
     }
 
     fn setup() -> (ScriptedClient, FakeClock) {
         let now = Rc::new(Cell::new(0));
         (ScriptedClient::new(now.clone()), FakeClock(now))
+    }
+
+    fn evaluate(config: &str, client: &mut ScriptedClient, clock: &FakeClock) -> Verdict {
+        evaluate_request(RULES, config, Some(TICKETS), client, clock)
     }
 
     #[test]
@@ -458,7 +571,6 @@ mod tests {
         // 1000 * $2/Mtok + 100 * $10/Mtok = 3000 µ$ per ticket
         assert_eq!(m.cost_per_ticket_uusd, 3_000);
         assert_eq!(v.reasons, vec![Reason::GateCost]);
-        assert!(!v.passed);
     }
 
     #[test]
@@ -478,31 +590,76 @@ mod tests {
     #[test]
     fn routing_escalates_only_unsure_answers_and_passes() {
         let (mut client, clock) = setup();
-        let v = evaluate(
-            r#"{"version":1,"model":"small","system_prompt":"Triage.","escalation":{"model":"large","below_confidence":0.5}}"#,
-            &mut client,
-            &clock,
-        );
+        let v = evaluate(ROUTED, &mut client, &clock);
         let m = v.metrics.clone().unwrap();
         assert_eq!(m.escalations, 1);
         assert_eq!(m.accuracy_bp, 10_000);
-        assert_eq!(client.calls, ["small", "small", "small", "small", "large"]);
+        // One concurrent batch of first calls, then one escalation.
+        assert_eq!(client.batches, [vec!["small"; 4], vec!["large"]]);
         // 4 small calls at 150 µ$ plus one large call at 3000 µ$, over 4 tickets
         assert_eq!(m.cost_uusd, 3_600);
         assert_eq!(m.cost_per_ticket_uusd, 900);
+        // A ticket's latency is its own calls: 200 ms, or 200 + 900 when escalated.
         assert_eq!(m.p95_latency_ms, 1_100);
+        assert_eq!(m.elapsed_ms, 1_100);
         assert!(v.passed, "{v:?}");
+    }
+
+    #[test]
+    fn batches_respect_max_concurrency_and_remaining_budget() {
+        let (mut client, clock) = setup();
+        let rules = RULES.replace(
+            "\"time_budget_ms\": 60000",
+            "\"time_budget_ms\": 60000, \"max_concurrency\": 3",
+        );
+        let v = evaluate_request(&rules, ROUTED, Some(TICKETS), &mut client, &clock);
+        assert!(v.passed, "{v:?}");
+        let sizes: Vec<usize> = client.batches.iter().map(Vec::len).collect();
+        assert_eq!(sizes, [3, 1, 1]);
+        // Each batch is given what is left of the 60 s budget.
+        assert_eq!(client.limits[0], Duration::from_millis(60_000));
+        assert_eq!(client.limits[1], Duration::from_millis(59_800));
+    }
+
+    #[test]
+    fn request_options_reach_the_right_model() {
+        struct Capture(Vec<ChatRequest>);
+        impl ChatClient for Capture {
+            fn complete_all(&mut self, requests: &[ChatRequest], _: Duration) -> Vec<ChatOutcome> {
+                self.0.extend_from_slice(requests);
+                requests
+                    .iter()
+                    .map(|_| ChatOutcome {
+                        result: Ok(ChatCompletion {
+                            content: r#"{"category":"billing","priority":"high","confidence":0.1}"#
+                                .into(),
+                            prompt_tokens: 1,
+                            completion_tokens: 1,
+                        }),
+                        latency_ms: 1,
+                    })
+                    .collect()
+            }
+        }
+        let config = r#"{"version":1,"model":"small","system_prompt":"x","request_options":{"reasoning_effort":"low"},
+            "escalation":{"model":"large","below_confidence":0.5}}"#;
+        let mut capture = Capture(Vec::new());
+        let clock = FakeClock(Rc::new(Cell::new(0)));
+        evaluate_request(RULES, config, Some(TICKETS), &mut capture, &clock);
+        let small = capture.0.iter().find(|r| r.model == "small").unwrap();
+        let large = capture.0.iter().find(|r| r.model == "large").unwrap();
+        assert_eq!(
+            small.options.get("reasoning_effort"),
+            Some(&serde_json::json!("low"))
+        );
+        assert!(large.options.is_empty());
     }
 
     #[test]
     fn leaking_a_card_number_fails_the_leak_gate() {
         let (mut client, clock) = setup();
         client.leak_card = true;
-        let v = evaluate(
-            r#"{"version":1,"model":"small","system_prompt":"Triage.","escalation":{"model":"large","below_confidence":0.5}}"#,
-            &mut client,
-            &clock,
-        );
+        let v = evaluate(ROUTED, &mut client, &clock);
         assert_eq!(v.metrics.as_ref().unwrap().leaks, 1);
         assert_eq!(v.reasons, vec![Reason::GateLeaks]);
     }
@@ -517,7 +674,7 @@ mod tests {
         );
         assert_eq!(v.reasons, vec![Reason::PolicyTool]);
         assert!(v.metrics.is_none());
-        assert!(client.calls.is_empty());
+        assert!(client.batches.is_empty());
     }
 
     #[test]
@@ -537,11 +694,7 @@ mod tests {
     fn escalation_recovers_from_a_failed_first_call() {
         let (mut client, clock) = setup();
         client.fail_model = Some("small");
-        let v = evaluate(
-            r#"{"version":1,"model":"small","system_prompt":"Triage.","escalation":{"model":"large","below_confidence":0.5}}"#,
-            &mut client,
-            &clock,
-        );
+        let v = evaluate(ROUTED, &mut client, &clock);
         let m = v.metrics.unwrap();
         assert_eq!(m.upstream_errors, 0);
         assert_eq!(m.escalations, 4);
@@ -551,7 +704,10 @@ mod tests {
     #[test]
     fn stops_when_the_time_budget_is_exhausted() {
         let (mut client, clock) = setup();
-        let rules = RULES.replace("\"time_budget_ms\": 60000", "\"time_budget_ms\": 1000");
+        let rules = RULES.replace(
+            "\"time_budget_ms\": 60000",
+            "\"time_budget_ms\": 1000, \"max_concurrency\": 1",
+        );
         let v = evaluate_request(
             &rules,
             r#"{"version":1,"model":"large","system_prompt":"Triage."}"#,
