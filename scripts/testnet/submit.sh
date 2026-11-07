@@ -24,10 +24,22 @@ started=$(date +%s)
 # longer than the RPC node waits, so an RPC timeout here is expected; the
 # contract is polled for the outcome either way. Of the 0.035 NEAR, 0.01 pays
 # for the evaluation record and OutLayer refunds what the run does not use.
-near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
+# near-cli also refuses to send when the signer cannot cover the deposit plus
+# the prepaid gas at the current price (about 0.34 NEAR in all); that and any
+# other failure stops here instead of waiting for a verdict that cannot come.
+if ! output=$(near contract call-function as-transaction "$CHALLENGE" submit json-args "$args" \
   prepaid-gas '300.0 Tgas' attached-deposit '0.035 NEAR' \
-  sign-as "$SIGNER" network-config testnet sign-with-keychain send \
-  || echo "(RPC did not wait for the outcome; polling the contract)"
+  sign-as "$SIGNER" network-config testnet sign-with-keychain send 2>&1); then
+  if printf '%s' "$output" | grep -q "408 Request Timeout"; then
+    echo "(RPC did not wait for the outcome; polling the contract)"
+  else
+    printf '%s\n' "$output" >&2
+    echo "the submission was not sent" >&2
+    exit 1
+  fi
+else
+  printf '%s\n' "$output"
+fi
 
 echo "==> Waiting for the sealed evaluation"
 while :; do
@@ -56,7 +68,7 @@ print("request to verdict:".ljust(22) + f"{seconds:.1f} s")
 if e.get("verdict"):
     metrics = json.loads(e["verdict"]).get("metrics") or {}
     for key in ("tickets", "completed", "accuracy_bp", "cost_per_ticket_uusd",
-                "p95_latency_ms", "leaks", "escalations", "elapsed_ms"):
+                "p95_latency_ms", "leaks", "invalid_answers", "escalations", "elapsed_ms"):
         if key in metrics:
             print(f"{key}:".ljust(22) + str(metrics[key]))
 EOF
