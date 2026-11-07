@@ -6,7 +6,7 @@ import { type EvaluationView, formatNear, type Gates, type Metrics, type Network
 import type { Baseline } from "../lib/registry.ts";
 import { useInView, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { ArrowRight, Coins, Timer } from "./Icons.tsx";
-import { Account, Countdown, displayStatus, StatusBadge } from "./ui.tsx";
+import { Account, Countdown, DemoBadge, displayStatus, StatusBadge } from "./ui.tsx";
 
 /** What each verdict reason means, in the words a contributor would use. */
 export const REASONS: Record<string, string> = {
@@ -56,7 +56,7 @@ export function ChallengeCard({ summary, index = 0 }: { summary: ChallengeSummar
     >
       <Link to={`/challenges/${listing.id}`} className="challenge-card-link" aria-label={`${listing.title}, ${listing.sponsor}`}>
         <div className="challenge-card-top">
-          <span className="eyebrow-plain">{listing.sponsor}</span>
+          <span className="card-owner"><span className="eyebrow-plain">{listing.sponsor}</span>{listing.demo && <DemoBadge />}</span>
           {view ? <StatusBadge view={view} /> : <span className="badge badge-coral">Unavailable</span>}
         </div>
         <h3>{listing.title}</h3>
@@ -65,7 +65,7 @@ export function ChallengeCard({ summary, index = 0 }: { summary: ChallengeSummar
         {view && (
           <div className="challenge-card-stats">
             <div>
-              <span className="label"><Coins /> {view.award ? "Paid" : "Bounty"}</span>
+              <span className="label"><Coins /> {view.award ? (view.award.paid ? "Paid" : "Awarded") : "Bounty"}</span>
               <strong className="amber">{formatNear(view.award?.amount ?? view.bounty ?? "0")}</strong>
             </div>
             <div>

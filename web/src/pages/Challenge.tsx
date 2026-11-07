@@ -5,7 +5,7 @@ import { costCut, TheBar, VerdictTable } from "../components/challenge.tsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Cube, Hash, Lock, Timer } from "../components/Icons.tsx";
 import { SponsorPanel } from "../components/Sponsor.tsx";
-import { Account, CodeBlock, CopyButton, Countdown, displayStatus, explorer, Reveal, StatusBadge, Tabs } from "../components/ui.tsx";
+import { Account, CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal, StatusBadge, Tabs } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, utc } from "../lib/format.ts";
 import { challengeGates, type EvaluationView, formatNear, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
@@ -23,8 +23,11 @@ function bestRun(detail: ChallengeDetail): { metrics: Metrics | null; label: str
   return { metrics: passed[0] ?? null, label: "Best pass" };
 }
 
+/** A check that ran and found a different hash, as opposed to one that could not run. */
+class Mismatch extends Error {}
+
 function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash; title: string; value: string; detail: string; run?: () => Promise<string> }) {
-  const [state, setState] = useState<{ busy?: boolean; ok?: string; error?: string }>({});
+  const [state, setState] = useState<{ busy?: boolean; ok?: string; mismatch?: string; failed?: string }>({});
   return (
     <div className="check-row">
       <span className="check-icon"><Icon /></span>
@@ -32,10 +35,11 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
         <div className="check-title">
           <h4>{title}</h4>
           {state.ok && <span className="badge badge-green badge-dot">Matches</span>}
-          {state.error && <span className="badge badge-coral badge-dot">Mismatch</span>}
+          {state.mismatch && <span className="badge badge-coral badge-dot">Mismatch</span>}
+          {state.failed && <span className="badge badge-amber badge-dot">Could not verify</span>}
         </div>
         <div className="hash-line"><code className="mono break">{value}</code><CopyButton text={value} label={`Copy ${title}`} /></div>
-        <p className="muted small">{state.ok ?? state.error ?? detail}</p>
+        <p className="muted small">{state.ok ?? state.mismatch ?? (state.failed ? `${state.failed} Nothing was compared; try again.` : detail)}</p>
       </div>
       {run && (
         <button type="button" className="btn btn-sm" disabled={state.busy} onClick={async () => {
@@ -43,9 +47,9 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
           try {
             setState({ ok: await run() });
           } catch (error) {
-            setState({ error: (error as Error).message });
+            setState(error instanceof Mismatch ? { mismatch: error.message } : { failed: `Could not run the check: ${(error as Error).message}.` });
           }
-        }}>{state.busy && <span className="spinner" aria-hidden="true" />}{state.ok ? <><Check /> Checked</> : "Check"}</button>
+        }}>{state.busy && <span className="spinner" aria-hidden="true" />}{state.ok ? <><Check /> Checked</> : state.failed ? "Try again" : "Check"}</button>
       )}
     </div>
   );
@@ -58,15 +62,15 @@ function VerifyTab({ detail }: { detail: ChallengeDetail }) {
       <p className="text-2 tab-intro">The contract records a verdict only if it names these exact rules, this candidate and this test set. Check the commitments here, in your browser, against the chain.</p>
       <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, gates included." run={async () => {
         const actual = await sha256Hex(view.rules_json);
-        if (actual !== view.rules_sha256) throw new Error(`The served rules hash to ${actual}`);
+        if (actual !== view.rules_sha256) throw new Mismatch(`The served rules hash to ${actual}, not the commitment.`);
         return "The rules the contract serves hash to its commitment.";
       }} />
       <CheckRow icon={Cube} title="Evaluator build" value={view.evaluator.sha256} detail="OutLayer runs this exact WebAssembly build. The check downloads it and hashes it." run={async () => {
         const response = await fetch(view.evaluator.url);
-        if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+        if (!response.ok) throw new Error(`the download failed with HTTP ${response.status}`);
         const bytes = await response.arrayBuffer();
         const actual = await sha256Hex(bytes);
-        if (actual !== view.evaluator.sha256) throw new Error(`The download hashes to ${actual}`);
+        if (actual !== view.evaluator.sha256) throw new Mismatch(`The download hashes to ${actual}, not the pinned build.`);
         return `The ${(bytes.byteLength / 1024).toFixed(0)} KB build at its URL is the pinned one.`;
       }} />
       <CheckRow icon={Lock} title="Sealed test set" value={view.test_set_sha256} detail="Secret by design: only the hash is public. Each verdict carries the hash of the set it scored, and the contract rejects any that differs." />
@@ -139,6 +143,18 @@ export function Challenge() {
   }, [data?.network]);
 
   const best = useMemo(() => (data ? bestRun(data) : null), [data]);
+  const [readAt, setReadAt] = useState<Date | null>(null);
+  useEffect(() => {
+    if (data) setReadAt(new Date());
+  }, [data]);
+  // A result still scoring updates on its own; anything else on request.
+  const pending = data?.view.pending ?? 0;
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setInterval(refresh, 10_000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, id]);
 
   if (!data) {
     if (error && !loading) {
@@ -175,6 +191,7 @@ export function Challenge() {
                 <span className="eyebrow-plain">{listing.sponsor}</span>
                 <StatusBadge view={view} />
                 <span className="badge">{network}</span>
+                {listing.demo && <DemoBadge />}
               </div>
               <h1 className="page-title">{listing.title}</h1>
               <p className="page-lede">{listing.summary}</p>
@@ -207,6 +224,8 @@ export function Challenge() {
       </div>
 
       <div className="container page-body">
+        {listing.demo && <DemoNotice sponsor={listing.sponsor} network={network} />}
+
         {award?.paid && data.winner && (
           <Reveal className="award-callout">
             <span className="award-glow" aria-hidden="true" />
@@ -216,13 +235,22 @@ export function Challenge() {
             </p>
           </Reveal>
         )}
+        {award && !award.paid && (
+          <Reveal className="award-callout pending">
+            <Timer />
+            <p>
+              <strong>{award.winner}</strong> won the {formatNear(award.amount)} bounty with evaluation {award.evaluation}.{" "}
+              {award.in_flight ? "The payment is on its way." : "The payment has not completed yet; anyone can retry it from the Sponsor tab."}
+            </p>
+          </Reveal>
+        )}
 
         {gates && (
           <Reveal className="card card-pad bar-card">
             <div className="card-title-row">
               <div>
                 <h2>The bar</h2>
-                <p className="muted small">Gates set from {listing.sponsor}'s own baseline. A candidate must clear all of them on the {listing.tickets || ""} sealed tickets.</p>
+                <p className="muted small">A candidate must clear every gate on the {listing.tickets || ""} sealed tickets. The gates are the contract's rules; the baseline is the figure {listing.sponsor} published, not one the contract measured.</p>
               </div>
               <div className="legend">
                 <span><i className="legend-baseline" /> Baseline</span>
@@ -233,6 +261,13 @@ export function Challenge() {
             <TheBar gates={gates} baseline={listing.baseline} best={best?.metrics ?? null} bestLabel={best?.label ?? ""} />
           </Reveal>
         )}
+
+        <div className="freshness" aria-live="polite">
+          <span className="muted small">
+            {loading ? "Reading the contract…" : readAt ? <>Read from {network} at {readAt.toISOString().slice(11, 19)} UTC{pending ? ` · ${pending} result${pending > 1 ? "s" : ""} scoring, updating every 10 s` : ""}</> : null}
+          </span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading}>{loading && <span className="spinner" aria-hidden="true" />}Refresh</button>
+        </div>
 
         <div id="tabs" className="tabs-wrap">
           <Tabs

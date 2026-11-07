@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { ChallengeCard, costCut, TheBar } from "../components/challenge.tsx";
 import { HeroScene } from "../components/HeroScene.tsx";
 import { ArrowRight, Bot, Building, Coins, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
-import { CountUp, Reveal } from "../components/ui.tsx";
+import { CountUp, DemoBadge, Reveal } from "../components/ui.tsx";
 import { type ChallengeSummary, loadChallenges } from "../lib/data.ts";
 import { microDollars, percent } from "../lib/format.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
@@ -27,7 +27,7 @@ function VerdictCard({ win }: { win: ChallengeSummary | null }) {
     >
       <div className="verdict-float-head">
         <span className="badge badge-dot badge-green">Verdict · Passed</span>
-        <span className="mono small muted">evaluation #{win.view.award.evaluation}</span>
+        <span className="mono small muted">{win.listing.demo ? "demo round · " : ""}evaluation #{win.view.award.evaluation}</span>
       </div>
       <dl>
         <div><dt>Accuracy</dt><dd>{percent(win.winner.accuracy_bp)}</dd></div>
@@ -118,8 +118,8 @@ function HowItWorks() {
       <div className="container">
         <Reveal className="section-head">
           <span className="eyebrow">How a bake-off works</span>
-          <h2>Four steps, <span className="serif">no trust</span> required.</h2>
-          <p>Nobody sees the sealed tickets, and nobody has to take anyone's word for a score.</p>
+          <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
+          <p>Contributors never see the sealed tickets, and every score on-chain names the exact rules, candidate and test set it used.</p>
         </Reveal>
         <ol className="steps">
           {STEPS.map((step, i) => (
@@ -145,7 +145,7 @@ function Spotlight({ win }: { win: ChallengeSummary | null }) {
     <section className="section spotlight">
       <div className="container spotlight-grid">
         <Reveal className="spotlight-copy">
-          <span className="eyebrow">Latest winner</span>
+          <span className="eyebrow">Latest winner</span>{win.listing.demo && <> <DemoBadge /></>}
           <h2>{win.listing.story?.headline ?? <>The bar, <span className="serif">cleared</span>.</>}</h2>
           <p className="text-2">
             {win.listing.story?.text && <>{win.listing.story.text} </>}
