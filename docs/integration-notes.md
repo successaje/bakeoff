@@ -69,9 +69,18 @@ All runs use GLM-5.3 Flash. The first run was sequential; the rest had 8 calls i
 - `qwen/qwen3.5-397b-a17b` was too slow for the window: two calls hit the 60 s first-byte timeout and the run cost 721 µ$ per ticket.
 - An account without credits gets HTTP 402 on every call.
 
-## Still to confirm on testnet
+## Sealed runs on testnet (2026-11-07)
 
-1. A verdict recorded within the yield window, now that calls run concurrently.
-2. Whether OutLayer workers allow 8 concurrent outgoing requests.
+Challenge `challenge-20261107003118.finishr.testnet`, evaluator `e24fe8b2…acef5`, 16-ticket sealed sample, 8 calls in flight.
 
-Confirmed by the first testnet run: the worker downloaded and verified the evaluator by hash, and injected both secrets (the run reached the model API). A sealed test set of about 2.6 KB is accepted as a single secret value.
+| # | Candidate | Recorded | Accuracy | Cost per ticket | p95 latency | Submission to verdict | OutLayer run | Transaction |
+|---|---|---|---|---|---|---|---|---|
+| 0 | `webhook-tool` | Failed: `policy_tool` | – | – | – | 8.0 s | 0.6 s, 0.89M instr. | [ERAUj8fB…](https://testnet.nearblocks.io/txns/ERAUj8fBNeRe655y82bSsZAVZEHrNbUDVf8w8D1N8Tgj) |
+| 1 | `routed` | Failed: `gate_accuracy` | 81.25% | 43 µ$ | 3.2 s | 12.0 s | 6.5 s, 4.2M instr. | [2tzDUpoT…](https://testnet.nearblocks.io/txns/2tzDUpoTsxdANNpbeZCaW5Fq8Jbx8p4xR3CEjL1gTGwf) |
+| 2 | `baseline` | Failed: `gate_latency` | 93.75% | 114 µ$ | 17.5 s | 32.0 s | 24.4 s in the evaluator | [BiHK5EtD…](https://testnet.nearblocks.io/txns/BiHKq5EtDwC6QYBjm7xk7CCoy5nhy3DW1KshQo8wh7QB) |
+| 3 | `few-shot-budgeted` | **Passed** | 93.75% | 98 µ$ | 6.0 s | 18.8 s | 12.4 s, 6.6M instr. | [5skf7Zyn…](https://testnet.nearblocks.io/txns/5skf7ZyniwVMjisUgcSE7mAEDCwGCTtbLRDysk97CHqY) |
+
+- Every verdict's digests matched the contract's commitments, so the sealed test set and API key were injected for the pinned build only.
+- OutLayer charged 0.0012–0.0022 NEAR per run and refunded the rest of the 0.025 NEAR deposit.
+- Concurrent outgoing requests work inside OutLayer workers. Sealed results matched the local runs to within run-to-run model variation.
+- The RPC node gives up waiting on long submissions (HTTP 408) while the transaction continues; `submit.sh` polls the contract instead.

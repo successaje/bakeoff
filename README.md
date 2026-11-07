@@ -104,4 +104,10 @@ Verified locally:
 - in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
 - in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`.
 
-Not yet verified: a sealed run on OutLayer testnet. [docs/integration-notes.md](docs/integration-notes.md) lists what that run has to confirm.
+Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
+- sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;
+- every recorded verdict's digests matched the challenge's commitments;
+- four candidates were recorded with the expected outcomes: a policy rejection, an accuracy failure, a latency failure, and one `Passed` at 93.75% accuracy, 98 µ$ per ticket and 6.0 s p95;
+- submission to recorded verdict took 8–32 s.
+
+Results and transaction links are in [docs/integration-notes.md](docs/integration-notes.md#sealed-runs-on-testnet-2026-11-07).
