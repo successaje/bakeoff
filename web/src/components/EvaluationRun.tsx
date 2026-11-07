@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds } from "../lib/format.ts";
-import { usePrefersReducedMotion } from "../lib/hooks.ts";
+import { useInView, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
 import { checkRequirements } from "../lib/results.ts";
 import { ArrowRight, Check, Coins, Lock, Replay } from "./Icons.tsx";
@@ -59,7 +59,9 @@ export function EvaluationRun({ win, loading }: { win: ChallengeSummary | null; 
   const tickets = metrics?.tickets ?? win?.listing.tickets ?? 100;
   const correct = metrics?.accuracy_bp !== undefined ? Math.round((metrics.accuracy_bp / 10_000) * tickets) : 0;
   const ready = Boolean(win && metrics && gates && view?.award);
-  const { phase, scored, reached, replay } = useRun(tickets, ready, reduced);
+  // On a phone the panel sits below the fold; the run starts once it is seen.
+  const [ref, seen] = useInView<HTMLDivElement>("0px 0px -20% 0px");
+  const { phase, scored, reached, replay } = useRun(tickets, ready && seen, reduced);
   const checks = win && gates ? checkRequirements(gates, metrics, win.listing.baseline, { percent, micro: microDollars, seconds }) : [];
 
   const status = !ready
@@ -70,7 +72,7 @@ export function EvaluationRun({ win, loading }: { win: ChallengeSummary | null; 
     : `${correct} of ${tickets} correct`;
 
   return (
-    <div className={`run ${ORDER.slice(1).filter(reached).map((p) => `is-${p}`).join(" ")}`} data-ready={ready || undefined}>
+    <div ref={ref} className={`run ${ORDER.slice(1).filter(reached).map((p) => `is-${p}`).join(" ")}`} data-ready={ready || undefined}>
       <div className="run-head">
         <span className="run-title">
           <Lock />

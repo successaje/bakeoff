@@ -284,6 +284,10 @@
 .panel-pay svg { width: 20px; height: 20px; color: var(--amber); flex: none; }
 
 @media (max-width: 560px) {
+  .panel { padding: var(--space-4); }
+  .term { padding: var(--space-3); }
+  .term-line { grid-template-columns: 14px minmax(0, 1fr); row-gap: 2px; }
+  .term-note { grid-column: 2; }
   .enclave { grid-template-columns: 1fr; }
   .enclave-flow { width: 2px; height: 28px; justify-self: center; background: repeating-linear-gradient(180deg, var(--accent) 0 6px, transparent 6px 12px) 0 0 / 2px 24px; animation-name: flow-down; }
   @keyframes flow-down { to { background-position: 0 24px; } }
