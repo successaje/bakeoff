@@ -135,13 +135,20 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class Server(ThreadingHTTPServer):
+    # The evaluator opens up to max_concurrency connections at once. With the
+    # default backlog of 5, Linux drops the rest and the client retries a
+    # second later, which the evaluator would measure as model latency.
+    request_queue_size = 128
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--latency-ms", type=int, default=250, help="base latency of the fast tier")
     args = parser.parse_args()
     Handler.latency_ms = args.latency_ms
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    server = Server(("127.0.0.1", args.port), Handler)
     sys.stderr.write(f"mock model API listening on http://127.0.0.1:{args.port}\n")
     server.serve_forever()
 
