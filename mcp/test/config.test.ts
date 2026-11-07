@@ -13,7 +13,7 @@ test("paths in the config file are relative to it and the environment adds to it
     challenges: [{ id: "a.testnet", practice_set: "data/practice.json", labeling_guide: "https://example.com/guide.md" }],
   }));
   const config = loadConfig({ BAKEOFF_MCP_CONFIG: file, BAKEOFF_CHALLENGES: "b.testnet, a.testnet", BAKEOFF_ACCOUNT: "me.testnet" });
-  assert.equal(config.rpcUrl, "https://rpc.testnet.near.org");
+  assert.equal(config.rpcUrl, "https://test.rpc.fastnear.com");
   assert.deepEqual(config.challenges.map((c) => c.id), ["a.testnet", "b.testnet"]);
   assert.equal(config.challenges[0]?.practiceSet, join(dir, "data/practice.json"));
   assert.equal(config.challenges[0]?.labelingGuide, "https://example.com/guide.md");

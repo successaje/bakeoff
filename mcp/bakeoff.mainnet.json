@@ -1,0 +1,10 @@
+{
+  "network": "mainnet",
+  "challenges": [
+    {
+      "id": "challenge-20261107153920.bakeoff.near",
+      "practice_set": "../data/tickets/practice.json",
+      "labeling_guide": "../docs/labeling-guide.md"
+    }
+  ]
+}
