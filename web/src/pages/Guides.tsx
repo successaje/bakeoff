@@ -193,7 +193,7 @@ const FLOW = [
   { icon: Bot, title: "Candidate", text: "A config: model, prompt, examples, limits. Public once submitted." },
   { icon: Shield, title: "Challenge contract", text: "Checks the deposit and asks OutLayer to run the pinned evaluator." },
   { icon: Lock, title: "OutLayer TEE", text: "Decrypts the sealed tickets and API key for that build only, and calls the models." },
-  { icon: Cube, title: "NEAR AI Cloud", text: "Runs the candidate's model on every sealed ticket, privately." },
+  { icon: Cube, title: "NEAR AI Cloud", text: "Runs the candidate's model on every sealed ticket. The model provider processes each ticket to answer it." },
   { icon: Hash, title: "Verdict", text: "Aggregate metrics plus the hashes of rules, config and test set." },
   { icon: Coins, title: "Settlement", text: "The contract matches every hash, records the verdict and pays a winner." },
 ];
@@ -211,7 +211,7 @@ export function HowItWorks() {
       <PageHero
         eyebrow="How it works"
         title={<>Sealed, scored, <span className="serif">settled</span>.</>}
-        lede="Bakeoff combines a NEAR contract, an OutLayer trusted execution environment and NEAR AI Cloud so that nobody sees the test set and nobody has to be trusted with a score."
+        lede="Bakeoff combines a NEAR contract, an OutLayer trusted execution environment and NEAR AI Cloud so that contributors never see the test set, and every score names the exact rules, candidate and tickets it used."
       />
       <div className="container page-body guide">
         <section className="guide-section">
@@ -233,7 +233,7 @@ export function HowItWorks() {
             <Reveal className="card card-pad compare-col">
               <h3><Lock /> Private</h3>
               <ul className="check-list">
-                <li>The sealed tickets and their labels</li>
+                <li>The sealed tickets and their labels, from contributors and the public</li>
                 <li>The sponsor's model API key</li>
                 <li>Every per-ticket answer the models give</li>
               </ul>
@@ -248,6 +248,15 @@ export function HowItWorks() {
               </ul>
             </Reveal>
           </div>
+          <Reveal className="card card-pad trust-card">
+            <h3><Shield /> What you still have to trust</h3>
+            <ul className="trust-list">
+              <li><strong>The sponsor's test set.</strong> The sponsor writes and labels the sealed tickets and sets the gates. The evaluator scores a poor test set as faithfully as a good one, so a pass is only as meaningful as the tickets.</li>
+              <li><strong>The enclave.</strong> The tickets and API key stay sealed because OutLayer's TEE hardware and attestation hold. The contract checks every hash, but it cannot see inside the enclave.</li>
+              <li><strong>The model provider.</strong> NEAR AI Cloud processes each sealed ticket to answer it. What the provider can see depends on the model; check its listing on NEAR AI Cloud.</li>
+              <li><strong>This board's listings.</strong> Titles, descriptions and baselines come from the sponsor's published listing. Bounties, verdicts and payments are read from the contract.</li>
+            </ul>
+          </Reveal>
         </section>
 
         <section className="guide-section">

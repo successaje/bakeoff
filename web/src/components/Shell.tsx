@@ -193,7 +193,7 @@ function Footer() {
         </div>
         <div className="footer-bottom">
           <span className="footer-status"><span className="status-dot" aria-hidden="true" /> Reading {network} live</span>
-          <span className="muted">Every figure on this site is read from NEAR contracts.</span>
+          <span className="muted">Bounties, results and payments are read from NEAR. Titles, descriptions and baselines are published by each challenge's sponsor.</span>
           <a href={REPO} target="_blank" rel="noopener noreferrer" className="icon-btn" aria-label="Source on GitHub"><Github /></a>
         </div>
       </div>
