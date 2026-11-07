@@ -123,7 +123,7 @@ export async function submitCandidate(
   const clean = output.replace(ANSI, "");
   // The transaction stays open until OutLayer answers, which can outlast the
   // RPC node's wait; that timeout is expected and the contract is polled.
-  if (code !== 0 && !clean.includes("408 Request Timeout")) {
+  if (code !== 0 && !/408 Request Timeout|TIMEOUT_ERROR/.test(clean)) {
     const lines = clean.split("\n").map((l) => l.trim()).filter(Boolean);
     throw new Error(`the submission was not sent: ${lines.filter((l) => /error/i.test(l)).slice(-3).join(" | ") || lines.slice(-3).join(" | ")}`);
   }
