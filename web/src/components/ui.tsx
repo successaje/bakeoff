@@ -5,7 +5,7 @@ import { usePrefersReducedMotion, useNow } from "../lib/hooks.ts";
 import { Check, Copy, External } from "./Icons.tsx";
 
 /** Fades and lifts its children in the first time they scroll into view. */
-export function Reveal({ children, delay = 0, y = 18, className, as = "div", immediate = false }: { children: ReactNode; delay?: number; y?: number; className?: string; as?: "div" | "section" | "li"; immediate?: boolean }) {
+export function Reveal({ children, delay = 0, y = 10, className, as = "div", immediate = false }: { children: ReactNode; delay?: number; y?: number; className?: string; as?: "div" | "section" | "li"; immediate?: boolean }) {
   const reduced = usePrefersReducedMotion();
   const Tag = motion[as];
   // Page headers animate on arrival; everything else as it scrolls into view.
@@ -15,7 +15,7 @@ export function Reveal({ children, delay = 0, y = 18, className, as = "div", imm
       className={className}
       initial={reduced ? false : { opacity: 0, y }}
       {...show}
-      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
     </Tag>
@@ -34,7 +34,7 @@ export function CountUp({ value, decimals = 0, prefix = "", suffix = "" }: { val
       setShown(value);
       return;
     }
-    const controls = animate(0, value, { duration: 1.4, ease: [0.22, 1, 0.36, 1], onUpdate: setShown });
+    const controls = animate(0, value, { duration: 1.1, ease: [0.22, 1, 0.36, 1], onUpdate: setShown });
     return () => controls.stop();
   }, [seen, value, reduced]);
   return <span ref={ref} className="tabular">{prefix}{shown.toFixed(decimals)}{suffix}</span>;

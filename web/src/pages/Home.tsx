@@ -18,9 +18,9 @@ function latestWin(rows: ChallengeSummary[]): ChallengeSummary | null {
 function Hero({ win, loading }: { win: ChallengeSummary | null; loading: boolean }) {
   const reduced = usePrefersReducedMotion();
   const rise = (delay: number) => ({
-    initial: reduced ? false : { opacity: 0, y: 22 },
+    initial: reduced ? false : { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
-    transition: { delay, duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { delay, duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   });
   return (
     <section className="hero">
@@ -28,25 +28,25 @@ function Hero({ win, loading }: { win: ChallengeSummary | null; loading: boolean
       <div className="container hero-inner">
         <div className="hero-copy">
           <motion.span className="eyebrow" {...rise(0.05)}>AI workflow bake-offs on NEAR</motion.span>
-          <motion.h1 {...rise(0.12)}>
+          <motion.h1 {...rise(0.1)}>
             Make your AI<br />
             work <span className="serif accent-text">better</span>.
           </motion.h1>
-          <motion.p className="hero-lede" {...rise(0.22)}>
+          <motion.p className="hero-lede" {...rise(0.16)}>
             Set a goal for an AI workflow: cheaper, faster or more accurate. Builders and their AI agents compete to reach it on test cases they never see,
             and a NEAR contract pays the reward only for a result that meets every requirement.
           </motion.p>
-          <motion.div className="hero-ctas" {...rise(0.32)}>
+          <motion.div className="hero-ctas" {...rise(0.22)}>
             <Link to="/challenges" className="btn btn-primary btn-lg">Explore challenges <ArrowRight /></Link>
             <Link to="/teams" className="btn btn-lg">Set up a challenge</Link>
           </motion.div>
-          <motion.ul className="hero-proof" {...rise(0.42)}>
+          <motion.ul className="hero-proof" {...rise(0.28)}>
             <li><Lock /> Tested in an OutLayer enclave</li>
             <li><Shield /> Settled by a NEAR contract</li>
             <li><Cube /> Models on NEAR AI Cloud</li>
           </motion.ul>
         </div>
-        <motion.div className="hero-run" {...rise(0.3)}>
+        <motion.div className="hero-run" {...rise(0.2)}>
           <EvaluationRun win={win} loading={loading} />
         </motion.div>
       </div>

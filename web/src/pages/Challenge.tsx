@@ -239,7 +239,7 @@ export function Challenge() {
         <div className="container">
           <Link to="/challenges" className="back-link">← Challenges</Link>
           <div className="challenge-head">
-            <motion.div initial={reduced ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <motion.div initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
               <div className="challenge-meta">
                 <span className="eyebrow-plain">{listing.sponsor}</span>
                 <StatusBadge view={view} />
@@ -254,7 +254,7 @@ export function Challenge() {
                 <CopyButton text={listing.id} label="Copy contract account" />
               </div>
             </motion.div>
-            <motion.aside className="bounty-card card" initial={reduced ? false : { opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.7, delay: 0.1 }}>
+            <motion.aside className="bounty-card card" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}>
               <span className="label"><Coins /> {award ? (award.paid ? "Reward paid" : "Reward won, not yet paid") : "Reward held by the contract"}</span>
               <strong className="bounty-amount amber">{formatNear(award?.amount ?? view.bounty ?? "0")}</strong>
               <div className="bounty-rows">
