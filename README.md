@@ -206,3 +206,19 @@ Verified locally:
 - in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
 
 Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07), the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07), the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07) and the [mainnet round](docs/integration-notes.md#mainnet-round-2026-11-07).
+
+### What is real and what is a demo
+
+Kettle & Kiln is a fictional store, and its tickets are synthetic. The project's author controls both the owner's account, `bakeoff.near`, and the winning builder's, `agent.bakeoff.near`, so the mainnet round shows the whole flow working, not a contest between strangers. The contract pays any account other than the owner. Everything else in the round is real: the contract on mainnet, the scoring inside OutLayer's enclave, the model calls to NEAR AI Cloud and the 1 NEAR payment. The board labels every round as a demo.
+
+### What you still have to trust
+
+The contract checks every hash, but some things are beyond what it can check:
+- **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
+- **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave.
+- **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
+- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
+
+## License
+
+Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT license](LICENSE-MIT), at your option.
