@@ -18,7 +18,8 @@ body {
 img, svg, canvas { display: block; max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
-h1, h2, h3, h4 { margin: 0; line-height: 1.12; letter-spacing: -0.025em; font-weight: 600; text-wrap: balance; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.12; letter-spacing: -0.025em; font-weight: 520; text-wrap: balance; }
+h3, h4 { font-weight: 560; }
 p { margin: 0; text-wrap: pretty; }
 ::selection { background: var(--accent); color: var(--accent-text); }
 

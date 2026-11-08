@@ -21,6 +21,7 @@ export const Menu = (p: IconProps) => <Icon {...p}><path d="M4 7h16M4 12h16M4 17
 export const Close = (p: IconProps) => <Icon {...p}><path d="M6 6l12 12M18 6 6 18" /></Icon>;
 export const Copy = (p: IconProps) => <Icon {...p}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></Icon>;
 export const Check = (p: IconProps) => <Icon {...p}><path d="m5 12.5 4.5 4.5L19 7.5" /></Icon>;
+export const Replay = (p: IconProps) => <Icon {...p}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" /><path d="M4.5 4.5v4h4" /></Icon>;
 export const Shield = (p: IconProps) => <Icon {...p}><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3z" /><path d="m9 12 2 2 4-4" /></Icon>;
 export const Lock = (p: IconProps) => <Icon {...p}><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></Icon>;
 export const Cube = (p: IconProps) => <Icon {...p}><path d="M12 2.8 20 7.3v9.4l-8 4.5-8-4.5V7.3l8-4.5z" /><path d="M4 7.3l8 4.5 8-4.5M12 11.8v9.4" /></Icon>;

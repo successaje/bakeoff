@@ -1,11 +1,11 @@
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { ChallengeCard, costCut, TheBar } from "../components/challenge.tsx";
-import { HeroScene } from "../components/HeroScene.tsx";
-import { ArrowRight, Bot, Building, Coins, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
+import { EvaluationRun } from "../components/EvaluationRun.tsx";
+import { StepStory } from "../components/StepStory.tsx";
+import { ArrowRight, Bot, Building, Cube, Hash, Lock, Shield } from "../components/Icons.tsx";
 import { CountUp, DemoBadge, Reveal } from "../components/ui.tsx";
 import { type ChallengeSummary, loadChallenges } from "../lib/data.ts";
-import { microDollars, percent } from "../lib/format.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { useSession } from "../lib/session.tsx";
@@ -15,66 +15,40 @@ function latestWin(rows: ChallengeSummary[]): ChallengeSummary | null {
   return rows.filter((r) => r.view?.award?.paid && r.winner).sort((a, b) => b.listing.id.localeCompare(a.listing.id))[0] ?? null;
 }
 
-function VerdictCard({ win }: { win: ChallengeSummary | null }) {
-  const reduced = usePrefersReducedMotion();
-  if (!win?.view?.award || !win.winner) return null;
-  return (
-    <motion.div
-      className="verdict-float"
-      initial={reduced ? false : { opacity: 0, y: 24, rotateX: 12 }}
-      animate={{ opacity: 1, y: 0, rotateX: 0 }}
-      transition={{ delay: 0.6, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <div className="verdict-float-head">
-        <span className="badge badge-dot badge-green">Result · Passed</span>
-        <span className="mono small muted">result #{win.view.award.evaluation}{win.listing.demo ? " · demo" : ""}</span>
-      </div>
-      <dl>
-        <div><dt>Accuracy</dt><dd>{percent(win.winner.accuracy_bp)}</dd></div>
-        <div><dt>Per ticket</dt><dd>{microDollars(win.winner.cost_per_ticket_uusd)}</dd></div>
-        <div><dt>Leaks</dt><dd>{win.winner.leaks ?? 0}</dd></div>
-      </dl>
-      <div className="verdict-float-paid">
-        <Coins />
-        <span>Contract paid <strong className="amber">{formatNear(win.view.award.amount)}</strong></span>
-      </div>
-    </motion.div>
-  );
-}
-
-function Hero({ win }: { win: ChallengeSummary | null }) {
+function Hero({ win, loading }: { win: ChallengeSummary | null; loading: boolean }) {
   const reduced = usePrefersReducedMotion();
   const rise = (delay: number) => ({
-    initial: reduced ? false : { opacity: 0, y: 22 },
+    initial: reduced ? false : { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
-    transition: { delay, duration: 0.8, ease: [0.22, 1, 0.36, 1] as const },
+    transition: { delay, duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   });
   return (
     <section className="hero">
-      <HeroScene />
-      <div className="hero-fade" aria-hidden="true" />
+      <div className="hero-backdrop" aria-hidden="true" />
       <div className="container hero-inner">
         <div className="hero-copy">
           <motion.span className="eyebrow" {...rise(0.05)}>AI workflow bake-offs on NEAR</motion.span>
-          <motion.h1 {...rise(0.12)}>
+          <motion.h1 {...rise(0.1)}>
             Make your AI<br />
             work <span className="serif accent-text">better</span>.
           </motion.h1>
-          <motion.p className="hero-lede" {...rise(0.22)}>
+          <motion.p className="hero-lede" {...rise(0.16)}>
             Set a goal for an AI workflow: cheaper, faster or more accurate. Builders and their AI agents compete to reach it on test cases they never see,
             and a NEAR contract pays the reward only for a result that meets every requirement.
           </motion.p>
-          <motion.div className="hero-ctas" {...rise(0.32)}>
+          <motion.div className="hero-ctas" {...rise(0.22)}>
             <Link to="/challenges" className="btn btn-primary btn-lg">Explore challenges <ArrowRight /></Link>
             <Link to="/teams" className="btn btn-lg">Set up a challenge</Link>
           </motion.div>
-          <motion.ul className="hero-proof" {...rise(0.42)}>
+          <motion.ul className="hero-proof" {...rise(0.28)}>
             <li><Lock /> Tested in an OutLayer enclave</li>
             <li><Shield /> Settled by a NEAR contract</li>
             <li><Cube /> Models on NEAR AI Cloud</li>
           </motion.ul>
         </div>
-        <VerdictCard win={win} />
+        <motion.div className="hero-run" {...rise(0.2)}>
+          <EvaluationRun win={win} loading={loading} />
+        </motion.div>
       </div>
     </section>
   );
@@ -105,14 +79,7 @@ function Stats({ rows }: { rows: ChallengeSummary[] | null }) {
   );
 }
 
-const STEPS = [
-  { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
-  { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
-  { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
-  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the first solution that meets every requirement." },
-];
-
-function HowItWorks() {
+function HowItWorks({ win }: { win: ChallengeSummary | null }) {
   return (
     <section className="section">
       <div className="container">
@@ -121,16 +88,7 @@ function HowItWorks() {
           <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
           <p>Builders never see the hidden test cases, and every result on-chain names the exact rules, solution and test set it used.</p>
         </Reveal>
-        <ol className="steps">
-          {STEPS.map((step, i) => (
-            <Reveal as="li" key={step.title} delay={i * 0.08} className="step card card-pad">
-              <span className="step-index mono">0{i + 1}</span>
-              <span className="step-icon"><step.icon /></span>
-              <h3>{step.title}</h3>
-              <p className="text-2">{step.text}</p>
-            </Reveal>
-          ))}
-        </ol>
+        <StepStory win={win} />
       </div>
     </section>
   );
@@ -263,13 +221,13 @@ function FinalCta() {
 
 export function Home() {
   const { network } = useSession();
-  const { data } = useAsync(() => loadChallenges(network), network);
+  const { data, loading } = useAsync(() => loadChallenges(network), network);
   const win = data ? latestWin(data) : null;
   return (
     <>
-      <Hero win={win} />
+      <Hero win={win} loading={loading} />
       <Stats rows={data} />
-      <HowItWorks />
+      <HowItWorks win={win} />
       <Spotlight win={win} />
       <Live rows={data} />
       <Audiences />

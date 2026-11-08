@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
@@ -167,8 +168,31 @@ export function TheBar({ gates, baseline, best, bestLabel }: { gates: Gates; bas
   );
 }
 
+/**
+ * The results that just settled or just appeared, for a moment after they
+ * did, so a row can mark the change. Nothing is marked on first load.
+ */
+function useJustChanged(evaluations: EvaluationView[]): Set<number> {
+  const seen = useRef<Map<number, string> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [changed, setChanged] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = new Map(evaluations.map((e) => [e.id, e.status]));
+    if (!before) return;
+    const fresh = evaluations.filter((e) => before.get(e.id) !== e.status).map((e) => e.id);
+    if (fresh.length === 0) return;
+    setChanged(new Set(fresh));
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setChanged(new Set()), 2400);
+  }, [evaluations]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return changed;
+}
+
 export function ResultsTable({ challenge, evaluations, network, awarded, highlight }: { challenge: string; evaluations: EvaluationView[]; network: Network; awarded: number | null; highlight: Set<number> }) {
   const navigate = useNavigate();
+  const justChanged = useJustChanged(evaluations);
   if (evaluations.length === 0) {
     return <div className="empty"><p>No results yet.</p><p className="muted small">The first solution to meet every requirement wins the reward.</p></div>;
   }
@@ -187,7 +211,7 @@ export function ResultsTable({ challenge, evaluations, network, awarded, highlig
             const won = e.id === awarded;
             const href = `/challenges/${challenge}/results/${e.id}`;
             return (
-              <tr key={e.id} id={`evaluation-${e.id}`} className={`result-row ${highlight.has(e.id) ? "highlight" : ""} ${won ? "winner" : ""}`} onClick={(event) => {
+              <tr key={e.id} id={`evaluation-${e.id}`} className={`result-row ${highlight.has(e.id) ? "highlight" : ""} ${won ? "winner" : ""} ${justChanged.has(e.id) ? "just-changed" : ""}`} onClick={(event) => {
                 if (!(event.target as HTMLElement).closest("a, button")) navigate(href);
               }}>
                 <td className="mono muted">{e.id}</td>
@@ -199,7 +223,7 @@ export function ResultsTable({ challenge, evaluations, network, awarded, highlig
                   {e.status === "Passed" ? (
                     <span className={`badge badge-dot ${won ? "badge-sky" : "badge-green"}`}>{won ? "Won the reward" : "Passed"}</span>
                   ) : e.status === "Pending" ? (
-                    <span className="badge badge-dot badge-amber badge-live">Scoring</span>
+                    <span className="badge badge-dot badge-amber badge-live"><span className="shimmer-text on-color">Scoring</span></span>
                   ) : (
                     <span className="verdict-fail"><span className="badge badge-dot badge-coral">{e.status}</span> <span className="small text-2">{e.reasons.map(reasonText).join(", ")}</span></span>
                   )}
