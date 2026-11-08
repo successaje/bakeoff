@@ -1,10 +1,29 @@
 # Bakeoff
 
+[![CI](https://github.com/successaje/bakeoff/actions/workflows/ci.yml/badge.svg)](https://github.com/successaje/bakeoff/actions/workflows/ci.yml)
+
 Make your AI work better. A team with an AI workflow that costs too much, runs too slowly or gets too much wrong sets a goal for it. Builders and their AI agents compete to reach that goal on test cases they never see, and a NEAR contract pays the reward only for a result that meets every requirement. The team leaves with the winning solution, the evidence for its result, and the exact request to try it on its own traffic.
+
+- **Live board:** [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet.
+- **The mainnet challenge:** [Support ticket triage](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near), on `challenge-20261107153920.bakeoff.near`.
+- **Its winning result:** [result #1](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). A Claude Code agent, working only through Bakeoff's MCP server, passed on its first submission at 89.0% accuracy and 51 µ$ a ticket, 60% below the baseline. The contract paid it 1 NEAR in [the same transaction](https://nearblocks.io/txns/9PGW15xgpFqaueAWr9Q6LedH6bvdQWH6aP1njCT22BUy).
+- **Every transaction of the round:** [integration notes](docs/integration-notes.md#mainnet-round-2026-11-07).
 
 Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The first candidate that passes every gate is paid the bounty by the contract.
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
+
+## Built on NEAR
+
+| Piece | What Bakeoff uses it for | Code |
+|---|---|---|
+| NEAR smart contract (near-sdk 5) | Escrows the reward, freezes the hashes of the rules, test set and evaluator build when the challenge opens, records every result, pays the winner and emits NEP-297 events | [`contract/`](contract/) |
+| OutLayer (`outlayer.near`) | Runs the evaluator in a TEE through a NEAR yield and resume. The hidden test set and the model API key are OutLayer secrets, bound to one evaluator build and readable only through the challenge contract | [`contract/src/lib.rs`](contract/src/lib.rs), [`evaluator/`](evaluator/) |
+| NEAR AI Cloud | Serves the models every solution calls; each result's cost comes from the token usage it reports | [`evaluator/src/openai.rs`](evaluator/src/openai.rs) |
+| FastFS | Hosts the evaluator's WebAssembly build, which the contract pins by SHA-256 | [`scripts/near/deploy.sh`](scripts/near/deploy.sh) |
+| NEAR Connect | Wallet sign-in on the board, for an owner to fund, open and withdraw | [`web/src/lib/wallet.ts`](web/src/lib/wallet.ts) |
+| NEAR Intents 1Click | Funding a reward from about 200 tokens on about 40 chains | [`web/src/lib/oneclick.ts`](web/src/lib/oneclick.ts) |
+| near-cli-rs | Signs a builder's submission from the system keychain, so the MCP server never handles a key | [`mcp/src/submit.ts`](mcp/src/submit.ts) |
 
 ## How a sealed evaluation runs
 
@@ -107,6 +126,12 @@ To score candidates against NEAR AI Cloud from your machine, put `BAKEOFF_LLM_AP
 scripts/run-local.sh --rules examples/rules/near-ai.json
 ```
 
+The web board and the MCP server have their own tests: run `npm test` in `web/` and in `mcp/`. To run the board on your machine against the live contracts (Node 24+):
+
+```bash
+cd web && npm ci && npm run dev
+```
+
 ## Deployment
 
 Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
@@ -159,14 +184,13 @@ A mainnet challenge costs about 2.5 NEAR, most of it the contract's refundable s
 
 ## Status
 
-Verified locally:
-- the evaluator and contract unit tests pass;
-- the wasm evaluator produces the expected verdict for every example under wasmtime;
-- verdicts are 345–545 bytes;
-- a 16-ticket run uses 2–4 million instructions;
-- in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
-- in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`;
-- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
+Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
+- the same evaluator build and sealed set ran in OutLayer's TEE through `outlayer.near`, with the secrets stored by the owner `bakeoff.near`;
+- the owner's trial of the baseline failed only the cost gate, at 85.0% accuracy and 126 µ$ per ticket;
+- the owner escrowed 1 NEAR and opened the challenge from the web board;
+- a Claude Code agent competed through the MCP server from an empty folder. Its first sealed submission passed at 89.0% accuracy, 51 µ$ per ticket (60% below the baseline), 2.6 s p95 and no leaks;
+- the contract paid it the 1 NEAR bounty 18 s after the submission;
+- the round used under 0.03 NEAR in fees, plus a 0.245 NEAR storage deposit for the secrets.
 
 Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;
@@ -178,12 +202,29 @@ Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
 - in an agent round, the sponsor funded and opened a fresh challenge from the web board, and a Claude Code agent competed through the MCP server. Its first sealed submission passed at 97.0% accuracy, 63 µ$ per ticket, 3.5 s p95 and no leaks, beating the hand-written winner, and the contract paid it the 1 NEAR bounty;
 - submission to recorded verdict took 8–71 s.
 
-Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
-- the same evaluator build and sealed set ran in OutLayer's TEE through `outlayer.near`, with the secrets stored by the owner `bakeoff.near`;
-- the owner's trial of the baseline failed only the cost gate, at 85.0% accuracy and 126 µ$ per ticket;
-- the owner escrowed 1 NEAR and opened the challenge from the web board;
-- a Claude Code agent competed through the MCP server from an empty folder. Its first sealed submission passed at 89.0% accuracy, 51 µ$ per ticket (60% below the baseline), 2.6 s p95 and no leaks;
-- the contract paid it the 1 NEAR bounty 18 s after the submission;
-- the round used under 0.03 NEAR in fees, plus a 0.245 NEAR storage deposit for the secrets.
+Verified locally:
+- the evaluator and contract unit tests pass;
+- the wasm evaluator produces the expected verdict for every example under wasmtime;
+- verdicts are 345–545 bytes;
+- a 16-ticket run uses 2–4 million instructions;
+- in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
+- in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`;
+- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
 
 Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07), the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07), the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07) and the [mainnet round](docs/integration-notes.md#mainnet-round-2026-11-07).
+
+### What is real and what is a demo
+
+Kettle & Kiln is a fictional store, and its tickets are synthetic. The project's author controls both the owner's account, `bakeoff.near`, and the winning builder's, `agent.bakeoff.near`, so the mainnet round shows the whole flow working, not a contest between strangers. The contract pays any account other than the owner. Everything else in the round is real: the contract on mainnet, the scoring inside OutLayer's enclave, the model calls to NEAR AI Cloud and the 1 NEAR payment. The board labels every round as a demo.
+
+### What you still have to trust
+
+The contract checks every hash, but some things are beyond what it can check:
+- **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
+- **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave.
+- **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
+- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
+
+## License
+
+Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT license](LICENSE-MIT), at your option.
