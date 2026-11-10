@@ -151,7 +151,10 @@ export function Result() {
   const tookSeconds = requested && settled ? (settled.getTime() - requested.getTime()) / 1000 : null;
   const submission = lookup.data;
   const request = submission ? JSON.stringify(chatRequest(view.rules_json, submission.config, TICKET_PLACEHOLDER), null, 2) : null;
-  const endpoint = (JSON.parse(view.rules_json) as { endpoint?: string }).endpoint ?? "";
+  const rules = JSON.parse(view.rules_json) as { endpoint?: string; max_concurrency?: number };
+  const endpoint = rules.endpoint ?? "";
+  // The evaluator's default when the rules do not set it.
+  const concurrency = rules.max_concurrency ?? 8;
   const ids = data.evaluations.map((x) => x.id);
   const previous = ids.filter((x) => x < index).at(-1);
   const next = ids.find((x) => x > index);
@@ -263,7 +266,7 @@ export function Result() {
             <li>It was scored on {listing.tickets || "the"} hidden tickets that {listing.sponsor} wrote and labelled. Your own traffic may differ.</li>
             <li>A ticket counts as correct only when both its team and its priority match the label. The one-line summary is required and checked for card numbers, but its quality is not graded.</li>
             <li>Cost is computed from the tokens each reply used, at the model prices in the rules, not from an invoice.</li>
-            <li>Latency was measured from inside the enclave, with many tickets in flight at once. Your network and load will add their own.</li>
+            <li>Latency was measured from inside the enclave, with up to {concurrency} tickets in flight at once, as the rules set. Your network and load will add their own.</li>
             {listing.demo && <li>This is a demonstration round; see the notice above.</li>}
           </ul>
         </Reveal>
