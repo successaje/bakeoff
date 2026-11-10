@@ -267,6 +267,7 @@ export function HowItWorks() {
           </div>
           <Reveal className="card card-pad trust-card">
             <h3><Shield /> What you still have to trust</h3>
+            <p className="text-2 trust-lead">A result can only come from the enclave: the contract accepts a verdict only as the callback of its own request to OutLayer. The one key that could change that is the challenge account's own, which could deploy different code. Opening a challenge deletes it, so from then on no key, Bakeoff's or the owner's, can write a result; each challenge page shows whether its account is locked. That leaves four things to trust:</p>
             <ul className="trust-list">
               <li><strong>The owner's test cases.</strong> The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.</li>
               <li><strong>The enclave.</strong> The cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract checks every hash, but it cannot see inside the enclave.</li>

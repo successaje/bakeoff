@@ -6,6 +6,10 @@
 # paid the bounty; if none passes before the deadline, the owner gets it
 # back with `withdraw_bounty`.
 #
+# Then it locks the challenge (scripts/near/lock.sh): the challenge account's
+# access keys are deleted, so its code can no longer change while builders
+# compete.
+#
 # Usage: [NETWORK=mainnet] scripts/near/open.sh <bounty-NEAR> <hours-open>
 #   e.g. scripts/near/open.sh 1 72
 set -euo pipefail
@@ -40,3 +44,7 @@ bounty = int(c["bounty"]) / 1e24
 print("bounty:".ljust(22) + f"{bounty:g} NEAR")
 print("closes_at:".ljust(22) + c["closes_at"])
 '
+
+echo
+echo "==> Locking $CHALLENGE"
+scripts/near/lock.sh

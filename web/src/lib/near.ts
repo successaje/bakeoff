@@ -65,31 +65,40 @@ export class NearRpc {
     this.fetchImpl = fetchImpl;
   }
 
-  async view<T>(accountId: string, method: string, args: object = {}): Promise<T> {
+  private async query<T>(params: object, label: string): Promise<T> {
     const response = await this.fetchImpl(this.url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "bakeoff-web",
-        method: "query",
-        params: {
-          request_type: "call_function",
-          finality: "final",
-          account_id: accountId,
-          method_name: method,
-          args_base64: btoa(JSON.stringify(args)),
-        },
-      }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-web", method: "query", params: { finality: "final", ...params } }),
     });
     if (!response.ok) throw new Error(`NEAR RPC answered ${response.status}`);
     const body = (await response.json()) as {
       error?: { cause?: { name?: string }; message?: string };
-      result?: { result?: number[]; error?: string };
+      result?: T & { error?: string };
     };
-    if (body.error) throw new Error(`${accountId}.${method}: ${body.error.cause?.name ?? body.error.message}`);
-    if (body.result?.error) throw new Error(`${accountId}.${method}: ${body.result.error}`);
-    return JSON.parse(new TextDecoder().decode(Uint8Array.from(body.result?.result ?? []))) as T;
+    if (body.error) throw new Error(`${label}: ${body.error.cause?.name ?? body.error.message}`);
+    if (body.result?.error) throw new Error(`${label}: ${body.result.error}`);
+    return body.result as T;
+  }
+
+  async view<T>(accountId: string, method: string, args: object = {}): Promise<T> {
+    const result = await this.query<{ result?: number[] }>(
+      { request_type: "call_function", account_id: accountId, method_name: method, args_base64: btoa(JSON.stringify(args)) },
+      `${accountId}.${method}`,
+    );
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(result.result ?? []))) as T;
+  }
+
+  /**
+   * The account's access keys. A contract account with none is locked: nobody
+   * can deploy other code to it or sign as it.
+   */
+  async accessKeys(accountId: string): Promise<{ publicKey: string; fullAccess: boolean }[]> {
+    const result = await this.query<{ keys?: { public_key: string; access_key: { permission: unknown } }[] }>(
+      { request_type: "view_access_key_list", account_id: accountId },
+      `${accountId} access keys`,
+    );
+    return (result.keys ?? []).map((k) => ({ publicKey: k.public_key, fullAccess: k.access_key.permission === "FullAccess" }));
   }
 
   getChallenge(id: string): Promise<ChallengeView> {
