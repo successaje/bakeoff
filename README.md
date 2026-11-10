@@ -195,7 +195,7 @@ Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
 - the same evaluator build and sealed set ran in OutLayer's TEE through `outlayer.near`, with the secrets stored by the owner `bakeoff.near`;
 - the owner's trial of the baseline failed only the cost gate, at 85.0% accuracy and 126 µ$ per ticket;
 - the owner escrowed 1 NEAR and opened the challenge from the web board;
-- a Claude Code agent competed through the MCP server from an empty folder. Its first sealed submission passed at 89.0% accuracy, 51 µ$ per ticket (60% below the baseline), 2.6 s p95 and no leaks;
+- a Claude Code agent competed through the MCP server from an empty folder. Its first sealed submission passed at 89.0% accuracy, 51 µ$ per ticket (60% below the baseline), 2.6 s p95 and no leaks. Latency is measured inside the enclave with 16 tickets in flight at once, as that challenge's rules set (`max_concurrency`);
 - the contract paid it the 1 NEAR bounty 18 s after the submission;
 - the round used under 0.03 NEAR in fees, plus a 0.245 NEAR storage deposit for the secrets.
 
@@ -232,6 +232,10 @@ The contract checks every hash, but some things are beyond what it can check:
 - **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
 - **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
+
+## How it would pay for itself
+
+Not built yet. The plan is a fee on each awarded reward, taken by the contract at payout, so a team pays nothing when no result passes. The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
 
 ## License
 

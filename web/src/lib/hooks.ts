@@ -55,11 +55,19 @@ export function useInView<T extends Element>(margin = "-10% 0px"): [React.RefObj
   return [ref, seen];
 }
 
+/**
+ * Automated browsers (Playwright, Puppeteer, Selenium) get the finished page
+ * too: their full-page screenshots never scroll content into view, so
+ * anything waiting to be seen would stay hidden in them.
+ */
+const automated = typeof navigator !== "undefined" && navigator.webdriver === true;
+
+/** True when the page should show finished states instead of animating them. */
 export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [reduced, setReduced] = useState(() => automated || matchMedia("(prefers-reduced-motion: reduce)").matches);
   useEffect(() => {
     const query = matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(query.matches);
+    const update = () => setReduced(automated || query.matches);
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);

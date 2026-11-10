@@ -22,22 +22,27 @@ export function Reveal({ children, delay = 0, y = 10, className, as = "div", imm
   );
 }
 
-/** A number that counts up from zero when it first appears. */
+/**
+ * A number that counts up from zero when it first appears. The final value is
+ * the element's text throughout, so screen readers, copied text and agents
+ * reading the page get the real number; the count is drawn over it in CSS.
+ */
 export function CountUp({ value, decimals = 0, prefix = "", suffix = "" }: { value: number; decimals?: number; prefix?: string; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const seen = useMotionInView(ref, { once: true });
   const reduced = usePrefersReducedMotion();
-  const [shown, setShown] = useState(reduced ? value : 0);
+  // The value drawn over the real one while counting; null once it is done.
+  const [shown, setShown] = useState<number | null>(reduced ? null : 0);
   useEffect(() => {
-    if (!seen) return;
-    if (reduced) {
-      setShown(value);
+    if (!seen || reduced) {
+      if (reduced) setShown(null);
       return;
     }
-    const controls = animate(0, value, { duration: 1.1, ease: [0.22, 1, 0.36, 1], onUpdate: setShown });
+    const controls = animate(0, value, { duration: 1.1, ease: [0.22, 1, 0.36, 1], onUpdate: setShown, onComplete: () => setShown(null) });
     return () => controls.stop();
   }, [seen, value, reduced]);
-  return <span ref={ref} className="tabular">{prefix}{shown.toFixed(decimals)}{suffix}</span>;
+  const format = (n: number) => `${prefix}${n.toFixed(decimals)}${suffix}`;
+  return <span ref={ref} className="count-up tabular" data-count={shown === null ? undefined : format(shown)}>{format(value)}</span>;
 }
 
 export type DisplayStatus = "draft" | "open" | "closing" | "awarded" | "closed";
