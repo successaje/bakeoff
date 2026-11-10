@@ -225,6 +225,10 @@ No key held by Bakeoff or by a challenge's owner can write a result: `on_evaluat
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
 - **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
 
+## How it would pay for itself
+
+Not built yet. The plan is a fee on each awarded reward, taken by the contract at payout, so a team pays nothing when no result passes. The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
+
 ## License
 
 Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT license](LICENSE-MIT), at your option.
