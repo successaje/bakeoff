@@ -6,8 +6,9 @@
 //! it, and resumes the request with the verdict.
 //!
 //! The bounty tests follow the money: a funded challenge pays its first
-//! passing contributor, and an unwon bounty returns to the owner after the
-//! deadline.
+//! passing contributor, a pass whose verdict arrives early waits for the
+//! submissions requested before it, and an unwon bounty returns to the owner
+//! after the deadline.
 //!
 //! Needs the contract wasm files; run through `scripts/test-sandbox.sh`.
 
@@ -16,6 +17,7 @@ use bakeoff_evaluator::{
     evaluate_request, ChatClient, ChatCompletion, ChatOutcome, ChatRequest, Clock,
 };
 use near_workspaces::network::Sandbox;
+use near_workspaces::operations::Function;
 use near_workspaces::types::{Gas, NearToken};
 use near_workspaces::{Account, Contract, Worker};
 use serde_json::{json, Value};
@@ -507,6 +509,149 @@ async fn the_first_passing_contributor_is_paid_the_bounty() -> Result<()> {
         .transact()
         .await?;
     ensure!(late.is_failure() && format!("{late:?}").contains("the challenge is closed"));
+    Ok(())
+}
+
+/// Verdicts arrive in any order. A pass waits while an earlier eligible
+/// submission is pending, and wins once that one fails. The callback that
+/// releases it checks 50 evaluations, the most one call checks, then awards
+/// and pays the bounty: the costliest callback the contract can run.
+#[tokio::test]
+#[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
+async fn a_pass_waits_for_earlier_submissions_then_wins() -> Result<()> {
+    let setup = setup().await?;
+    let bounty = NearToken::from_near(5);
+    let closes_at = block_time_ns(&setup.worker).await? + 3_600_000_000_000;
+    fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
+    let first = setup.worker.dev_create_account().await?;
+    let others = setup.worker.dev_create_account().await?;
+    let winner = setup.worker.dev_create_account().await?;
+
+    let rules = read(RULES)?;
+    let candidate = read(CANDIDATE)?;
+    let pass = evaluate_request(
+        &rules,
+        &candidate,
+        Some(&setup.test_set),
+        &mut LabelledClient::new(&setup.test_set)?,
+        &StoppedClock,
+    )
+    .to_json();
+    let fail = evaluate_request(
+        &rules,
+        &candidate,
+        Some(&setup.test_set),
+        &mut LabelledClient::wrong(&setup.test_set)?,
+        &StoppedClock,
+    )
+    .to_json();
+
+    // Evaluation 0 is `first`'s, 1 to 48 are `others`', and 49 is `winner`'s.
+    let mut submissions = Vec::new();
+    for (account, count) in [(&first, 1), (&others, 48), (&winner, 1)] {
+        for _ in 0..count {
+            submissions.push(
+                account
+                    .call(setup.challenge.id(), "submit")
+                    .args_json(json!({"config_json": candidate}))
+                    .deposit(SUBMIT_DEPOSIT)
+                    .gas(Gas::from_tgas(300))
+                    .transact_async()
+                    .await?,
+            );
+        }
+        wait_for_requests(&setup.outlayer, submissions.len() as u32).await?;
+    }
+
+    // Settle everything but `first`'s submission, failing all but the winner.
+    let mut first_request = None;
+    let mut resolves = Vec::new();
+    for request_id in 0..50 {
+        let (_, args) = request_args(&setup.outlayer, request_id).await?;
+        let payer = args["payer_account_id"].as_str().context("payer")?;
+        if payer == first.id().as_str() {
+            first_request = Some(request_id);
+        } else {
+            let output = if payer == winner.id().as_str() {
+                &pass
+            } else {
+                &fail
+            };
+            resolves.push(
+                Function::new("resolve")
+                    .args_json(json!({"request_id": request_id, "output": output}))
+                    .gas(Gas::from_tgas(12)),
+            );
+        }
+    }
+    while !resolves.is_empty() {
+        let batch = resolves
+            .drain(..resolves.len().min(20))
+            .fold(setup.owner.batch(setup.outlayer.id()), |tx, f| tx.call(f));
+        batch.transact().await?.into_result()?;
+    }
+    let mut view = challenge_view(&setup.challenge).await?;
+    for _ in 0..40 {
+        if view["pending"] == json!(1) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        view = challenge_view(&setup.challenge).await?;
+    }
+    ensure!(
+        view["pending"] == json!(1),
+        "verdicts still pending: {view}"
+    );
+    ensure!(evaluation(&setup.challenge, 49).await?["status"] == json!("Passed"));
+    ensure!(
+        view["status"] == json!("Open") && view["award"].is_null(),
+        "a pass won while an earlier submission was pending: {view}"
+    );
+    ensure!(view["next_award_check"] == json!(0));
+
+    setup
+        .owner
+        .call(setup.outlayer.id(), "resolve")
+        .args_json(json!({"request_id": first_request.context("first request")?, "output": fail}))
+        .transact()
+        .await?
+        .into_result()?;
+    let mut outcomes = Vec::new();
+    for submission in submissions {
+        let outcome = submission.await?;
+        ensure!(outcome.is_success(), "submit failed: {outcome:?}");
+        outcomes.push(outcome);
+    }
+    let settled = outcomes[0]
+        .receipt_outcomes()
+        .iter()
+        .find(|o| {
+            o.executor_id == *setup.challenge.id()
+                && o.logs.iter().any(|l| l.contains("\"bounty_awarded\""))
+        })
+        .context("the award callback")?;
+    // The callback has 30 Tgas, 5 of which go to the payment's own callback.
+    let burnt = settled.gas_burnt.as_tgas();
+    println!("award check over 50 evaluations burnt {burnt} Tgas");
+    ensure!(burnt < 20, "the award check burnt {burnt} Tgas");
+
+    for _ in 0..40 {
+        view = challenge_view(&setup.challenge).await?;
+        if view["award"]["paid"] == json!(true) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    ensure!(
+        view["status"] == json!("Awarded"),
+        "unexpected challenge: {view}"
+    );
+    ensure!(view["award"]["evaluation"] == json!(49));
+    ensure!(view["award"]["winner"] == json!(winner.id()));
+    ensure!(
+        view["award"]["paid"] == json!(true),
+        "award not paid: {view}"
+    );
     Ok(())
 }
 

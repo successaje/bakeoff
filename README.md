@@ -216,7 +216,8 @@ Verified locally:
 - a 16-ticket run uses 2–4 million instructions;
 - in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
 - in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`;
-- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
+- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline;
+- in the same sandbox, a pass whose verdict arrives first waits while an earlier submission is pending, and wins once that one fails. The callback that releases it checks 50 results, then awards and pays the bounty, and burns 7 Tgas of its 30.
 
 Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07), the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07), the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07) and the [mainnet round](docs/integration-notes.md#mainnet-round-2026-11-07).
 
