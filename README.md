@@ -54,7 +54,7 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 |---|---|
 | `evaluator/` | Rust evaluator: policy checks, grading, cost accounting, verdicts, and a `wasi:http` client |
 | `contract/` | NEAR challenge contract (near-sdk 5) |
-| `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view helper |
+| `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view and access-key helpers |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
 | `web/` | Static web board: challenges told as problem, goal and results; a page for every result with its config and how to try it; in-browser checks of the commitments; the owner's funding from a NEAR wallet or any chain through 1Click |
 | `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
@@ -158,7 +158,7 @@ Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer 
    ```bash
    scripts/near/submit.sh examples/candidates/near-ai/routed.json
    ```
-7. Escrow the bounty and open the challenge, here 1 NEAR for 72 hours:
+7. Escrow the bounty, open the challenge, here 1 NEAR for 72 hours, and lock it. Locking deletes the challenge account's access keys, so its code cannot change while builders compete; owner calls still work, since they come from the owner's account. To lock a challenge opened before this step existed, run `scripts/near/lock.sh`:
    ```bash
    scripts/near/open.sh 1 72
    ```
