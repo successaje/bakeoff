@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { acceptingSubmissions, type ChallengeView, formatNear, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
+import { acceptingSubmissions, type ChallengeView, formatNear, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
 import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
 import * as tx from "../src/lib/transactions.ts";
 
@@ -93,4 +93,35 @@ test("the 1Click client lists swappable tokens and surfaces API errors", async (
   assert.deepEqual((await client.tokens()).map((t) => t.symbol), ["ETH", "USDC"]);
   await assert.rejects(client.status("addr", "memo"), /1Click: amount is too low/);
   assert.match(calls.at(-1)!, /\/v0\/status\?depositAddress=addr&depositMemo=memo$/);
+});
+
+test("the RPC client reads views and an account's access keys at final finality", async () => {
+  const sent: { request_type: string; finality: string }[] = [];
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    const { params } = JSON.parse(String(init?.body)) as { params: { request_type: string; finality: string } };
+    sent.push(params);
+    if (params.request_type === "call_function") {
+      return Response.json({ result: { result: [...new TextEncoder().encode('{"status":"Open"}')] } });
+    }
+    return Response.json({
+      result: {
+        keys: [
+          { public_key: "ed25519:full", access_key: { nonce: 1, permission: "FullAccess" } },
+          { public_key: "ed25519:call", access_key: { nonce: 1, permission: { FunctionCall: { allowance: null, receiver_id: "c.near", method_names: [] } } } },
+        ],
+      },
+    });
+  }) as typeof fetch;
+  const rpc = new NearRpc("https://rpc.example", fetchImpl);
+  assert.deepEqual(await rpc.view("c.near", "get_challenge"), { status: "Open" });
+  assert.deepEqual(await rpc.accessKeys("c.near"), [
+    { publicKey: "ed25519:full", fullAccess: true },
+    { publicKey: "ed25519:call", fullAccess: false },
+  ]);
+  assert.deepEqual(sent.map((p) => [p.request_type, p.finality]), [["call_function", "final"], ["view_access_key_list", "final"]]);
+});
+
+test("an RPC error names the call that failed", async () => {
+  const fetchImpl = (async () => Response.json({ result: { error: "wasm execution failed" } })) as typeof fetch;
+  await assert.rejects(new NearRpc("https://rpc.example", fetchImpl).view("c.near", "get_challenge"), /c\.near\.get_challenge: wasm execution failed/);
 });
