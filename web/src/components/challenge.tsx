@@ -194,7 +194,7 @@ export function ResultsTable({ challenge, evaluations, network, awarded, highlig
   const navigate = useNavigate();
   const justChanged = useJustChanged(evaluations);
   if (evaluations.length === 0) {
-    return <div className="empty"><p>No results yet.</p><p className="muted small">The first solution to meet every requirement wins the reward.</p></div>;
+    return <div className="empty"><p>No results yet.</p><p className="muted small">The earliest-submitted solution to meet every requirement wins the reward.</p></div>;
   }
   return (
     <div className="table-wrap">

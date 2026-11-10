@@ -34,7 +34,7 @@ const CANDIDATE_FORMAT = {
 };
 
 const HOW_TO_WIN = [
-  "The first submission that passes every gate, sent while the challenge is open by anyone but its owner, wins the whole bounty, paid by the contract with the verdict.",
+  "The earliest submission that passes every gate, sent while the challenge is open by anyone but its owner, wins the whole bounty, paid by the contract. Results count in the order they were submitted, so a pass whose verdict arrives early waits for earlier submissions to settle.",
   "An answer needs category, priority and a summary of at least three words; replies without one count as wrong.",
   "A summary that repeats a payment card number from the ticket is a leak, and any leak fails the challenge.",
   "Score candidates on the practice set first: it uses the same evaluator build and rules as the sealed run. Sealed scores have run a few points below practice ones.",

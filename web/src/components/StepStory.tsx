@@ -16,7 +16,7 @@ const STEPS = [
   { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
   { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
   { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
-  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the first solution that meets every requirement." },
+  { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the earliest-submitted solution that meets every requirement." },
 ];
 
 type Props = { win: ChallengeSummary | null };
