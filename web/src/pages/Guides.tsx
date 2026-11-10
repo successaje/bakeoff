@@ -104,7 +104,7 @@ export function Builders() {
 const LIFECYCLE = [
   { title: "Draft", text: "You deploy the contract with your rules, the evaluator's hash and your test set's hash. Only you can submit, as trial runs that never win." },
   { title: "Open", text: "Funding and opening freeze the commitments and start the clock. Anyone can submit until the deadline." },
-  { title: "Awarded", text: "The first submission from someone else that meets every requirement wins the whole reward, paid by the contract with the result." },
+  { title: "Awarded", text: "The earliest submission from someone else that meets every requirement wins the whole reward, paid by the contract. Results count in the order they were submitted, so copying a pending solution cannot win." },
   { title: "Closed", text: "If nobody meets the requirements by the deadline, you withdraw the reward once every pending result settles." },
 ];
 

@@ -94,6 +94,16 @@ fn passing_verdict() -> String {
     )
 }
 
+fn failing_verdict() -> String {
+    verdict(
+        false,
+        &["gate_accuracy"],
+        &sha256_hex(RULES.as_bytes()),
+        &sha256_hex(CONFIG.as_bytes()),
+        TEST_SET_SHA,
+    )
+}
+
 fn settle_at(contract: &mut Contract, id: u32, time: u64, verdict: &str) -> EvaluationStatus {
     callback_at(time, PromiseResult::Successful(verdict.as_bytes().to_vec()));
     contract.on_evaluation_result(id)
@@ -521,20 +531,106 @@ fn owner_passes_never_win_the_bounty() {
 }
 
 #[test]
-fn a_later_pass_is_recorded_but_does_not_change_the_award() {
+fn a_copied_config_loses_to_the_original_even_when_it_settles_first() {
+    // Alice's config is public as soon as her submission lands. Bob submits
+    // the same config, and his run happens to finish first.
     let mut contract = open_challenge(5);
-    let first = submit_at(&mut contract, "alice.testnet", NOW);
-    let second = submit_at(&mut contract, "bob.testnet", NOW);
-    settle_at(&mut contract, second, NOW + 1, &passing_verdict());
+    let original = submit_at(&mut contract, "alice.testnet", NOW);
+    let copy = submit_at(&mut contract, "bob.testnet", NOW + 1);
     assert_eq!(
-        settle_at(&mut contract, first, NOW + 2, &passing_verdict()),
+        contract
+            .get_evaluation(copy)
+            .unwrap()
+            .evaluation
+            .config_sha256,
+        contract
+            .get_evaluation(original)
+            .unwrap()
+            .evaluation
+            .config_sha256
+    );
+
+    settle_at(&mut contract, copy, NOW + 2, &passing_verdict());
+    assert!(transfers().is_empty());
+    assert_eq!(contract.get_challenge().status, ChallengeStatus::Open);
+
+    settle_at(&mut contract, original, NOW + 3, &passing_verdict());
+    let award = contract.get_challenge().award.unwrap();
+    assert_eq!(
+        (award.evaluation, award.winner),
+        (original, account("alice.testnet"))
+    );
+    assert_eq!(transfers(), [(account("alice.testnet"), near(5))]);
+}
+
+#[test]
+fn an_earlier_pending_evaluation_holds_a_later_pass() {
+    let mut contract = open_challenge(5);
+    let earlier = submit_at(&mut contract, "alice.testnet", NOW);
+    let later = submit_at(&mut contract, "bob.testnet", NOW + 1);
+    assert_eq!(
+        settle_at(&mut contract, later, NOW + 2, &passing_verdict()),
         EvaluationStatus::Passed
     );
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.status, ChallengeStatus::Open);
+    assert_eq!(challenge.bounty, near(5));
+    assert!(challenge.award.is_none());
+    assert_eq!(challenge.next_award_check, earlier);
     assert!(transfers().is_empty());
+
+    // Alice's run fails, so Bob's held pass is now the earliest and wins.
+    settle_at(&mut contract, earlier, NOW + 3, &failing_verdict());
+    let award = contract.get_challenge().award.unwrap();
+    assert_eq!(
+        (award.evaluation, award.winner),
+        (later, account("bob.testnet"))
+    );
+    assert_eq!(transfers(), [(account("bob.testnet"), near(5))]);
+}
+
+#[test]
+fn owner_trials_do_not_hold_the_award() {
+    let mut contract = open_challenge(5);
+    submit_at(&mut contract, "owner.testnet", NOW);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW + 1);
+    settle_at(&mut contract, id, NOW + 2, &passing_verdict());
     assert_eq!(
         contract.get_challenge().award.unwrap().winner,
-        account("bob.testnet")
+        account("contributor.testnet")
     );
+}
+
+#[test]
+fn advance_award_continues_past_a_long_settled_queue() {
+    let mut contract = open_challenge(5);
+    let first = submit_at(&mut contract, "alice.testnet", NOW);
+    for _ in 1..AWARD_CHECKS_PER_CALL + 10 {
+        let id = submit_at(&mut contract, "bob.testnet", NOW);
+        settle_at(&mut contract, id, NOW + 1, &failing_verdict());
+    }
+    let winner = submit_at(&mut contract, "carol.testnet", NOW);
+    settle_at(&mut contract, winner, NOW + 1, &passing_verdict());
+    assert!(contract.get_challenge().award.is_none());
+
+    // The first run fails inside OutLayer. Its callback checks the first 50
+    // evaluations and stops there; anyone can continue the check.
+    assert_eq!(
+        settle(&mut contract, first, PromiseResult::Failed),
+        EvaluationStatus::Rejected
+    );
+    let challenge = contract.get_challenge();
+    assert_eq!(challenge.next_award_check, AWARD_CHECKS_PER_CALL);
+    assert!(challenge.award.is_none());
+
+    call_at("anyone.testnet", NOW + 2, NearToken::from_yoctonear(0));
+    contract.advance_award();
+    let award = contract.get_challenge().award.unwrap();
+    assert_eq!(
+        (award.evaluation, award.winner),
+        (winner, account("carol.testnet"))
+    );
+    assert_eq!(transfers(), [(account("carol.testnet"), near(5))]);
 }
 
 #[test]
@@ -640,6 +736,20 @@ fn an_open_bounty_cannot_be_withdrawn_before_the_deadline() {
 fn the_bounty_waits_for_pending_evaluations() {
     let mut contract = open_challenge(5);
     submit_at(&mut contract, "contributor.testnet", CLOSES_AT - 1);
+    call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+}
+
+#[test]
+#[should_panic(expected = "call advance_award first")]
+fn the_bounty_waits_until_every_settled_evaluation_is_checked() {
+    let mut contract = open_challenge(5);
+    let first = submit_at(&mut contract, "alice.testnet", NOW);
+    for _ in 0..AWARD_CHECKS_PER_CALL {
+        let id = submit_at(&mut contract, "bob.testnet", NOW);
+        settle_at(&mut contract, id, NOW + 1, &failing_verdict());
+    }
+    settle_at(&mut contract, first, NOW + 2, &failing_verdict());
     call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
     contract.withdraw_bounty();
 }

@@ -10,9 +10,11 @@
 //! A challenge starts as a draft, in which the owner may adjust its
 //! commitments, escrow a bounty and run trial evaluations. Opening it
 //! freezes the commitments, sets a deadline and admits submissions from
-//! anyone. The first submission that passes every gate wins the bounty,
-//! which the contract pays as soon as the verdict is recorded. If none
-//! passes by the deadline, the owner withdraws the bounty.
+//! anyone. The earliest-requested submission that passes every gate wins the
+//! bounty, which the contract pays once every eligible submission requested
+//! before it has settled. Verdicts arrive in any order, so this keeps a copy
+//! of a public config from winning just because its run finished first. If
+//! none passes by the deadline, the owner withdraws the bounty.
 
 use near_sdk::json_types::U64;
 use near_sdk::serde::Deserialize;
@@ -48,6 +50,10 @@ const MAX_CONFIG_BYTES: usize = 16 * 1024;
 /// The evaluator's verdicts are under 900 bytes. A longer one is rejected
 /// rather than stored, which keeps a record within what `RECORD_FEE` pays for.
 const MAX_VERDICT_BYTES: usize = 1024;
+/// Settled evaluations checked for the award in one call. Bounded so that a
+/// flood of submissions cannot push a verdict's callback past its gas;
+/// `advance_award` continues from where a call stopped.
+const AWARD_CHECKS_PER_CALL: u32 = 50;
 const EVENT_STANDARD: &str = "bakeoff";
 const EVENT_VERSION: &str = "1.1.0";
 
@@ -111,7 +117,7 @@ pub struct Evaluation {
     pub settled_at: Option<U64>,
 }
 
-/// The bounty won by the first eligible pass.
+/// The bounty won by the earliest-requested eligible pass.
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Award {
@@ -141,6 +147,9 @@ pub struct ChallengeView {
     /// Nanoseconds since the Unix epoch; set when the challenge opens.
     pub closes_at: Option<U64>,
     pub award: Option<Award>,
+    /// Evaluations before this id have been checked for the award, in the
+    /// order they were requested. A pass after it waits for earlier ones.
+    pub next_award_check: u32,
 }
 
 #[near(serializers = [json])]
@@ -179,6 +188,7 @@ pub struct Contract {
     bounty: NearToken,
     closes_at: Option<U64>,
     award: Option<Award>,
+    next_award_check: u32,
 }
 
 #[near]
@@ -210,6 +220,7 @@ impl Contract {
             bounty: NearToken::from_yoctonear(0),
             closes_at: None,
             award: None,
+            next_award_check: 0,
         }
     }
 
@@ -353,10 +364,6 @@ impl Contract {
         evaluation.reasons = reasons.clone();
         evaluation.verdict = verdict;
         evaluation.settled_at = Some(U64(env::block_timestamp()));
-        let wins = status == EvaluationStatus::Passed
-            && evaluation.eligible
-            && self.status == ChallengeStatus::Open;
-        let winner = evaluation.submitter.clone();
         self.pending = self.pending.saturating_sub(1);
 
         emit(
@@ -365,24 +372,15 @@ impl Contract {
         );
         // A verdict for a submission made before the deadline still counts
         // after it: OutLayer answers within the yield window either way.
-        if wins {
-            self.status = ChallengeStatus::Awarded;
-            self.award = Some(Award {
-                evaluation: id,
-                winner,
-                amount: self.bounty,
-                paid: false,
-                in_flight: false,
-            });
-            self.bounty = NearToken::from_yoctonear(0);
-            let award = self.award.as_ref().unwrap();
-            emit(
-                "bounty_awarded",
-                json!({ "id": id, "winner": award.winner, "amount": award.amount }),
-            );
-            self.pay_award();
-        }
+        self.check_award();
         status
+    }
+
+    /// Continues the award check where a verdict's callback stopped, after
+    /// more than 50 evaluations settled while an earlier one was pending.
+    /// Anyone may call it; it can only award the earliest eligible pass.
+    pub fn advance_award(&mut self) {
+        self.check_award();
     }
 
     /// Retries an award payment that failed. Anyone may call it; the money
@@ -425,6 +423,10 @@ impl Contract {
                 require!(
                     self.pending == 0,
                     "evaluations submitted before the deadline are still pending"
+                );
+                require!(
+                    self.next_award_check == self.evaluations.len(),
+                    "some settled evaluations are not yet checked for the award: call advance_award first"
                 );
                 self.status = ChallengeStatus::Closed;
                 emit("challenge_closed", json!({}));
@@ -528,6 +530,7 @@ impl Contract {
             bounty: self.bounty,
             closes_at: self.closes_at,
             award: self.award.clone(),
+            next_award_check: self.next_award_check,
         }
     }
 
@@ -548,6 +551,52 @@ impl Contract {
         (from..self.evaluations.len().min(from.saturating_add(limit)))
             .filter_map(|id| self.get_evaluation(id))
             .collect()
+    }
+
+    /// Walks settled evaluations in the order they were requested and awards
+    /// the bounty to the first eligible pass. It stops at an eligible
+    /// evaluation that is still pending, since that one may yet pass, and
+    /// after `AWARD_CHECKS_PER_CALL` evaluations.
+    fn check_award(&mut self) {
+        let mut checked = 0;
+        while self.status == ChallengeStatus::Open
+            && self.next_award_check < self.evaluations.len()
+            && checked < AWARD_CHECKS_PER_CALL
+        {
+            let id = self.next_award_check;
+            let evaluation = &self.evaluations[id];
+            if evaluation.eligible {
+                match evaluation.status {
+                    EvaluationStatus::Pending => return,
+                    EvaluationStatus::Passed => {
+                        let winner = evaluation.submitter.clone();
+                        self.award_to(id, winner);
+                        return;
+                    }
+                    EvaluationStatus::Failed | EvaluationStatus::Rejected => {}
+                }
+            }
+            self.next_award_check += 1;
+            checked += 1;
+        }
+    }
+
+    fn award_to(&mut self, id: u32, winner: AccountId) {
+        self.status = ChallengeStatus::Awarded;
+        let award = Award {
+            evaluation: id,
+            winner,
+            amount: self.bounty,
+            paid: false,
+            in_flight: false,
+        };
+        emit(
+            "bounty_awarded",
+            json!({ "id": id, "winner": award.winner, "amount": award.amount }),
+        );
+        self.award = Some(award);
+        self.bounty = NearToken::from_yoctonear(0);
+        self.pay_award();
     }
 
     /// Sends the award to the winner. A failed transfer leaves it owed, to be

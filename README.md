@@ -9,7 +9,7 @@ Make your AI work better. A team with an AI workflow that costs too much, runs t
 - **Its winning result:** [result #1](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). A Claude Code agent, working only through Bakeoff's MCP server, passed on its first submission at 89.0% accuracy and 51 µ$ a ticket, 60% below the baseline. The contract paid it 1 NEAR in [the same transaction](https://nearblocks.io/txns/9PGW15xgpFqaueAWr9Q6LedH6bvdQWH6aP1njCT22BUy).
 - **Every transaction of the round:** [integration notes](docs/integration-notes.md#mainnet-round-2026-11-07).
 
-Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The first candidate that passes every gate is paid the bounty by the contract.
+Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts its agent's baseline, a sealed test set and pass gates (quality, cost, latency, data-leak rules), and escrows a bounty. Contributors submit configuration changes. Each candidate is scored inside an OutLayer TEE on NEAR, and the verdict is recorded on-chain only if it names the exact rules, candidate and test set the challenge committed to. The earliest-submitted candidate that passes every gate is paid the bounty by the contract.
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
@@ -32,7 +32,13 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 3. An OutLayer TEE worker runs the evaluator (`wasm32-wasip2`). The evaluator checks the candidate against the rules before spending anything, then triages every sealed ticket through NEAR AI Cloud, measuring accuracy, cost from token usage, latency and card-number leaks.
 4. The evaluator prints a verdict of under 900 bytes: aggregate metrics plus SHA-256 digests of the rules, candidate and test set it scored. No per-ticket data leaves the enclave.
 5. The contract records the verdict as `Passed` or `Failed`, or as `Rejected` if the execution failed or any digest differs from its commitments.
-6. If this is the first `Passed` verdict for a submission made while the challenge was open, by anyone but the owner, the contract awards the bounty and transfers it to the submitter in the same callback.
+6. The contract then checks results in the order they were submitted. The bounty goes to the earliest `Passed` submission made while the challenge was open, by anyone but the owner, once every eligible submission made before it has settled. The transfer goes out in the callback that settles that last earlier submission, or the pass's own callback if nothing earlier is pending.
+
+### Why the order is by submission, not by verdict
+
+A submitted config is public on-chain as soon as its transaction lands, and runs take 8 to 71 seconds. Without this rule, anyone could copy a config from a pending submission and win if their run happened to finish first. With it, a copy is always submitted later than the original, so it can only win if the original fails. A pass whose verdict arrives early waits; the challenge view's `next_award_check` shows how far the check has got. Each callback checks at most 50 results, so a flood of submissions cannot push a verdict past its gas, and anyone can call `advance_award()` to continue. The costliest callback, checking 50 results and then paying the award, is measured in the sandbox tests.
+
+Challenges deployed before this rule, including the mainnet round below, award the first pass to settle. That round had one outside submission, so the order did not matter there.
 
 ## The bounty
 
@@ -40,9 +46,10 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 |---|---|---|---|
 | Escrow | owner | `fund()` with the amount attached | while a draft, or open before the deadline |
 | Open | owner | `open(closes_at)`, nanoseconds since the epoch | once, from draft; freezes the commitments |
-| Win | contract | from the result callback | first passing submission made while open, not by the owner |
+| Win | contract | from a result callback | earliest passing submission made while open, not by the owner, once every eligible submission before it has settled |
+| Continue the award check | anyone | `advance_award()` | when more than 50 results settled while an earlier one was pending |
 | Retry a failed payout | anyone | `claim_award()` | when an award is owed and no payment is in flight |
-| Refund | owner | `withdraw_bounty()` | any time in draft; after the deadline with no winner and no pending evaluation |
+| Refund | owner | `withdraw_bounty()` | any time in draft; after the deadline with no winner, no pending evaluation and every result checked for the award |
 
 - A submission made before the deadline can still win after it. OutLayer answers within the yield window, about two minutes, and the refund waits until it does.
 - The owner's own submissions, in draft or open, are trial runs. Their verdicts are recorded but never win the bounty.
@@ -209,7 +216,8 @@ Verified locally:
 - a 16-ticket run uses 2–4 million instructions;
 - in a NEAR sandbox, a submission settles as `Passed` with the real evaluator's verdict;
 - in the same sandbox, a verdict scored on a different test set and a failed execution are both recorded as `Rejected`;
-- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline.
+- in the same sandbox, a funded challenge pays its 5 NEAR bounty to the first passing contributor and then refuses submissions, each evaluation record fits within the 1 KB its fee pays for, and an unwon bounty returns to the owner only after the deadline;
+- in the same sandbox, a pass whose verdict arrives first waits while an earlier submission is pending, and wins once that one fails. The callback that releases it checks 50 results, then awards and pays the bounty, and burns 7 Tgas of its 30.
 
 Results and transaction links are in the integration notes, for the [16-ticket sample](docs/integration-notes.md#sealed-runs-on-testnet-16-ticket-sample-2026-11-07), the [100-ticket set](docs/integration-notes.md#sealed-runs-on-testnet-100-ticket-set-2026-11-07), the [bounty round](docs/integration-notes.md#bounty-round-on-testnet-100-ticket-set-2026-11-07), the [agent round](docs/integration-notes.md#agent-round-through-the-mcp-server-2026-11-07) and the [mainnet round](docs/integration-notes.md#mainnet-round-2026-11-07).
 
