@@ -425,6 +425,7 @@
 .trust-card { margin-top: var(--space-5); }
 .trust-card h3 { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
 .trust-card h3 svg { width: 20px; height: 20px; color: var(--amber); }
+.trust-lead { margin: 0 0 var(--space-4); }
 .trust-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .trust-list li { color: var(--text-2); font-size: var(--text-sm); }
 .trust-list strong { color: var(--text); }

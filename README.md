@@ -219,7 +219,7 @@ Kettle & Kiln is a fictional store, and its tickets are synthetic. The project's
 
 ### What you still have to trust
 
-The contract checks every hash, but some things are beyond what it can check:
+A result can only come from the enclave: `on_evaluation_result` is private and runs as the callback of the contract's own `request_execution` call to OutLayer. The one key that could change that is the challenge account's own, which could deploy different code. `scripts/near/open.sh` deletes it when it opens a challenge, so from then on no key, Bakeoff's or the owner's, can write a result; the challenge page shows "Locked · 0 keys" once it is gone. The contract checks every hash, but some things are beyond what it can check:
 - **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
 - **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
