@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import { costCut, ResultsTable, TheBar } from "../components/challenge.tsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
-import { ArrowRight, Check, Coins, Cube, Hash, Lock, Timer } from "../components/Icons.tsx";
+import { ArrowRight, Check, Coins, Cube, Hash, Lock, Shield, Timer } from "../components/Icons.tsx";
 import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
 import { Account, CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal, StatusBadge } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
@@ -74,11 +74,43 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
   );
 }
 
+/** Whether the challenge account still has keys that could replace its code. */
+function LockRow({ detail }: { detail: ChallengeDetail }) {
+  const id = detail.listing.id;
+  const keys = useAsync(() => rpcFor(detail.network).accessKeys(id), `keys:${detail.network}:${id}`);
+  const count = keys.data?.length;
+  const plural = count === 1 ? "key" : "keys";
+  return (
+    <div className="check-row">
+      <span className="check-icon"><Shield /></span>
+      <div className="check-body">
+        <div className="check-title">
+          <h4>Contract code</h4>
+          {count === 0 && <span className="badge badge-green badge-dot">Locked · 0 keys</span>}
+          {count !== undefined && count > 0 && <span className="badge badge-amber badge-dot">Not locked · {count} {plural}</span>}
+          {keys.error && !keys.data && <span className="badge badge-amber badge-dot">Could not verify</span>}
+        </div>
+        <div className="hash-line"><code className="mono break">{id}</code><CopyButton text={id} label="Copy the challenge account" /></div>
+        <p className="muted small">
+          {count === 0
+            ? "The challenge account has no access keys, read from the chain as this page loaded. Nobody, its deployer included, can change this contract's code or sign as it."
+            : count
+              ? `The challenge account still has ${count} access ${plural}. Whoever holds ${count === 1 ? "it" : "them"} could deploy different code to this contract; scripts/near/lock.sh deletes ${count === 1 ? "it" : "them"}.`
+              : keys.error
+                ? `Could not read the account's keys: ${keys.error.message}.`
+                : "Reading the account's keys…"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Verification({ detail }: { detail: ChallengeDetail }) {
   const { view } = detail;
   return (
     <div className="verify">
-      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain.</p>
+      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain, and whether the contract's code can still change.</p>
+      <LockRow detail={detail} />
       <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, requirements included." run={async () => {
         const actual = await sha256Hex(view.rules_json);
         if (actual !== view.rules_sha256) throw new Mismatch(`The served rules hash to ${actual}, not the commitment.`);
