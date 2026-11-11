@@ -1,4 +1,4 @@
-/** Light, dark, or the system's choice; stored per browser. */
+/** Light, dark, or the system's choice; light unless the visitor picks another. */
 
 export type ThemeChoice = "system" | "light" | "dark";
 const KEY = "bakeoff:theme";
@@ -6,33 +6,36 @@ const KEY = "bakeoff:theme";
 export function storedTheme(): ThemeChoice {
   try {
     const value = localStorage.getItem(KEY);
-    return value === "light" || value === "dark" ? value : "system";
+    return value === "dark" || value === "system" ? value : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 
 /**
- * Applies a theme; `crossfade` animates the change where the browser supports
- * view transitions. The colours themselves never transition: a transition that
- * stalls (in a page the browser is not painting) would leave text inheriting
- * the old theme's colour, unreadable on the new one's surfaces.
+ * Applies a theme, and remembers it when the visitor picked it; `crossfade`
+ * animates the change where the browser supports view transitions. The
+ * colours themselves never transition: a transition that stalls (in a page
+ * the browser is not painting) would leave text inheriting the old theme's
+ * colour, unreadable on the new one's surfaces.
  */
-export function applyTheme(choice: ThemeChoice, crossfade = false): void {
+export function applyTheme(choice: ThemeChoice, picked = false): void {
   const root = document.documentElement;
   const set = () => {
-    if (choice === "system") root.removeAttribute("data-theme");
+    if (choice === "light") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", choice);
     window.dispatchEvent(new Event("bakeoff:theme"));
   };
-  try {
-    if (choice === "system") localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, choice);
-  } catch {
-    // The choice still applies for this visit.
+  if (picked) {
+    try {
+      if (choice === "light") localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, choice);
+    } catch {
+      // The choice still applies for this visit.
+    }
   }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!crossfade || reduced || !("startViewTransition" in document)) {
+  if (!picked || reduced || !("startViewTransition" in document)) {
     set();
     return;
   }
@@ -48,6 +51,7 @@ export function applyTheme(choice: ThemeChoice, crossfade = false): void {
 /** The theme in effect, resolving "system". */
 export function effectiveTheme(): "light" | "dark" {
   const set = document.documentElement.getAttribute("data-theme");
-  if (set === "light" || set === "dark") return set;
-  return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  if (set === "dark") return "dark";
+  if (set === "system") return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "light";
 }

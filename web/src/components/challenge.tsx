@@ -1,13 +1,12 @@
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
-import { type EvaluationView, formatNear, type Gates, type Metrics, type Network, nsToDate, verdictMetrics, challengeGates } from "../lib/near.ts";
+import { type EvaluationView, type Gates, type Metrics, type Network, nsToDate, verdictMetrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
 import { useInView, usePrefersReducedMotion } from "../lib/hooks.ts";
-import { ArrowRight, Coins, Timer } from "./Icons.tsx";
-import { Account, Countdown, DemoBadge, displayStatus, StatusBadge } from "./ui.tsx";
+import { ArrowRight } from "./Icons.tsx";
+import { Account } from "./ui.tsx";
 
 /** What each recorded reason means, in the words a builder would use. */
 export const REASONS: Record<string, string> = {
@@ -40,67 +39,6 @@ export const reasonText = (reason: string) => REASONS[reason] ?? reason.replace(
 export function costCut(baseline: Baseline, winner: Metrics | null): number | null {
   if (!winner?.cost_per_ticket_uusd || !baseline.cost_per_ticket_uusd) return null;
   return Math.round((1 - winner.cost_per_ticket_uusd / baseline.cost_per_ticket_uusd) * 100);
-}
-
-export function ChallengeCard({ summary, index = 0 }: { summary: ChallengeSummary; index?: number }) {
-  const { listing, view, winner, error } = summary;
-  const reduced = usePrefersReducedMotion();
-  const gates = view ? challengeGates(view) : null;
-  const cut = costCut(listing.baseline, winner);
-  const status = view ? displayStatus(view) : null;
-  return (
-    <motion.article
-      className="challenge-card card"
-      initial={reduced ? false : { opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.06, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <Link to={`/challenges/${listing.id}`} className="challenge-card-link" aria-label={`${listing.title}, ${listing.sponsor}`}>
-        <div className="challenge-card-top">
-          <span className="card-owner"><span className="eyebrow-plain">{listing.sponsor}</span>{listing.demo && <DemoBadge />}</span>
-          {view ? <StatusBadge view={view} /> : <span className="badge badge-coral">Unavailable</span>}
-        </div>
-        <h3>{listing.title}</h3>
-        <p className="challenge-card-summary">{listing.summary}</p>
-        {error && <p className="coral small">{error}</p>}
-        {view && (
-          <div className="challenge-card-stats">
-            <div>
-              <span className="label"><Coins /> {view.award ? (view.award.paid ? "Paid" : "Won") : "Reward"}</span>
-              <strong className="amber">{formatNear(view.award?.amount ?? view.bounty ?? "0")}</strong>
-            </div>
-            <div>
-              <span className="label"><Timer /> {status === "open" ? "Closes in" : "Deadline"}</span>
-              <strong>{status === "open" ? <Countdown closesAt={view.closes_at} /> : view.closes_at ? utc(nsToDate(view.closes_at)).slice(0, 10) : "Not open yet"}</strong>
-            </div>
-            <div>
-              <span className="label">Results</span>
-              <strong className="tabular">{view.evaluations}</strong>
-            </div>
-          </div>
-        )}
-        {gates && (
-          <ul className="gate-chips" aria-label="Requirements">
-            <li>≥ {percent(gates.min_accuracy_bp)} accuracy</li>
-            <li>≤ {microDollars(gates.max_cost_per_ticket_uusd)} / ticket</li>
-            <li>p95 ≤ {seconds(gates.max_p95_latency_ms)}</li>
-            <li>No leaks</li>
-          </ul>
-        )}
-        <div className="challenge-card-foot">
-          {view?.award && winner ? (
-            <span className="win-line">
-              <span className="accent">Won</span> at {percent(winner.accuracy_bp)}, {microDollars(winner.cost_per_ticket_uusd)}
-              {cut !== null && cut > 0 && <span className="badge badge-green">{cut}% cheaper than baseline</span>}
-            </span>
-          ) : (
-            <span className="muted">{status === "open" ? "Taking submissions" : status === "draft" ? "The owner is preparing it" : "No winner"}</span>
-          )}
-          <ArrowRight className="card-arrow" />
-        </div>
-      </Link>
-    </motion.article>
-  );
 }
 
 interface Scale {

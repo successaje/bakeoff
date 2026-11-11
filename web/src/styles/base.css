@@ -63,8 +63,9 @@ p { margin: 0; text-wrap: pretty; }
 }
 
 /* Buttons */
+/* An outlined pill; .btn-primary is the filled ink pill for a page's main action. */
 .btn {
-  --btn-bg: var(--surface-2);
+  --btn-bg: var(--surface);
   --btn-fg: var(--text);
   --btn-border: var(--border-strong);
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
@@ -75,11 +76,11 @@ p { margin: 0; text-wrap: pretty; }
   cursor: pointer; user-select: none;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur), opacity var(--dur-fast);
 }
-.btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+.btn:hover { background: var(--surface-2); border-color: var(--text); }
 .btn:active { transform: translateY(1px) scale(0.99); }
 .btn:disabled { opacity: 0.55; cursor: progress; }
-.btn-primary { --btn-bg: var(--accent); --btn-fg: var(--accent-text); --btn-border: transparent; box-shadow: 0 0 0 0 var(--accent-glow); }
-.btn-primary:hover { background: var(--accent-strong); box-shadow: 0 8px 30px -8px var(--accent-glow); }
+.btn-primary { --btn-bg: var(--ink); --btn-fg: var(--ink-text); --btn-border: transparent; }
+.btn-primary:hover { background: var(--ink-hover); border-color: transparent; }
 .btn-ghost { --btn-bg: transparent; --btn-border: transparent; }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-sm { height: 36px; padding: 0 var(--space-4); }

@@ -3,7 +3,8 @@
  * instant. Every figure still comes from the contracts.
  */
 
-import { type ChallengeView, type EvaluationView, NearRpc, type Network, NETWORKS, verdictMetrics, type Metrics } from "./near.ts";
+import type { ChallengeRecords } from "./leaderboard.ts";
+import { challengeGates, type ChallengeView, type EvaluationView, NearRpc, type Network, NETWORKS, verdictMetrics, type Metrics } from "./near.ts";
 import { type ListedChallenge, loadRegistry, networkOf } from "./registry.ts";
 
 const TTL = 15_000;
@@ -75,7 +76,22 @@ export function loadChallenge(id: string, fresh = false): Promise<ChallengeDetai
   }, fresh);
 }
 
+/** Every listed challenge on a network with all its results; one that cannot be read is left out. */
+export function loadAll(network: Network, fresh = false): Promise<ChallengeDetail[]> {
+  return cached(`all:${network}`, async () => {
+    const registry = await loadRegistry();
+    const settled = await Promise.allSettled((registry[network] ?? []).map((listing) => loadChallenge(listing.id, fresh)));
+    return settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
+  }, fresh);
+}
+
+export function recordsOf(detail: ChallengeDetail): ChallengeRecords {
+  const { listing, view, evaluations } = detail;
+  return { id: listing.id, title: listing.title, sponsor: listing.sponsor, owner: view.owner, baseline: listing.baseline, gates: challengeGates(view), award: view.award, evaluations };
+}
+
 export function forget(id: string): void {
   cache.delete(`challenge:${id}`);
   cache.delete(`list:${networkOf(id)}`);
+  cache.delete(`all:${networkOf(id)}`);
 }
