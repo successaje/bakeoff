@@ -13,6 +13,16 @@ Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts it
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
+## Try it
+
+The first three steps need only a browser; the last two need Rust (see [Local quick start](#local-quick-start)) but no accounts or keys.
+
+1. Open the [winning result](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). You see each requirement against the result and the baseline: 89.0% accuracy, 51 µ$ a ticket, 2.6 s p95, no leaks, and the 1 NEAR payment with its transaction.
+2. Open the [mainnet challenge](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near) and scroll to Rules and verification. Press Check on Rules and on Evaluator build. Each shows "Matches": your browser hashed the rules and the downloaded evaluator build, and both equal the contract's commitments.
+3. On the same page, the Contract code row reads "Locked · 0 keys": the challenge account has no access keys, so nobody can change its code.
+4. Run `cargo test --workspace`. The contract and evaluator tests pass, including the attacks in [How would you cheat it?](#how-would-you-cheat-it).
+5. Run `scripts/run-local.sh`. Five example candidates are scored the way an OutLayer worker scores them, with the outcomes in the [Local quick start](#local-quick-start) table.
+
 ## Built on NEAR
 
 | Piece | What Bakeoff uses it for | Code |
@@ -54,6 +64,23 @@ Challenges deployed before this rule, including the mainnet round below, award t
 - A submission made before the deadline can still win after it. OutLayer answers within the yield window, about two minutes, and the refund waits until it does.
 - The owner's own submissions, in draft or open, are trial runs. Their verdicts are recorded but never win the bounty.
 - Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.1.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `challenge_closed`, `bounty_withdrawn`.
+
+## How would you cheat it?
+
+Each attempt below is refused by the contract or the evaluator, and a test shows it. `cargo test --workspace` runs the unit tests; `scripts/test-sandbox.sh` runs the sandbox ones.
+
+| Attempt | What stops it | Test |
+|---|---|---|
+| Write a passing result into the contract yourself | `on_evaluation_result` is `#[private]`: only the callback of the contract's own request to OutLayer can record a result. Opening a challenge deletes its account's keys, so nobody can deploy code that changes this | [`contract/src/lib.rs`](contract/src/lib.rs); the challenge page's "Locked · 0 keys" |
+| Score on easier test cases, other rules or another evaluator build | The verdict carries the SHA-256 of the rules, candidate and test set it scored; any mismatch is recorded as `Rejected` | `judge_rejects_results_that_do_not_match_the_commitments`; sandbox `untrusted_results_are_rejected` |
+| Copy a pending submission's config and hope your run finishes first | The earliest submission wins, so a copy wins only if the original fails | `a_copied_config_loses_to_the_original_even_when_it_settles_first`; sandbox `a_pass_waits_for_earlier_submissions_then_wins` |
+| Send the hidden test cases to your own server | Candidates may call only the models and options the rules allow; undeclared tools and plain-HTTP hosts are rejected before any model call | `rejects_undeclared_tools`, `rejects_plain_http_to_remote_hosts`; the `webhook-tool` example |
+| Reach the accuracy goal by repeating customers' card numbers | Any card number in an answer fails the leak gate | `leaking_a_card_number_fails_the_leak_gate`, `detects_card_numbers_in_common_formats` |
+| Tune to the public practice cases | The sealed set is different: on testnet, two candidates that passed on practice failed the sealed accuracy gate | [Status](#status) |
+| As the owner, win your own bounty | The owner's submissions are trial runs and never win | `owner_passes_never_win_the_bounty` |
+| As the owner, change the rules or test cases once builders compete | Opening freezes the commitments | `opening_freezes_commitments` |
+| As the owner, take the bounty back mid-contest | No withdrawal before the deadline, while a run is pending, or before every result is checked for the award | `an_open_bounty_cannot_be_withdrawn_before_the_deadline`, `the_bounty_waits_for_pending_evaluations`, `the_bounty_waits_until_every_settled_evaluation_is_checked` |
+| Flood the challenge so the award runs out of gas | Each callback checks at most 50 results, and anyone can call `advance_award()` to continue | `advance_award_continues_past_a_long_settled_queue`; sandbox gas measurement |
 
 ## Repository layout
 
@@ -236,6 +263,15 @@ A result can only come from the enclave: `on_evaluation_result` is private and r
 ## How it would pay for itself
 
 Not built yet. The plan is a fee on each awarded reward, taken by the contract at payout, so a team pays nothing when no result passes. The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
+
+## Hackathon disclosure
+
+Built for NEAR HACKATHON. The first commit is from 2026-11-06, inside the window that opened on 2026-10-19; no code predates it.
+
+- **Libraries.** Rust: near-sdk, near-workspaces, serde, serde_json, sha2, wasi, tokio, anyhow. Board: React, React Router, Motion, NEAR Connect (`@hot-labs/near-connect`), Vite, TypeScript, the Geist and Instrument Serif fonts. MCP server: the Model Context Protocol TypeScript SDK, Zod.
+- **Tools.** near-cli-rs, the OutLayer CLI, cargo-near, wasmtime.
+- **AI tools.** Claude Code (Anthropic) was used throughout for code, tests and documentation.
+- **Other project.** The same team lead also submitted **Bearer**, an independent project. The two share no code.
 
 ## License
 
