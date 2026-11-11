@@ -28,7 +28,7 @@ function Rotator() {
   }, [reduced]);
   return (
     <p className="rotator" aria-label={`Bakeoff is for ${AUDIENCES.join(", ")}`}>
-      <span aria-hidden="true">Bakeoff is for </span>
+      <span aria-hidden="true">Bakeoff is for</span>
       <span className="rotator-slot" aria-hidden="true">
         <AnimatePresence mode="wait" initial={false}>
           <motion.span key={i} className="rotator-word" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -12, opacity: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>

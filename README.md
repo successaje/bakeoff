@@ -100,14 +100,21 @@ Each attempt below is refused by the contract or the evaluator, and a test shows
 
 ## The web board
 
-The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet by default. [`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It shows:
-- each challenge as a story: the problem today, the goal, what builders can see and what stays hidden, the results, and how to take part;
-- a page for every result: each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
-- checks in the browser that the rules and the evaluator build match their on-chain hashes.
+The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet by default. [`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It is laid out like a competition site:
+- **Home:** the latest results and payments read from the chain, the challenges, and each one's top builders;
+- **Challenges:** every listed challenge as a card, with search and filters for open, awarded and upcoming ones;
+- **A page per challenge, in tabs:**
+  - Overview: the problem today, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked;
+  - Data: the public practice tickets, with a field dictionary taken from the on-chain rules and the spread of their labels;
+  - Leaderboard: each builder once by their best result, or every result as recorded;
+  - Rules: the requirements, how the reward is won, what a solution may change, and checks in the browser that the rules and the evaluator build match their on-chain hashes;
+  - Take part: how to compete with the MCP server;
+- **A page per result:** each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
+- **Leaderboard:** builders across all listed challenges, ranked by rewards won, with a page for every account.
 
 The board speaks in everyday terms: results, requirements, rewards, owners and builders. The contract and this README keep their own: verdicts, gates, bounties, sponsors and contributors.
 
-The owner connects a NEAR wallet to fund, open or withdraw a challenge, in a Manage section only they see. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the owner's own account, and one approval unwraps it and funds the bounty.
+The owner connects a NEAR wallet to fund, open or withdraw a challenge, in a Manage tab only they see. On mainnet they can fund it from about 200 tokens on about 40 chains through NEAR Intents' 1Click: the swap delivers wNEAR to the owner's own account, and one approval unwraps it and funds the bounty.
 
 ## For agents: the MCP server
 

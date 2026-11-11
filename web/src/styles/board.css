@@ -105,8 +105,8 @@
 /* ---------- Landing ---------- */
 .landing-hero { padding: var(--space-8) 0 var(--space-6); }
 .landing-copy { text-align: center; display: grid; justify-items: center; }
-.rotator { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; color: var(--text-2); }
-.rotator-slot { display: inline-block; overflow: hidden; height: 1.5em; vertical-align: bottom; }
+.rotator { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; column-gap: 0.6ch; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; color: var(--text-2); }
+.rotator-slot { display: inline-flex; align-items: center; height: 1.8em; overflow: hidden; }
 .rotator-word { display: inline-block; white-space: nowrap; color: var(--text); font-weight: 600; }
 .landing-hero h1 { font-size: var(--text-hero); line-height: 1.02; letter-spacing: -0.045em; font-weight: 500; margin-top: var(--space-5); max-width: 14ch; }
 .landing-hero h1 .serif { font-size: 1.08em; }
