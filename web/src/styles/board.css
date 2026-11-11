@@ -185,3 +185,43 @@
 .player h3 { font-size: var(--text-xl); font-weight: 600; }
 .player p { font-size: var(--text-sm); }
 @media (max-width: 900px) { .players { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Challenge list ---------- */
+.list-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); align-items: center; gap: var(--space-6); padding: var(--space-7); border-radius: 26px; background: var(--cream); border: 1px solid var(--border); overflow: hidden; }
+.list-hero-copy { display: grid; gap: var(--space-4); justify-items: start; }
+.list-hero h1 { font-size: var(--text-3xl); font-weight: 500; letter-spacing: -0.04em; }
+.list-hero p { font-size: var(--text-lg); max-width: 560px; }
+.list-hero-art { width: 100%; max-width: 420px; justify-self: end; }
+@media (max-width: 760px) { .list-hero { grid-template-columns: minmax(0, 1fr); padding: var(--space-5); } .list-hero-art { max-width: 300px; justify-self: center; } }
+
+.list-search { position: relative; margin: var(--space-6) 0 var(--space-4); }
+.list-search .search-input { height: 50px; }
+
+.filter-tiles { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: var(--space-3); overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.filter-tile { position: relative; display: grid; gap: 4px; align-content: start; text-align: left; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; min-height: 92px; transition: border-color var(--dur-fast), background-color var(--dur-fast); }
+.filter-tile:hover { border-color: var(--border-strong); }
+.filter-tile.active { background: var(--surface); border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.filter-tile-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.filter-tile-head svg { width: 18px; height: 18px; color: var(--text-2); flex: none; }
+.filter-count { position: absolute; right: 14px; bottom: 10px; font-size: 12px; color: var(--muted); }
+@media (max-width: 1100px) { .filter-tiles { grid-template-columns: repeat(5, minmax(160px, 1fr)); } }
+
+.list-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-7) 0 var(--space-4); }
+.list-section-head h2 { display: inline-flex; align-items: center; gap: 10px; font-size: var(--text-xl); font-weight: 600; }
+.list-section-head h2 svg { width: 20px; height: 20px; }
+
+.ccard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-5); }
+.ccard { display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; transition: transform var(--dur) var(--ease-out), box-shadow var(--dur), border-color var(--dur); }
+.ccard:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--border-strong); }
+.ccard-art { position: relative; height: 132px; border-bottom: 1px solid var(--border); }
+.ccard-mark { position: absolute; left: 16px; bottom: -20px; border-radius: 12px; padding: 3px; background: var(--surface); box-shadow: var(--shadow); display: inline-flex; }
+.ccard-body { display: grid; gap: 8px; padding: 30px 18px 14px; flex: 1; align-content: start; }
+.ccard-kind { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
+.ccard-kind > span:first-child { display: inline-flex; align-items: center; gap: 5px; }
+.ccard-kind svg { width: 14px; height: 14px; }
+.ccard h3 { font-size: var(--text-lg); font-weight: 600; }
+.ccard-summary { font-size: var(--text-sm); color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ccard-win { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); font-family: var(--font-mono); }
+.ccard-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: 12px 18px; border-top: 1px solid var(--border); }
+.ccard-reward { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; }
+.ccard-reward svg { width: 16px; height: 16px; color: var(--amber); }
