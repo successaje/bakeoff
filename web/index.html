@@ -16,14 +16,13 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Bakeoff's mainnet result: 89.0% accuracy, 51 µ$ a ticket, 2.6 s p95, no card numbers repeated, and the contract paid the agent 1 NEAR." />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#060807" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f6f5f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <script>
-      // Apply a stored theme before first paint, so the page never flashes the wrong one.
+      // Apply a stored theme before first paint, so the page never flashes the wrong one. Light needs nothing.
       try {
         var t = localStorage.getItem("bakeoff:theme");
-        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+        if (t === "dark" || t === "system") document.documentElement.setAttribute("data-theme", t);
       } catch (e) {}
     </script>
     <style>
