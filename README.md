@@ -13,6 +13,16 @@ Under the hood, Bakeoff runs sealed bake-offs for AI agents. A business posts it
 
 The sealed test set and the model API key are OutLayer secrets bound to one evaluator build. They are decrypted only inside the enclave, and only for calls that come through the challenge contract.
 
+## Try it
+
+The first three steps need only a browser; the last two need Rust (see [Local quick start](#local-quick-start)) but no accounts or keys.
+
+1. Open the [winning result](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). You see each requirement against the result and the baseline: 89.0% accuracy, 51 µ$ a ticket, 2.6 s p95, no leaks, and the 1 NEAR payment with its transaction.
+2. Open the [mainnet challenge](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near) and scroll to Rules and verification. Press Check on Rules and on Evaluator build. Each shows "Matches": your browser hashed the rules and the downloaded evaluator build, and both equal the contract's commitments.
+3. On the same page, the Contract code row reads "Locked · 0 keys": the challenge account has no access keys, so nobody can change its code.
+4. Run `cargo test --workspace`. The contract and evaluator tests pass, including the attacks in [How would you cheat it?](#how-would-you-cheat-it).
+5. Run `scripts/run-local.sh`. Five example candidates are scored the way an OutLayer worker scores them, with the outcomes in the [Local quick start](#local-quick-start) table.
+
 ## Built on NEAR
 
 | Piece | What Bakeoff uses it for | Code |
