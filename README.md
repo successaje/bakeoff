@@ -264,6 +264,15 @@ A result can only come from the enclave: `on_evaluation_result` is private and r
 
 Not built yet. The plan is a fee on each awarded reward, taken by the contract at payout, so a team pays nothing when no result passes. The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
 
+## Hackathon disclosure
+
+Built for NEAR HACKATHON. The first commit is from 2026-11-06, inside the window that opened on 2026-10-19; no code predates it.
+
+- **Libraries.** Rust: near-sdk, near-workspaces, serde, serde_json, sha2, wasi, tokio, anyhow. Board: React, React Router, Motion, NEAR Connect (`@hot-labs/near-connect`), Vite, TypeScript, the Geist and Instrument Serif fonts. MCP server: the Model Context Protocol TypeScript SDK, Zod.
+- **Tools.** near-cli-rs, the OutLayer CLI, cargo-near, wasmtime.
+- **AI tools.** Claude Code (Anthropic) was used throughout for code, tests and documentation.
+- **Other project.** The same team lead also submitted **Bearer**, an independent project. The two share no code.
+
 ## License
 
 Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT license](LICENSE-MIT), at your option.
