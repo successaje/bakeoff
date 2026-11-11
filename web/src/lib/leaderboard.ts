@@ -166,6 +166,8 @@ export interface Activity {
   evaluation: number;
   /** The reward paid, in yoctoNEAR, for a payment. */
   amount?: string;
+  /** A result from the owner's own trial run. */
+  trial: boolean;
 }
 
 /** The latest things that happened across the given challenges, newest first. */
@@ -173,7 +175,7 @@ export function recentActivity(challenges: ChallengeRecords[], limit = 6): Activ
   const events: Activity[] = [];
   for (const c of challenges) {
     for (const e of c.evaluations) {
-      const base = { account: e.submitter, challenge: c.id, title: c.title, evaluation: e.id };
+      const base = { account: e.submitter, challenge: c.id, title: c.title, evaluation: e.id, trial: e.eligible === false };
       const settled = nsToDate(e.settled_at);
       if (e.status === "Pending") {
         const at = nsToDate(e.requested_at);
