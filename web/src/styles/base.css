@@ -81,8 +81,6 @@ p { margin: 0; text-wrap: pretty; }
 .btn:disabled { opacity: 0.55; cursor: progress; }
 .btn-primary { --btn-bg: var(--ink); --btn-fg: var(--ink-text); --btn-border: transparent; }
 .btn-primary:hover { background: var(--ink-hover); border-color: transparent; }
-.btn-accent { --btn-bg: var(--accent); --btn-fg: var(--accent-text); --btn-border: transparent; }
-.btn-accent:hover { background: var(--accent-strong); border-color: transparent; }
 .btn-ghost { --btn-bg: transparent; --btn-border: transparent; }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-sm { height: 36px; padding: 0 var(--space-4); }

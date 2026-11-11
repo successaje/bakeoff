@@ -85,31 +85,6 @@
 }
 
 /* ---------- Hero ---------- */
-.hero { position: relative; min-height: min(860px, calc(100vh - var(--header-h) + 40px)); margin-top: calc(var(--header-h) * -1); padding-top: var(--header-h); display: flex; align-items: center; overflow: hidden; isolation: isolate; }
-.hero-backdrop {
-  position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(ellipse 50% 60% at 78% 45%, var(--accent-soft), transparent 70%),
-    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 56px 56px,
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 56px 56px;
-  mask-image: radial-gradient(ellipse 75% 85% at 70% 40%, #000 30%, transparent 85%);
-}
-.hero-inner { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: center; gap: var(--space-8); padding-top: var(--space-8); padding-bottom: var(--space-8); }
-.hero-copy { max-width: 640px; }
-.hero h1 { font-size: var(--text-hero); line-height: 1; letter-spacing: -0.04em; margin-top: var(--space-4); font-weight: 540; }
-.hero h1 .serif { font-size: 1.08em; letter-spacing: -0.02em; }
-.hero-lede { margin-top: var(--space-5); font-size: var(--text-lg); color: var(--text-2); max-width: 560px; line-height: 1.65; }
-.hero-ctas { display: flex; gap: var(--space-3); margin-top: var(--space-6); flex-wrap: wrap; }
-.hero-proof { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); list-style: none; padding: 0; margin: var(--space-6) 0 0; font-size: var(--text-sm); color: var(--muted); }
-.hero-proof li { display: inline-flex; align-items: center; gap: 8px; }
-.hero-proof svg { width: 16px; height: 16px; color: var(--accent); }
-.hero-run { justify-self: end; width: 100%; max-width: 440px; }
-
-@media (max-width: 900px) {
-  .hero { min-height: auto; display: block; }
-  .hero-inner { grid-template-columns: 1fr; gap: var(--space-7); padding-top: var(--space-7); }
-  .hero-run { justify-self: stretch; max-width: 480px; }
-}
 
 /* ---------- Evaluation run (hero) ----------
  * Phases are cumulative classes: is-scoring, is-scored, is-checked, is-paid.
@@ -175,17 +150,6 @@
 }
 
 /* ---------- Stats band ---------- */
-.stats-band { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
-.stat-cell { padding: var(--space-6) var(--space-5); border-left: 1px solid var(--border); display: grid; gap: 6px; }
-.stat-cell:first-child { border-left: 0; }
-.stat-cell strong { font-size: var(--text-2xl); font-weight: 520; letter-spacing: -0.03em; }
-.stat-cell > span { font-size: var(--text-sm); color: var(--muted); }
-@media (max-width: 760px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .stat-cell:nth-child(3) { border-left: 0; }
-  .stat-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
-}
 
 /* ---------- Home sections ---------- */
 .step-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
@@ -275,36 +239,14 @@
   .panel *, .story-step, .story-progress span { animation: none !important; transition: none !important; }
 }
 
-.spotlight { background: linear-gradient(180deg, transparent, var(--bg-elevated) 30%, var(--bg-elevated) 70%, transparent); }
-.spotlight-grid { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: var(--space-7); align-items: center; }
-.spotlight-copy h2 { font-size: var(--text-3xl); margin: var(--space-3) 0 var(--space-4); }
-.spotlight-copy p { margin-bottom: var(--space-5); font-size: var(--text-lg); }
-.spotlight-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); font-weight: 550; }
 @media (max-width: 900px) { .spotlight-grid { grid-template-columns: 1fr; } }
 
-.section-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
-.section-row .section-head { margin-bottom: var(--space-6); }
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-5); }
 @media (max-width: 420px) { .card-grid { grid-template-columns: 1fr; } }
 .skeleton-card { height: 340px; border: 0; }
 
-.audience-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
-.audience { display: grid; gap: var(--space-4); align-content: start; justify-items: start; overflow: hidden; }
-.audience::after { content: ""; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, var(--accent-soft), transparent 70%); pointer-events: none; }
-.audience h3 { font-size: var(--text-2xl); }
-.audience-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--border); color: var(--accent); }
-.audience-icon svg { width: 24px; height: 24px; }
 @media (max-width: 760px) { .audience-grid { grid-template-columns: 1fr; } }
 
-.trust { overflow: hidden; }
-.trust-grid-bg { position: absolute; inset: 0; mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, #000 20%, transparent 75%); }
 .section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
-.trust-items { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-6); margin-bottom: var(--space-7); }
-.trust-item { display: grid; gap: var(--space-3); justify-items: center; text-align: center; padding: 0 var(--space-3); }
-.trust-item h3 { font-size: var(--text-lg); }
-.trust-item p { font-size: var(--text-sm); max-width: 320px; }
-.trust-icon { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: var(--accent); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 0 0 8px var(--accent-soft); }
-.trust-icon svg { width: 24px; height: 24px; }
 @media (max-width: 760px) { .trust-items { grid-template-columns: 1fr; } }
 
 .final-cta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding: var(--space-7); overflow: hidden; background: radial-gradient(ellipse at 100% 0%, var(--accent-soft), transparent 55%), var(--surface); }
@@ -365,11 +307,12 @@
 .tab-label, .tab-count { position: relative; z-index: 1; }
 .tab-count { font-family: var(--font-mono); font-size: 11px; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--bg); color: var(--text-2); }
 .tab-indicator { position: absolute; inset: 0; border-radius: var(--radius-pill); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
-.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-4); flex-wrap: wrap; }
 
 /* ---------- Pages ---------- */
-.page-hero { position: relative; padding: var(--space-8) 0 var(--space-7); border-bottom: 1px solid var(--border); overflow: hidden; }
-.page-grid { position: absolute; inset: 0; }
+/* A cream band, like the list pages' hero cards; the grid stays for dark mode only. */
+.page-hero { position: relative; padding: var(--space-7) 0 var(--space-6); background: var(--cream); border-bottom: 1px solid var(--border); overflow: hidden; }
+.page-grid { position: absolute; inset: 0; opacity: 0; }
+:root[data-theme="dark"] .page-grid { opacity: 1; }
 .page-hero .container { position: relative; }
 .page-title { font-size: var(--text-3xl); letter-spacing: -0.04em; margin-top: var(--space-3); max-width: 860px; }
 .page-title .serif { font-size: 1.06em; }
@@ -380,15 +323,8 @@
 
 .challenge-head { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-7); align-items: start; }
 .challenge-meta { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.contract-line { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
-.contract-line a { color: var(--text-2); border-bottom: 1px dashed var(--border-strong); }
-.contract-line a:hover { color: var(--accent); }
 .bounty-card { padding: var(--space-5); display: grid; gap: var(--space-4); background: radial-gradient(ellipse at 100% 0%, var(--amber-soft), transparent 60%), var(--surface); }
 .bounty-amount { font-size: 2.6rem; font-weight: 560; letter-spacing: -0.04em; line-height: 1; }
-.bounty-rows { display: grid; gap: var(--space-2); font-size: var(--text-sm); padding-top: var(--space-3); border-top: 1px solid var(--border); }
-.bounty-rows > div { display: flex; justify-content: space-between; gap: var(--space-3); }
-.bounty-rows svg { width: 14px; height: 14px; display: inline; vertical-align: -2px; }
-.bounty-winner { display: grid; gap: 6px; justify-items: start; padding-top: var(--space-3); border-top: 1px solid var(--border); }
 @media (max-width: 900px) { .challenge-head { grid-template-columns: 1fr; } }
 
 .award-callout { position: relative; display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); margin-bottom: var(--space-5); overflow: hidden; }
@@ -408,15 +344,12 @@
 .trust-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
 .trust-list li { color: var(--text-2); font-size: var(--text-sm); }
 .trust-list strong { color: var(--text); }
-.award-glow { position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--accent) 18%, transparent) 50%, transparent 70%); background-size: 250% 100%; animation: sweep 4s var(--ease-in-out) infinite; pointer-events: none; }
 @keyframes sweep { from { background-position: 150% 0; } to { background-position: -100% 0; } }
 
 .bar-card { margin-bottom: var(--space-6); }
 .card-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); margin-bottom: var(--space-6); flex-wrap: wrap; }
 .card-title-row h2 { font-size: var(--text-xl); margin-bottom: 4px; }
 
-.tabs-wrap { display: grid; gap: var(--space-4); scroll-margin-top: calc(var(--header-h) + 16px); }
-.tab-panel { min-height: 240px; }
 .tab-intro { margin-bottom: var(--space-5); max-width: 760px; }
 
 .verdicts td { white-space: nowrap; }
@@ -533,22 +466,10 @@
 .not-found .row { justify-content: center; margin-top: var(--space-5); }
 
 /* The spotlight's tinted band flows straight into the next section. */
-.section.spotlight { padding-bottom: var(--space-6); }
-.section.spotlight + .section { padding-top: var(--space-6); }
 
 /* Challenge page: a story in sections, with a bar to jump between them.
    Every grid here sizes its column with minmax(0, 1fr), so a wide table or
    code block scrolls inside its card instead of widening the page. */
-.story-nav { position: sticky; top: var(--header-h); z-index: 20; background: var(--glass); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); border-bottom: 1px solid var(--border); }
-.story-nav-inner { display: flex; gap: var(--space-1); overflow-x: auto; scrollbar-width: none; padding-top: var(--space-2); padding-bottom: var(--space-2); }
-.story-nav-inner::-webkit-scrollbar { display: none; }
-.story-nav button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--text-2); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast); }
-.story-nav button:hover { background: var(--surface-2); color: var(--text); }
-.story { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-7); }
-.story > .demo-notice, .story > .award-callout { margin-bottom: 0; }
-.story-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); scroll-margin-top: calc(var(--header-h) + 72px); }
-.story-head { display: grid; gap: var(--space-2); max-width: 780px; }
-.story-head h2 { font-size: var(--text-2xl); }
 .story-note { max-width: 780px; }
 .story-note a { color: var(--accent); }
 .problem { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
