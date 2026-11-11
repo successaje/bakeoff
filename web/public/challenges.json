@@ -17,7 +17,15 @@
       },
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
-      "practice_tickets": 80
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Cost",
+        "Private test set"
+      ]
     },
     {
       "id": "challenge-20261107093927.finishr.testnet",
@@ -32,7 +40,15 @@
       },
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
-      "practice_tickets": 80
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Cost",
+        "Private test set"
+      ]
     }
   ],
   "mainnet": [
@@ -53,7 +69,15 @@
       },
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
-      "practice_tickets": 80
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Cost",
+        "Private test set"
+      ]
     }
   ]
 }

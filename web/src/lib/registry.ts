@@ -24,6 +24,12 @@ export interface ListedChallenge {
   problem?: string;
   /** Public practice tickets builders can tune on. */
   practice_tickets?: number;
+  /** Where the board serves the practice tickets, relative to the page. */
+  practice_set?: string;
+  /** Where the board serves the guide both ticket sets were labelled by. */
+  labeling_guide?: string;
+  /** Topics shown beside the challenge, as on a competition page. */
+  tags?: string[];
   /** How the bounty was won, when there is something to tell. */
   story?: { headline: string; text: string };
   /**
