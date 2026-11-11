@@ -1,24 +1,45 @@
 /**
- * A challenge, told in the order a visitor asks about it: the problem, the
- * goal, how solutions are tested, the results, how to take part, and how to
- * check it all. The owner's controls sit in their own Manage section.
+ * A challenge, as a competition page: the host and the main action on top,
+ * then tabs. Overview tells the problem, the goal, how it's tested and the
+ * timeline, beside the facts a visitor scans for; Data shows the practice
+ * set; Leaderboard ranks the builders; Rules holds the requirements and the
+ * checks against the chain; Take part shows how to compete. The owner's
+ * controls get their own tab.
  */
 
-import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router";
-import { costCut, ResultsTable, TheBar } from "../components/challenge.tsx";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate, useParams } from "react-router";
+import { Avatar, Cover, HostMark } from "../components/art.tsx";
+import { StatusChip } from "../components/board.tsx";
+import { ChallengeLeaderboard } from "../components/ChallengeLeaderboard.tsx";
+import { costCut, TheBar } from "../components/challenge.tsx";
+import { DataExplorer } from "../components/DataExplorer.tsx";
 import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
-import { ArrowRight, Check, Coins, Cube, Hash, Lock, Shield, Timer } from "../components/Icons.tsx";
+import { ArrowRight, Check, Coins, Copy, Cube, External, Hash, Lock, More, Replay, Shield, Timer } from "../components/Icons.tsx";
 import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
-import { Account, CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal, StatusBadge } from "../components/ui.tsx";
+import { CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
+import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
-import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
+
+type Tab = "overview" | "data" | "leaderboard" | "rules" | "take-part" | "manage";
+const TABS: Tab[] = ["overview", "data", "leaderboard", "rules", "take-part", "manage"];
+
+/** Sections of the earlier one-page layout, so links already shared still land. */
+const LEGACY: Record<string, { tab: Tab; section?: string }> = {
+  problem: { tab: "overview", section: "problem" },
+  goal: { tab: "overview", section: "goal" },
+  testing: { tab: "overview", section: "testing" },
+  results: { tab: "leaderboard" },
+  "take-part": { tab: "take-part" },
+  verification: { tab: "rules", section: "verification" },
+  manage: { tab: "manage" },
+};
 
 /** The winner's metrics, else the best passing run, else nothing to plot. */
 function bestRun(detail: ChallengeDetail): { metrics: Metrics | null; label: string } {
@@ -40,6 +61,10 @@ function goalSentence(gates: Gates, baseline: Baseline): string {
   if (gates.max_leaks === 0) parts.push("never repeat a card number");
   const sentence = `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}.`;
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /** A check that ran and found a different hash, as opposed to one that could not run. */
@@ -74,10 +99,16 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
   );
 }
 
+/** How many access keys the challenge account still has; none means its code is locked. */
+function useKeys(detail: ChallengeDetail) {
+  const id = detail.listing.id;
+  return useAsync(() => rpcFor(detail.network).accessKeys(id), `keys:${detail.network}:${id}`);
+}
+
 /** Whether the challenge account still has keys that could replace its code. */
 function LockRow({ detail }: { detail: ChallengeDetail }) {
   const id = detail.listing.id;
-  const keys = useAsync(() => rpcFor(detail.network).accessKeys(id), `keys:${detail.network}:${id}`);
+  const keys = useKeys(detail);
   const count = keys.data?.length;
   const plural = count === 1 ? "key" : "keys";
   return (
@@ -134,6 +165,7 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   const [result, setResult] = useState<string | null>(null);
   return (
     <div className="find-config">
+      <hr className="divider" />
       <h4>Find a result by its config</h4>
       <p className="muted small">Every result records the SHA-256 of the config it scored. Paste a config to find its results.</p>
       <textarea className="textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"version": 1, "model": "…", …}' spellCheck={false} aria-label="Solution config" />
@@ -160,7 +192,7 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
       <p className="text-2 tab-intro">
         {open
           ? "Builders take part through the Bakeoff MCP server, with Claude Code, Codex or any MCP client. Your agent reads the rules, scores solutions on the practice tickets with this challenge's evaluator, and submits when you approve."
-          : "This challenge is not taking submissions. Its practice tickets and results stay public, and the MCP server can still score solutions against it."}
+          : "This challenge is not taking submissions. Its practice tickets and leaderboard stay public, and the MCP server can still score solutions against it."}
       </p>
       <ol className="compete-steps">
         <li><span className="mono">1</span><div><h4>Build the server</h4><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
@@ -175,39 +207,229 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
   );
 }
 
-const SECTIONS = [
-  { id: "problem", label: "Problem" },
-  { id: "goal", label: "Goal" },
-  { id: "testing", label: "How it's tested" },
-  { id: "results", label: "Results" },
-  { id: "take-part", label: "Take part" },
-  { id: "verification", label: "Verification" },
-];
-
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function Section({ id, title, intro, children }: { id: string; title: string; intro?: React.ReactNode; children: React.ReactNode }) {
+/** A titled part of a tab, with a link to it and a way to fold it away. */
+function DocSection({ id, title, children, intro }: { id: string; title: string; intro?: React.ReactNode; children: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
   return (
-    <section id={id} className="story-section" aria-labelledby={`${id}-title`}>
-      <div className="story-head">
-        <h2 id={`${id}-title`}>{title}</h2>
-        {intro && <p className="text-2">{intro}</p>}
+    <details className="doc-section folding" id={id} open>
+      <summary>
+        <h2>{title}</h2>
+        <button type="button" className="icon-btn doc-link" aria-label={copied ? "Link copied" : `Copy a link to ${title}`} title={copied ? "Link copied" : "Copy link"} onClick={(event) => {
+          event.preventDefault();
+          void navigator.clipboard?.writeText(`${location.href.split("#").slice(0, 2).join("#")}#${id}`).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          });
+        }}>{copied ? <Check /> : <Copy />}</button>
+        <span className="doc-fold" aria-hidden="true" />
+      </summary>
+      <div className="doc-body">
+        {intro && <p className="text-2 doc-intro">{intro}</p>}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </div>
-      <ErrorBoundary>{children}</ErrorBoundary>
-    </section>
+    </details>
   );
 }
 
+function Timeline({ detail }: { detail: ChallengeDetail }) {
+  const { view, evaluations } = detail;
+  const times = (pick: (e: EvaluationView) => string | null) => evaluations.map((e) => nsToDate(pick(e))).filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime());
+  const first = times((e) => e.requested_at)[0];
+  const latest = times((e) => e.settled_at).at(-1);
+  const winning = view.award ? evaluations.find((e) => e.id === view.award!.evaluation) : undefined;
+  const closes = nsToDate(view.closes_at);
+  const items = [
+    first && { at: first, label: "First submission", text: "The first result was requested." },
+    winning?.settled_at && { at: nsToDate(winning.settled_at)!, label: view.award!.paid ? "Reward paid" : "Reward won", text: `Result #${winning.id} met every requirement${view.award!.paid ? `, and the contract paid ${formatNear(view.award!.amount)} with it` : ""}.` },
+    latest && latest !== first && { at: latest, label: "Latest result", text: "The most recent result was recorded." },
+    closes && { at: closes, label: closes.getTime() > Date.now() ? "Deadline" : "Deadline passed", text: closes.getTime() > Date.now() ? "Submissions close. One made before then can still win after it." : "No new submissions are accepted." },
+  ].filter((x): x is { at: Date; label: string; text: string } => !!x).sort((a, b) => a.at.getTime() - b.at.getTime());
+  if (items.length === 0) return <p className="muted small">Nothing has happened yet. The timeline starts when the owner opens the challenge.</p>;
+  const now = Date.now();
+  return (
+    <ol className="timeline">
+      {items.map((item) => (
+        <li key={item.label} className={item.at.getTime() > now ? "future" : ""}>
+          <span className="timeline-dot" aria-hidden="true" />
+          <div><strong>{item.label}</strong> <span className="muted small mono">{utc(item.at)}</span><p className="text-2 small">{item.text}</p></div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id: string; label: string }[] }) {
+  const { view, listing, network, evaluations } = detail;
+  const keys = useKeys(detail);
+  const award = view.award;
+  const builders = new Set(evaluations.filter((e) => e.eligible !== false && e.submitter !== view.owner).map((e) => e.submitter)).size;
+  const passed = evaluations.filter((e) => e.status === "Passed").length;
+  const status = displayStatus(view);
+  return (
+    <aside className="cx-side">
+      <div className="side-block">
+        <h4>Challenge host</h4>
+        <div className="side-host"><HostMark name={listing.sponsor} size={34} /><div><strong>{listing.sponsor}</strong><Link to={`/accounts/${view.owner}`} className="muted small break">{view.owner}</Link></div></div>
+      </div>
+      <div className="side-block">
+        <h4>Reward</h4>
+        <p className="side-reward"><Coins /> {formatNear(award?.amount ?? view.bounty ?? "0")}</p>
+        <p className="muted small">{award ? (award.paid ? <>Paid to <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
+        {status === "open" && <p className="small"><Timer /> <Countdown closesAt={view.closes_at} /></p>}
+      </div>
+      <div className="side-block">
+        <h4>Participation</h4>
+        <dl className="side-stats">
+          <div><dt>Builders</dt><dd>{builders}</dd></div>
+          <div><dt>Results</dt><dd>{evaluations.length}</dd></div>
+          <div><dt>Met every requirement</dt><dd>{passed}</dd></div>
+          {!!view.pending && <div><dt>Scoring now</dt><dd>{view.pending}</dd></div>}
+        </dl>
+      </div>
+      <div className="side-block">
+        <h4>Contract</h4>
+        <div className="hash-line"><a className="mono small break" href={explorer(network, "address", listing.id)} target="_blank" rel="noopener noreferrer">{listing.id}</a><CopyButton text={listing.id} label="Copy the contract account" /></div>
+        <p className="side-chips">
+          <span className="chip chip-grey">{network}</span>
+          {keys.data && (keys.data.length === 0 ? <span className="chip chip-green">Locked · 0 keys</span> : <span className="chip chip-amber">Not locked · {keys.data.length} {keys.data.length === 1 ? "key" : "keys"}</span>)}
+        </p>
+      </div>
+      {listing.tags && listing.tags.length > 0 && (
+        <div className="side-block">
+          <h4>Tags</h4>
+          <p className="side-chips">{listing.tags.map((t) => <span key={t} className="chip chip-grey">{t}</span>)}</p>
+        </div>
+      )}
+      <nav className="side-block side-toc" aria-label="On this page">
+        <h4>On this page</h4>
+        {sections.map((s) => <button key={s.id} type="button" onClick={() => scrollToSection(s.id)}>{s.label}</button>)}
+      </nav>
+    </aside>
+  );
+}
+
+function RequirementsTable({ gates, baseline }: { gates: Gates; baseline: Baseline }) {
+  const rows = [
+    { name: "Accuracy on the hidden tickets", needed: `≥ ${percent(gates.min_accuracy_bp)}`, base: baseline.accuracy_bp ? percent(baseline.accuracy_bp) : "–" },
+    { name: "Cost per ticket", needed: `≤ ${microDollars(gates.max_cost_per_ticket_uusd)}`, base: baseline.cost_per_ticket_uusd ? microDollars(baseline.cost_per_ticket_uusd) : "–" },
+    { name: "p95 latency", needed: `≤ ${seconds(gates.max_p95_latency_ms)}`, base: baseline.p95_latency_ms ? seconds(baseline.p95_latency_ms) : "–" },
+    { name: "Card numbers repeated", needed: gates.max_leaks === 0 ? "None" : `≤ ${gates.max_leaks}`, base: "–" },
+  ];
+  return (
+    <div className="table-wrap">
+      <table className="table">
+        <thead><tr><th>Requirement</th><th className="num">Needed</th><th className="num">The team's baseline</th></tr></thead>
+        <tbody>{rows.map((r) => <tr key={r.name}><td>{r.name}</td><td className="num">{r.needed}</td><td className="num muted">{r.base}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function RulesTab({ detail }: { detail: ChallengeDetail }) {
+  const gates = challengeGates(detail.view);
+  const rules = useMemo(() => {
+    try {
+      return JSON.parse(detail.view.rules_json) as { models?: Record<string, unknown>; allowed_tools?: string[]; allowed_request_options?: string[]; max_tokens_cap?: number; time_budget_ms?: number; max_concurrency?: number };
+    } catch {
+      return null;
+    }
+  }, [detail.view.rules_json]);
+  return (
+    <div className="tab-body">
+      {gates && (
+        <DocSection id="requirements" title="Requirements" intro="A result must meet all four on the hidden tickets. They are the contract's rules, frozen when the challenge opened.">
+          <div className="card card-pad"><RequirementsTable gates={gates} baseline={detail.listing.baseline} /></div>
+        </DocSection>
+      )}
+      <DocSection id="reward-rules" title="How the reward is won">
+        <ul className="check-list">
+          <li>The earliest-submitted result that meets every requirement wins, once every submission made before it has settled. A copied config is always submitted later than its original.</li>
+          <li>The owner's own submissions are trial runs: recorded, never paid.</li>
+          <li>A submission made before the deadline can still win after it.</li>
+          <li>If nobody wins by the deadline, the owner can take the reward back.</li>
+        </ul>
+      </DocSection>
+      {rules && (
+        <DocSection id="what-you-can-change" title="What a solution can change">
+          <dl className="config-facts rules-facts">
+            <div><dt>Models</dt><dd className="mono">{Object.keys(rules.models ?? {}).join(", ") || "–"}</dd></div>
+            <div><dt>Tools</dt><dd>{rules.allowed_tools?.length ? rules.allowed_tools.join(", ") : "None: no tool calls or webhooks"}</dd></div>
+            <div><dt>Request options</dt><dd className="mono">{rules.allowed_request_options?.join(", ") || "–"}</dd></div>
+            <div><dt>Most output tokens</dt><dd>{rules.max_tokens_cap ?? "–"}</dd></div>
+            <div><dt>Time for the whole run</dt><dd>{rules.time_budget_ms ? seconds(rules.time_budget_ms) : "–"}</dd></div>
+            <div><dt>Tickets in flight</dt><dd>{rules.max_concurrency ?? 8}</dd></div>
+          </dl>
+          <details className="raw-rules"><summary className="small">The rules as the contract stores them</summary><CodeBlock code={JSON.stringify(JSON.parse(detail.view.rules_json), null, 2)} label="Rules JSON" /></details>
+        </DocSection>
+      )}
+      <DocSection id="verification" title="Verification">
+        <div className="card card-pad"><Verification detail={detail} /></div>
+      </DocSection>
+    </div>
+  );
+}
+
+function MoreMenu({ detail, isOwner, onRefresh }: { detail: ChallengeDetail; isOwner: boolean; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => !ref.current?.contains(event.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const id = detail.listing.id;
+  return (
+    <div className="menu" ref={ref}>
+      <button type="button" className="icon-btn" aria-label="More actions" aria-expanded={open} onClick={() => setOpen((o) => !o)}><More /></button>
+      <AnimatePresence>
+        {open && (
+          <motion.div className="menu-panel" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.14 }}>
+            <button type="button" className="menu-item" onClick={() => { void navigator.clipboard?.writeText(id); setOpen(false); }}><Copy /> Copy contract account</button>
+            <a className="menu-item" href={explorer(detail.network, "address", id)} target="_blank" rel="noopener noreferrer"><External /> View on explorer</a>
+            <button type="button" className="menu-item" onClick={() => { onRefresh(); setOpen(false); }}><Replay /> Read the contract again</button>
+            {isOwner && <Link className="menu-item" to={`/challenges/${id}/manage`} onClick={() => setOpen(false)}><Shield /> Manage challenge</Link>}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PrimaryAction({ detail, compact = false }: { detail: ChallengeDetail; compact?: boolean }) {
+  const { view, listing } = detail;
+  const status = displayStatus(view);
+  const size = compact ? "btn-sm" : "";
+  if (view.award) return <Link to={`/challenges/${listing.id}/results/${view.award.evaluation}`} className={`btn btn-primary ${size}`}>See the winning result</Link>;
+  if (status === "open") return <Link to={`/challenges/${listing.id}/take-part`} className={`btn btn-primary ${size}`}>Take part</Link>;
+  if (status === "draft") return <button type="button" className={`btn ${size}`} disabled>Opens soon</button>;
+  return <Link to={`/challenges/${listing.id}/leaderboard`} className={`btn ${size}`}>See the leaderboard</Link>;
+}
+
+/** True while the element is on screen; `ready` once it has rendered. */
+function useOnScreen<T extends Element>(ready: boolean): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => setOn(entry?.isIntersecting ?? true), { rootMargin: "-64px 0px 0px 0px" });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ready]);
+  return [ref, on];
+}
+
 export function Challenge() {
-  const { id = "" } = useParams();
+  const { id = "", tab: tabParam } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const session = useSession();
   const reduced = usePrefersReducedMotion();
   const [version, setVersion] = useState(0);
   const { data, error, loading } = useAsync(() => loadChallenge(id, version > 0), `${id}:${version}`);
   const [highlight, setHighlight] = useState<Set<number>>(new Set());
+  const [headRef, headOnScreen] = useOnScreen<HTMLDivElement>(data !== null);
   const refresh = () => {
     forget(id);
     setVersion((v) => v + 1);
@@ -231,12 +453,18 @@ export function Challenge() {
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, id]);
-  // Links such as "All results" name a section to open at.
+  // A link may name a section: one of this tab's, or one of the earlier single page's.
   const loaded = data !== null;
   useEffect(() => {
     const section = location.hash.replace(/^#/, "");
-    if (loaded && section) requestAnimationFrame(() => scrollToSection(section));
-  }, [loaded, location.hash]);
+    if (!loaded || !section) return;
+    const legacy = LEGACY[section];
+    if (legacy && !tabParam && legacy.tab !== "overview") {
+      navigate(`/challenges/${id}/${legacy.tab}${legacy.section ? `#${legacy.section}` : ""}`, { replace: true });
+      return;
+    }
+    requestAnimationFrame(() => scrollToSection(legacy?.section ?? section));
+  }, [loaded, location.hash, tabParam, id, navigate]);
 
   if (!data) {
     if (error && !loading) {
@@ -257,190 +485,181 @@ export function Challenge() {
   const { view, listing, network } = data;
   const gates = challengeGates(view);
   const award = view.award;
-  const cut = costCut(listing.baseline, data.winner);
-  const closes = nsToDate(view.closes_at);
-  const status = displayStatus(view);
   const isOwner = session.account === view.owner;
-  const sections = isOwner ? [{ id: "manage", label: "Manage" }, ...SECTIONS] : SECTIONS;
-  const winningResult = award ? `/challenges/${id}/results/${award.evaluation}` : null;
+  const tab: Tab = TABS.includes(tabParam as Tab) && (tabParam !== "manage" || isOwner) ? (tabParam as Tab) : "overview";
+  const cut = costCut(listing.baseline, data.winner);
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "data", label: "Data" },
+    { id: "leaderboard", label: "Leaderboard", count: view.evaluations },
+    { id: "rules", label: "Rules" },
+    { id: "take-part", label: "Take part" },
+    ...(isOwner ? [{ id: "manage" as Tab, label: "Manage" }] : []),
+  ];
+  const overviewSections = [
+    { id: "problem", label: "Overview" },
+    ...(gates ? [{ id: "goal", label: "Goal" }] : []),
+    { id: "testing", label: "How it's tested" },
+    { id: "timeline", label: "Timeline" },
+  ];
+  const href = (t: Tab) => `/challenges/${id}${t === "overview" ? "" : `/${t}`}`;
 
   return (
     <div className="page challenge-page">
-      <div className="page-hero grid-bg-wrap">
-        <div className="grid-bg page-grid" aria-hidden="true" />
-        <div className="container">
-          <Link to="/challenges" className="back-link">← Challenges</Link>
-          <div className="challenge-head">
-            <motion.div initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
-              <div className="challenge-meta">
-                <span className="eyebrow-plain">{listing.sponsor}</span>
-                <StatusBadge view={view} />
-                <span className="badge">{network}</span>
-                {listing.demo && <DemoBadge />}
-              </div>
-              <h1 className="page-title">{listing.title}</h1>
-              <p className="page-lede">{listing.summary}</p>
-              <div className="contract-line">
-                <span className="muted small">Contract</span>
-                <a className="mono small break" href={explorer(network, "address", listing.id)} target="_blank" rel="noopener noreferrer">{listing.id}</a>
-                <CopyButton text={listing.id} label="Copy contract account" />
-              </div>
-            </motion.div>
-            <motion.aside className="bounty-card card" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}>
-              <span className="label"><Coins /> {award ? (award.paid ? "Reward paid" : "Reward won, not yet paid") : "Reward held by the contract"}</span>
-              <strong className="bounty-amount amber">{formatNear(award?.amount ?? view.bounty ?? "0")}</strong>
-              <div className="bounty-rows">
-                <div><span className="muted"><Timer /> {status === "open" ? "Closes in" : "Deadline"}</span><span>{status === "open" ? <Countdown closesAt={view.closes_at} /> : closes ? utc(closes) : "Set when it opens"}</span></div>
-                <div><span className="muted">Results</span><span className="tabular">{view.evaluations}{view.pending ? ` · ${view.pending} scoring` : ""}</span></div>
-                <div><span className="muted">Hidden test tickets</span><span className="tabular">{listing.tickets || "–"}</span></div>
-              </div>
-              {award && (
-                <div className="bounty-winner">
-                  <span className="muted small">Won by</span>
-                  <Account id={award.winner} network={network} />
-                  {cut !== null && cut > 0 && <span className="badge badge-green">{cut}% cheaper than baseline</span>}
-                </div>
-              )}
-              {winningResult ? (
-                <Link to={winningResult} className="btn btn-primary">See the winning result <ArrowRight /></Link>
-              ) : status === "open" ? (
-                <button type="button" className="btn btn-primary" onClick={() => scrollToSection("take-part")}>Take part <ArrowRight /></button>
-              ) : status === "draft" ? (
-                <p className="muted small">Opens to builders once the owner funds and opens it.</p>
-              ) : (
-                <button type="button" className="btn" onClick={() => scrollToSection("results")}>See the results <ArrowRight /></button>
-              )}
-              {isOwner && <button type="button" className="btn btn-ghost btn-sm" onClick={() => scrollToSection("manage")}>Manage challenge</button>}
-            </motion.aside>
-          </div>
+      <div className="container cx-head" ref={headRef}>
+        <div className="cx-hostline">
+          <HostMark name={listing.sponsor} size={30} />
+          <span className="cx-hostline-text">{listing.sponsor} · AI workflow challenge · {network}</span>
+          <StatusChip view={view} />
+          {listing.demo && <DemoBadge />}
+          <span className="cx-actions"><PrimaryAction detail={data} /><MoreMenu detail={data} isOwner={isOwner} onRefresh={refresh} /></span>
         </div>
+        <motion.div className="cx-title" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
+          <div>
+            <h1>{listing.title}</h1>
+            <p className="text-2">{listing.summary}</p>
+            {award && data.winner && (
+              <p className="cx-winline">
+                <Avatar id={award.winner} size={22} />
+                <span><Link to={`/accounts/${award.winner}`}><strong>{award.winner}</strong></Link> won {formatNear(award.amount)} at {percent(data.winner.accuracy_bp)}{cut !== null && cut > 0 ? `, ${cut}% cheaper than the baseline` : ""}</span>
+              </p>
+            )}
+          </div>
+          <div className="cx-cover"><Cover id={listing.id} lit={data.winner?.accuracy_bp ? data.winner.accuracy_bp / 10_000 : 0.35} /></div>
+        </motion.div>
       </div>
 
-      <nav className="story-nav" aria-label="On this page">
-        <div className="container story-nav-inner">
-          {sections.map((s) => (
-            <button key={s.id} type="button" onClick={() => scrollToSection(s.id)}>
-              {s.label}{s.id === "results" && view.evaluations > 0 && <span className="tab-count">{view.evaluations}</span>}
-            </button>
-          ))}
+      <nav className={`cx-tabs ${headOnScreen ? "" : "stuck"}`} aria-label="Challenge">
+        <div className="container cx-tabs-inner">
+          <span className="cx-tabs-title" aria-hidden={headOnScreen}>{listing.title}</span>
+          <div className="cx-tab-list">
+            {tabs.map((t) => (
+              <NavLink key={t.id} to={href(t.id)} end className={() => `cx-tab ${t.id === tab ? "active" : ""}`} aria-current={t.id === tab ? "page" : undefined}>
+                {t.label}{t.count !== undefined && t.count > 0 && <span className="tab-count">{t.count}</span>}
+                {t.id === tab && <motion.span layoutId="cx-tab-line" className="cx-tab-line" transition={{ type: "spring", bounce: 0.15, duration: 0.4 }} />}
+              </NavLink>
+            ))}
+          </div>
+          <span className="cx-tabs-action"><PrimaryAction detail={data} compact /></span>
         </div>
       </nav>
 
-      <div className="container page-body story">
-        {listing.demo && <DemoNotice sponsor={listing.sponsor} network={network} />}
-
-        {award?.paid && data.winner && (
-          <Reveal className="award-callout">
-            <span className="award-glow" aria-hidden="true" />
-            <Check />
-            <p>
-              <strong>{award.winner}</strong> met every requirement with result #{award.evaluation} ({percent(data.winner.accuracy_bp)} accuracy at {microDollars(data.winner.cost_per_ticket_uusd)} a ticket), and the contract paid {formatNear(award.amount)} with the result.{" "}
-              <Link to={winningResult!}>See the result</Link>
-            </p>
-          </Reveal>
-        )}
-        {award && !award.paid && (
-          <Reveal className="award-callout pending">
-            <Timer />
-            <div>
-              <p>
-                <strong>{award.winner}</strong> won the {formatNear(award.amount)} reward with result #{award.evaluation}.{" "}
-                {award.in_flight ? "The payment is on its way." : "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner."}
-              </p>
-              <RetryPayment id={id} award={award} onChanged={refresh} />
-            </div>
-          </Reveal>
-        )}
-
-        {isOwner && (
-          <Section id="manage" title="Manage challenge" intro={<>You are connected as the owner, <strong className="break">{view.owner}</strong>. Only you see this section.</>}>
-            <div className="card card-pad">
-              <ManagePanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />
-            </div>
-          </Section>
-        )}
-
-        <Section id="problem" title="The problem" intro={`What ${listing.sponsor}'s workflow does today, in its own words and figures.`}>
-          <div className="problem card card-pad">
-            <p className="problem-text">{listing.problem ?? listing.summary}</p>
-            {listing.baseline.accuracy_bp > 0 && (
-              <dl className="today">
-                <div><dt>Accuracy today</dt><dd>{percent(listing.baseline.accuracy_bp)}</dd></div>
-                <div><dt>Cost per ticket</dt><dd>{microDollars(listing.baseline.cost_per_ticket_uusd)}</dd></div>
-                <div><dt>p95 latency</dt><dd>{seconds(listing.baseline.p95_latency_ms)}</dd></div>
-              </dl>
-            )}
-            <p className="muted small">Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</p>
-          </div>
-        </Section>
-
-        {gates && (
-          <Section id="goal" title="The goal" intro={goalSentence(gates, listing.baseline)}>
-            <div className="card card-pad bar-card">
-              <div className="card-title-row">
-                <p className="muted small">A solution must meet every requirement on the {listing.tickets || ""} hidden tickets. The requirements are the contract's rules.</p>
-                <div className="legend">
-                  <span><i className="legend-baseline" /> Baseline</span>
-                  <span><i className="legend-gate" /> Needed</span>
-                  {best?.metrics && <span><i className="legend-best" /> {best.label}</span>}
+      <div className="container page-body">
+        {tab === "overview" && (
+          <div className="cx-overview">
+            <div className="tab-body">
+              {listing.demo && <DemoNotice sponsor={listing.sponsor} network={network} />}
+              {award && !award.paid && (
+                <Reveal className="award-callout pending">
+                  <Timer />
+                  <div>
+                    <p>
+                      <strong>{award.winner}</strong> won the {formatNear(award.amount)} reward with result #{award.evaluation}.{" "}
+                      {award.in_flight ? "The payment is on its way." : "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner."}
+                    </p>
+                    <RetryPayment id={id} award={award} onChanged={refresh} />
+                  </div>
+                </Reveal>
+              )}
+              <DocSection id="problem" title="Overview" intro={`What ${listing.sponsor}'s workflow does today, in its own words and figures.`}>
+                <p className="problem-text">{listing.problem ?? listing.summary}</p>
+                {listing.baseline.accuracy_bp > 0 && (
+                  <dl className="today">
+                    <div><dt>Accuracy today</dt><dd>{percent(listing.baseline.accuracy_bp)}</dd></div>
+                    <div><dt>Cost per ticket</dt><dd>{microDollars(listing.baseline.cost_per_ticket_uusd)}</dd></div>
+                    <div><dt>p95 latency</dt><dd>{seconds(listing.baseline.p95_latency_ms)}</dd></div>
+                  </dl>
+                )}
+                <p className="muted small">Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</p>
+              </DocSection>
+              {gates && (
+                <DocSection id="goal" title="Goal" intro={goalSentence(gates, listing.baseline)}>
+                  <div className="card card-pad bar-card">
+                    <div className="card-title-row">
+                      <p className="muted small">A solution must meet every requirement on the {listing.tickets || ""} hidden tickets. The requirements are the contract's rules.</p>
+                      <div className="legend">
+                        <span><i className="legend-baseline" /> Baseline</span>
+                        <span><i className="legend-gate" /> Needed</span>
+                        {best?.metrics && <span><i className="legend-best" /> {best.label}</span>}
+                      </div>
+                    </div>
+                    <TheBar gates={gates} baseline={listing.baseline} best={best?.metrics ?? null} bestLabel={best?.label ?? ""} />
+                  </div>
+                </DocSection>
+              )}
+              <DocSection id="testing" title="How it's tested" intro="Builders tune in the open and are scored in private, once, on tickets they never see.">
+                <div className="compare">
+                  <div className="card card-pad compare-col">
+                    <h3>Builders can see</h3>
+                    <ul className="check-list">
+                      <li>The rules and requirements, as the contract stores them</li>
+                      <li>{listing.practice_tickets ? `${listing.practice_tickets} practice tickets` : "Practice tickets"} with their labels, in the <Link to={href("data")}>Data</Link> tab</li>
+                      <li>The labelling guide every ticket follows</li>
+                      <li>The evaluator build, to score solutions on practice tickets</li>
+                    </ul>
+                  </div>
+                  <div className="card card-pad compare-col">
+                    <h3><Lock /> Hidden from builders</h3>
+                    <ul className="check-list">
+                      <li>{listing.tickets ? `${listing.tickets} test tickets` : "The test tickets"} and their labels</li>
+                      <li>The owner's model API key</li>
+                      <li>Every per-ticket answer from the test</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
-              <TheBar gates={gates} baseline={listing.baseline} best={best?.metrics ?? null} bestLabel={best?.label ?? ""} />
+                <p className="muted small story-note">
+                  Each submission is scored once, inside an OutLayer enclave, on the hidden tickets; only totals and hashes come out. The tickets are sent to the model on NEAR AI Cloud to be answered. <Link to="/how-it-works">What you still have to trust</Link>
+                </p>
+              </DocSection>
+              <DocSection id="timeline" title="Timeline">
+                <Timeline detail={data} />
+              </DocSection>
+              {!session.account && (
+                <p className="muted small owner-hint">
+                  Own this challenge? <button type="button" className="link-button" onClick={() => void session.signIn()}>Connect the owner's wallet</button> to fund, open or withdraw it.
+                </p>
+              )}
             </div>
-          </Section>
+            <Sidebar detail={data} sections={overviewSections} />
+          </div>
         )}
 
-        <Section id="testing" title="How it's tested" intro="Builders tune in the open and are scored in private, once, on tickets they never see.">
-          <div className="compare">
-            <div className="card card-pad compare-col">
-              <h3>Builders can see</h3>
-              <ul className="check-list">
-                <li>The rules and requirements, as the contract stores them</li>
-                <li>{listing.practice_tickets ? `${listing.practice_tickets} practice tickets` : "Practice tickets"} with their labels</li>
-                <li>The labelling guide every ticket follows</li>
-                <li>The evaluator build, to score solutions on practice tickets</li>
-              </ul>
+        {tab === "data" && <ErrorBoundary><DataExplorer detail={data} /></ErrorBoundary>}
+
+        {tab === "leaderboard" && (
+          <div className="tab-body">
+            <div className="freshness" aria-live="polite">
+              <span className="muted small">
+                {loading ? "Reading the contract…" : readAt ? <>Read from {network} at {readAt.toISOString().slice(11, 19)} UTC{pending ? ` · ${pending} result${pending > 1 ? "s" : ""} scoring, updating every 10 s` : ""}</> : null}
+              </span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading}>{loading && <span className="spinner" aria-hidden="true" />}Refresh</button>
             </div>
-            <div className="card card-pad compare-col">
-              <h3><Lock /> Hidden from builders</h3>
-              <ul className="check-list">
-                <li>{listing.tickets ? `${listing.tickets} test tickets` : "The test tickets"} and their labels</li>
-                <li>The owner's model API key</li>
-                <li>Every per-ticket answer from the test</li>
-              </ul>
-            </div>
+            <ErrorBoundary>
+              <ChallengeLeaderboard detail={data} highlight={highlight}>
+                <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
+              </ChallengeLeaderboard>
+            </ErrorBoundary>
           </div>
-          <p className="muted small story-note">
-            Each submission is scored once, inside an OutLayer enclave, on the hidden tickets; only totals and hashes come out. The tickets are sent to the model on NEAR AI Cloud to be answered. <Link to="/how-it-works">What you still have to trust</Link>
-          </p>
-        </Section>
+        )}
 
-        <Section id="results" title="Results" intro="Every submission's outcome, as the contract recorded it. Open one to see what changed and how to use it.">
-          <div className="freshness" aria-live="polite">
-            <span className="muted small">
-              {loading ? "Reading the contract…" : readAt ? <>Read from {network} at {readAt.toISOString().slice(11, 19)} UTC{pending ? ` · ${pending} result${pending > 1 ? "s" : ""} scoring, updating every 10 s` : ""}</> : null}
-            </span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading}>{loading && <span className="spinner" aria-hidden="true" />}Refresh</button>
+        {tab === "rules" && <RulesTab detail={data} />}
+
+        {tab === "take-part" && (
+          <div className="tab-body">
+            <DocSection id="take-part" title="Take part">
+              <div className="card card-pad"><TakePart detail={data} /></div>
+            </DocSection>
           </div>
-          <div className="card card-pad">
-            <ResultsTable challenge={id} evaluations={data.evaluations} network={network} awarded={award?.evaluation ?? null} highlight={highlight} />
-            <hr className="divider" />
-            <FindConfig evaluations={data.evaluations} onFound={setHighlight} />
+        )}
+
+        {tab === "manage" && isOwner && (
+          <div className="tab-body">
+            <DocSection id="manage" title="Manage challenge" intro={<>You are connected as the owner, <strong className="break">{view.owner}</strong>. Only you see this tab.</>}>
+              <div className="card card-pad">
+                <ManagePanel id={id} network={network} view={view} rpc={rpcFor(network)} onChanged={refresh} />
+              </div>
+            </DocSection>
           </div>
-        </Section>
-
-        <Section id="take-part" title="Take part">
-          <div className="card card-pad"><TakePart detail={data} /></div>
-        </Section>
-
-        <Section id="verification" title="Rules and verification">
-          <div className="card card-pad"><Verification detail={data} /></div>
-        </Section>
-
-        {!session.account && (
-          <p className="muted small owner-hint">
-            Own this challenge? <button type="button" className="link-button" onClick={() => void session.signIn()}>Connect the owner's wallet</button> to fund, open or withdraw it.
-          </p>
         )}
       </div>
     </div>

@@ -30,6 +30,9 @@ const router = createHashRouter([
       { path: "/challenges", lazy: () => import("./pages/Challenges.tsx").then((m) => ({ Component: m.Challenges })), ErrorBoundary: PageError },
       { path: "/challenges/:id", lazy: () => import("./pages/Challenge.tsx").then((m) => ({ Component: m.Challenge })), ErrorBoundary: PageError },
       { path: "/challenges/:id/results/:n", lazy: () => import("./pages/Result.tsx").then((m) => ({ Component: m.Result })), ErrorBoundary: PageError },
+      { path: "/challenges/:id/:tab", lazy: () => import("./pages/Challenge.tsx").then((m) => ({ Component: m.Challenge })), ErrorBoundary: PageError },
+      { path: "/leaderboard", lazy: () => import("./pages/Leaderboard.tsx").then((m) => ({ Component: m.Leaderboard })), ErrorBoundary: PageError },
+      { path: "/accounts/:id", lazy: () => import("./pages/Account.tsx").then((m) => ({ Component: m.Account })), ErrorBoundary: PageError },
       { path: "/builders", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Builders })), ErrorBoundary: PageError },
       { path: "/teams", lazy: () => import("./pages/Guides.tsx").then((m) => ({ Component: m.Teams })), ErrorBoundary: PageError },
       // The guides' earlier addresses, kept for links already shared.
