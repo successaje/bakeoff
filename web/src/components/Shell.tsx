@@ -1,11 +1,11 @@
 /**
- * The frame around every page: a rail of destinations on the left, a bar
- * with search and the visitor's controls on top, and the footer. On narrow
- * screens the rail becomes a drawer.
+ * The frame around every page: a bar along the top with the destinations,
+ * search and the visitor's controls, and the footer. On narrow screens the
+ * destinations move into a drawer.
  */
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate, useOutlet } from "react-router";
 import { loadAll } from "../lib/data.ts";
 import { usePrefersReducedMotion } from "../lib/hooks.ts";
@@ -21,7 +21,6 @@ import { explorer } from "./ui.tsx";
 const REPO = "https://github.com/successaje/bakeoff";
 
 const NAV = [
-  { to: "/", label: "Home", icon: Home, end: true },
   { to: "/challenges", label: "Challenges", icon: Trophy },
   { to: "/leaderboard", label: "Leaderboard", icon: Podium },
   { to: "/builders", label: "For builders", icon: Bot },
@@ -96,7 +95,7 @@ function WalletButton() {
 
   if (!account) {
     return (
-      <button type="button" className="btn btn-primary btn-sm" disabled={!walletReady} onClick={() => void signIn()}>
+      <button type="button" className="btn btn-primary nav-connect" disabled={!walletReady} onClick={() => void signIn()}>
         <Wallet /> <span>Connect</span>
       </button>
     );
@@ -126,8 +125,12 @@ function WalletButton() {
   );
 }
 
-/** Challenges on both networks, and the builders on this one, found as you type. */
-function SearchBox({ onDone }: { onDone?: () => void }) {
+/**
+ * Challenges on both networks, and the builders on this one, found as you
+ * type. In the top bar it opens in place of the links and closes on Escape
+ * or a click elsewhere.
+ */
+function SearchBox({ onDone, onClose, autoFocus = false }: { onDone?: () => void; onClose?: () => void; autoFocus?: boolean }) {
   const { network } = useSession();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -135,7 +138,10 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
   const [active, setActive] = useState(0);
   const [items, setItems] = useState<SearchItem[]>([]);
   const input = useRef<HTMLInputElement>(null);
-  const ref = useDismiss(open, () => setOpen(false));
+  const ref = useDismiss(open || Boolean(onClose), () => {
+    setOpen(false);
+    onClose?.();
+  });
 
   // The index loads the first time the box is used.
   const [wanted, setWanted] = useState(false);
@@ -152,18 +158,9 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
     };
   }, [wanted, network]);
 
-  // "/" focuses the box from anywhere but a text field.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (event.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(target.tagName) && !target.isContentEditable) {
-        event.preventDefault();
-        input.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
+    if (autoFocus) input.current?.focus();
+  }, [autoFocus]);
 
   const results = useMemo(() => search(items, query), [items, query]);
   const go = (item: SearchItem | undefined) => {
@@ -173,6 +170,7 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
     setOpen(false);
     input.current?.blur();
     onDone?.();
+    onClose?.();
   };
 
   return (
@@ -202,9 +200,9 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
           if (event.key === "ArrowDown") { event.preventDefault(); setActive((a) => Math.min(a + 1, results.length - 1)); }
           if (event.key === "ArrowUp") { event.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
           if (event.key === "Enter") { event.preventDefault(); go(results[active]); }
+          if (event.key === "Escape") onClose?.();
         }}
       />
-      <kbd className="search-kbd" aria-hidden="true">/</kbd>
       <AnimatePresence>
         {open && query.trim() !== "" && (
           <motion.ul id="search-results" className="search-results" role="listbox" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }}>
@@ -228,38 +226,29 @@ function SearchBox({ onDone }: { onDone?: () => void }) {
   );
 }
 
-const RAIL_KEY = "bakeoff:rail";
-
-function Rail({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <aside className="rail" aria-label="Main">
-      <div className="rail-top">
-        <button type="button" className="rail-toggle" aria-label={open ? "Collapse the menu" : "Expand the menu"} aria-expanded={open} onClick={onToggle}><Menu /></button>
-        <Brand />
-      </div>
-      <Link to="/teams" className="rail-create" title="Host a challenge">
-        <Plus /><span className="rail-label">Host a challenge</span>
-      </Link>
-      <nav className="rail-nav">
-        {NAV.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `rail-link ${isActive ? "active" : ""}`} title={open ? undefined : item.label}>
-            <item.icon />
-            <span className="rail-label">{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-      <div className="rail-bottom">
-        <a className="rail-link" href={REPO} target="_blank" rel="noopener noreferrer" title={open ? undefined : "Source on GitHub"}>
-          <Github />
-          <span className="rail-label">Source</span>
-        </a>
-      </div>
-    </aside>
-  );
+/** "/" opens search from anywhere but a text field. */
+function useSlashKey(open: () => void) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (event.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(target.tagName) && !target.isContentEditable) {
+        event.preventDefault();
+        open();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 }
 
-function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
+function TopNav({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const openSearch = useCallback(() => setSearching(true), []);
+  const closeSearch = useCallback(() => setSearching(false), []);
+  useSlashKey(openSearch);
+  useEffect(() => setSearching(false), [location.pathname]);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
     onScroll();
@@ -267,16 +256,30 @@ function TopBar({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return (
-    <header className={`topbar ${scrolled ? "scrolled" : ""}`}>
-      <button type="button" className="icon-btn mobile-only" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={onMenu}>
-        {menuOpen ? <Close /> : <Menu />}
-      </button>
-      <span className="mobile-only topbar-brand"><Brand /></span>
-      <SearchBox />
-      <div className="topbar-actions">
-        <NetworkSwitch />
-        <ThemeToggle />
-        <WalletButton />
+    <header className={`nav ${scrolled ? "scrolled" : ""} ${searching ? "searching" : ""}`}>
+      <div className="container nav-inner">
+        <button type="button" className="icon-btn nav-menu" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={onMenu}>
+          {menuOpen ? <Close /> : <Menu />}
+        </button>
+        <Brand />
+        {searching ? (
+          <div className="nav-search"><SearchBox autoFocus onClose={closeSearch} /></div>
+        ) : (
+          <nav className="nav-links" aria-label="Main">
+            {NAV.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>{item.label}</NavLink>
+            ))}
+          </nav>
+        )}
+        <div className="nav-actions">
+          {!searching && (
+            <button type="button" className="nav-round" aria-label="Search challenges and builders" title="Search ( / )" onClick={openSearch}><Search /></button>
+          )}
+          <span className="nav-wide"><NetworkSwitch /></span>
+          <span className="nav-wide"><ThemeToggle /></span>
+          <Link to="/teams" className="nav-text">Host a challenge</Link>
+          <WalletButton />
+        </div>
       </div>
     </header>
   );
@@ -290,8 +293,8 @@ function Drawer({ onClose }: { onClose: () => void }) {
         <div className="drawer-search"><SearchBox onDone={onClose} /></div>
         <Link to="/teams" className="btn btn-primary drawer-create" onClick={onClose}><Plus /> Host a challenge</Link>
         <nav className="drawer-nav">
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `drawer-link ${isActive ? "active" : ""}`} onClick={onClose}>
+          {[{ to: "/", label: "Home", icon: Home, end: true }, ...NAV].map((item) => (
+            <NavLink key={item.to} to={item.to} end={"end" in item} className={({ isActive }) => `drawer-link ${isActive ? "active" : ""}`} onClick={onClose}>
               <item.icon /> {item.label}
             </NavLink>
           ))}
@@ -307,56 +310,54 @@ function Footer() {
   const { network } = useSession();
   return (
     <footer className="site-footer">
-      <div className="container">
-        <div className="footer-top">
-          <div className="footer-brand">
-            <Brand />
-            <p className="muted">Make your AI work better. Set a goal, compare solutions, reward results.</p>
+      <div className="container footer-top">
+        <div className="footer-brand">
+          <Link to="/" className="footer-mark" aria-label="Bakeoff home"><LogoMark /><span>Bakeoff</span></Link>
+          <p className="footer-tag">Set a goal. Compare solutions. <span className="serif">Reward results.</span></p>
+        </div>
+        <div className="footer-links">
+          <div>
+            <h4>Product</h4>
+            <Link to="/challenges">Challenges</Link>
+            <Link to="/leaderboard">Leaderboard</Link>
+            <Link to="/how-it-works">How it works</Link>
           </div>
-          <div className="footer-links">
-            <div>
-              <h4>Product</h4>
-              <Link to="/challenges">Challenges</Link>
-              <Link to="/leaderboard">Leaderboard</Link>
-              <Link to="/how-it-works">How it works</Link>
-            </div>
-            <div>
-              <h4>Build</h4>
-              <Link to="/builders">For builders</Link>
-              <Link to="/teams">Host a challenge</Link>
-              <a href={REPO} target="_blank" rel="noopener noreferrer">Source</a>
-            </div>
-            <div>
-              <h4>Built on</h4>
-              <a href="https://near.org" target="_blank" rel="noopener noreferrer">NEAR</a>
-              <a href="https://outlayer.ai" target="_blank" rel="noopener noreferrer">OutLayer</a>
-              <a href="https://near.ai" target="_blank" rel="noopener noreferrer">NEAR AI Cloud</a>
-            </div>
+          <div>
+            <h4>Take part</h4>
+            <Link to="/teams">Host a challenge</Link>
+            <Link to="/builders">For builders</Link>
+            <Link to="/builders">Connect an agent</Link>
+          </div>
+          <div>
+            <h4>Built on</h4>
+            <a href="https://near.org" target="_blank" rel="noopener noreferrer">NEAR Protocol</a>
+            <a href="https://outlayer.ai" target="_blank" rel="noopener noreferrer">OutLayer</a>
+            <a href="https://near.ai" target="_blank" rel="noopener noreferrer">NEAR AI Cloud</a>
+          </div>
+          <div>
+            <h4>Project</h4>
+            <a href={REPO} target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+            <a href={`${REPO}#how-would-you-cheat-it`} target="_blank" rel="noopener noreferrer">How would you cheat it?</a>
+            <a href={`${REPO}/blob/main/LICENSE-MIT`} target="_blank" rel="noopener noreferrer">License</a>
           </div>
         </div>
-        <div className="footer-bottom">
+      </div>
+      <div className="footer-bottom">
+        <div className="container footer-bottom-inner">
+          <span>Bakeoff © 2026</span>
           <span className="footer-status"><span className="status-dot" aria-hidden="true" /> Reading {network} live</span>
-          <span className="muted">Rewards, results and payments are read from NEAR. Titles, descriptions and baselines are published by each challenge's owner.</span>
-          <a href={REPO} target="_blank" rel="noopener noreferrer" className="icon-btn" aria-label="Source on GitHub"><Github /></a>
+          <span className="muted footer-note">Rewards, results and payments are read from NEAR. Titles, descriptions and baselines are published by each challenge's owner.</span>
+          <a href={REPO} target="_blank" rel="noopener noreferrer" className="footer-gh" aria-label="Source on GitHub"><Github /></a>
         </div>
       </div>
     </footer>
   );
 }
 
-function storedRail(): boolean {
-  try {
-    return localStorage.getItem(RAIL_KEY) !== "closed";
-  } catch {
-    return true;
-  }
-}
-
 export function Shell() {
   const location = useLocation();
   const outlet = useOutlet();
   const reduced = usePrefersReducedMotion();
-  const [railOpen, setRailOpen] = useState(storedRail);
   const [drawer, setDrawer] = useState(false);
   // A challenge's tabs share one page, so only a new page scrolls to the top.
   const page = location.pathname.split("/").slice(0, 3).join("/");
@@ -367,35 +368,22 @@ export function Shell() {
   useEffect(() => {
     document.body.style.overflow = drawer ? "hidden" : "";
   }, [drawer]);
-  const toggleRail = () => {
-    setRailOpen((o) => {
-      try {
-        localStorage.setItem(RAIL_KEY, o ? "closed" : "open");
-      } catch {
-        // Applies for this visit only.
-      }
-      return !o;
-    });
-  };
   return (
-    <div className={`app ${railOpen ? "rail-open" : "rail-closed"}`}>
+    <div className="app">
       <a className="skip-link" href="#main">Skip to content</a>
-      <Rail open={railOpen} onToggle={toggleRail} />
-      <div className="app-main">
-        <TopBar onMenu={() => setDrawer((d) => !d)} menuOpen={drawer} />
-        {/* Each page animates in on arrival. There is no exit animation to wait
-            on, so a page that is still loading can never hold up the next one. */}
-        <motion.main
-          id="main"
-          key={page}
-          initial={reduced ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {outlet}
-        </motion.main>
-        <Footer />
-      </div>
+      <TopNav onMenu={() => setDrawer((d) => !d)} menuOpen={drawer} />
+      {/* Each page animates in on arrival. There is no exit animation to wait
+          on, so a page that is still loading can never hold up the next one. */}
+      <motion.main
+        id="main"
+        key={page}
+        initial={reduced ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {outlet}
+      </motion.main>
+      <Footer />
       <AnimatePresence>{drawer && <Drawer onClose={() => setDrawer(false)} />}</AnimatePresence>
     </div>
   );
