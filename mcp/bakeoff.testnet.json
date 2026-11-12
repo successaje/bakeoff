@@ -2,6 +2,11 @@
   "network": "testnet",
   "challenges": [
     {
+      "id": "challenge-20261112105023.finishr.testnet",
+      "practice_set": "../data/tickets/practice.json",
+      "labeling_guide": "../docs/labeling-guide.md"
+    },
+    {
       "id": "challenge-20261107114823.finishr.testnet",
       "practice_set": "../data/tickets/practice.json",
       "labeling_guide": "../docs/labeling-guide.md"
