@@ -119,9 +119,16 @@ a.live-pill:hover svg { transform: translateX(3px); }
 
 .ridge { position: relative; margin-top: var(--space-7); height: clamp(230px, 100px + 15vw, 330px); overflow: hidden; }
 .ridge-art { position: absolute; inset: 0; width: 100%; height: 100%; }
-.ridge-inner { position: relative; height: 100%; }
-.ridge-card { position: absolute; right: var(--space-5); bottom: 28px; width: min(360px, calc(100% - 2 * var(--space-5))); }
-.ridge-card .activity { box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14); border-radius: 18px; }
+/* The card anchors to the band's right edge, small and a little faint, clear of the peaks; hovering brings it up. */
+.ridge-inner { height: 100%; }
+.ridge-card { position: absolute; right: 20px; bottom: 18px; width: 276px; opacity: 0.86; transition: opacity var(--dur); }
+.ridge-card:hover, .ridge-card:focus-within { opacity: 1; }
+.ridge-card .activity { gap: 3px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 80%, transparent); border-color: color-mix(in srgb, var(--border-strong) 60%, transparent); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.ridge-card .chip { height: 18px; padding: 0 7px; font-size: 10.5px; }
+.ridge-card .activity-top .small { font-size: 11px; }
+.ridge-card .activity-text { gap: 6px; font-size: 12px; }
+.ridge-card .avatar { width: 16px !important; height: 16px !important; font-size: 8px !important; }
+.ridge-card .activity-title { font-size: 11.5px; }
 .ridge-snow { fill: var(--ridge-snow); }
 .ridge-gold { fill: var(--ridge-gold); }
 .ridge-green { fill: var(--ridge-green); }
@@ -145,7 +152,7 @@ a.live-pill:hover svg { transform: translateX(3px); }
 .ridge-row rect { animation: tone-in 1.1s var(--ease-out) var(--d) both; }
 @keyframes tone-in { from { fill: var(--ridge-blank); } }
 @media (max-width: 760px) {
-  .ridge-card { left: var(--space-4); right: var(--space-4); width: auto; bottom: 16px; }
+  .ridge-card { right: 12px; bottom: 12px; width: min(276px, calc(100% - 24px)); }
   .ridge-pin { display: none; }
 }
 
