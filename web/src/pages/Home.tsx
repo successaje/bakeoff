@@ -13,6 +13,7 @@ import { ActivityCard, ChallengeTile, MoreLink, SectionHead, topEntries } from "
 import { EvaluationRun } from "../components/EvaluationRun.tsx";
 import { ArrowRight, ArrowUpRight, Check, Coins, Lock, LogoMark, Plus, Shield } from "../components/Icons.tsx";
 import { AgentSession, AgentTiles, PEAKS, type Pin, RidgeArt } from "../components/landing.tsx";
+import { McpMark, NearAiMark, NearIntentsLogo, NearMark, OutLayerLogo } from "../components/logos.tsx";
 import { GoalPanel, PracticePanel, SealedPanel, STEPS } from "../components/StepPanels.tsx";
 import { Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, type ChallengeSummary, loadAll, loadChallenges, recordsOf } from "../lib/data.ts";
@@ -138,29 +139,29 @@ function Hero({ details, win }: { details: ChallengeDetail[] | null; win: Challe
   );
 }
 
-const STACK = [
-  { name: "NEAR Protocol", role: "holds the rules and the reward", href: "https://near.org" },
-  { name: "OutLayer", role: "runs each test in an enclave", href: "https://outlayer.ai" },
-  { name: "NEAR AI Cloud", role: "answers every hidden ticket", href: "https://near.ai" },
-  { name: "NEAR Intents", role: "funds a reward from any chain", href: "https://docs.near-intents.org" },
-  { name: "Model Context Protocol", role: "lets agents take part", href: "https://modelcontextprotocol.io" },
+const STACK: { name: string; role: string; href: string; logo: ReactNode }[] = [
+  { name: "NEAR Protocol", role: "holds the rules and the reward", href: "https://near.org", logo: <><NearMark className="stack-mark" /><span>NEAR Protocol</span></> },
+  { name: "OutLayer", role: "runs each test in an enclave", href: "https://outlayer.ai", logo: <OutLayerLogo className="stack-word" /> },
+  { name: "NEAR AI Cloud", role: "answers every hidden ticket", href: "https://near.ai", logo: <><NearAiMark className="stack-mark" /><span>NEAR AI Cloud</span></> },
+  { name: "NEAR Intents", role: "funds a reward from any chain", href: "https://docs.near-intents.org", logo: <NearIntentsLogo className="stack-word thin" /> },
+  { name: "Model Context Protocol", role: "lets agents take part", href: "https://modelcontextprotocol.io", logo: <><McpMark className="stack-mark" /><span>Model Context Protocol</span></> },
 ];
 
-/** What Bakeoff runs on, as the path a submission takes, each part with its job. */
+/** What Bakeoff runs on: each part's logo, and its job in a few words. */
 function BuiltOn() {
   return (
     <section className="container stackline" aria-label="Built on">
       <span className="mono-label">Built on</span>
-      <ol>
+      <ul>
         {STACK.map((part) => (
           <li key={part.name}>
-            <a href={part.href} target="_blank" rel="noopener noreferrer">
-              <strong>{part.name}</strong>
-              <span>{part.role}</span>
+            <a href={part.href} target="_blank" rel="noopener noreferrer" aria-label={`${part.name}: ${part.role}`}>
+              <span className="stack-logo" aria-hidden="true">{part.logo}</span>
+              <span className="stack-role" aria-hidden="true">{part.role}</span>
             </a>
           </li>
         ))}
-      </ol>
+      </ul>
     </section>
   );
 }
