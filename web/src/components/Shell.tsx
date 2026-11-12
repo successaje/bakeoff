@@ -311,7 +311,10 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="container footer-top">
-        <Link to="/" className="footer-mark" aria-label="Bakeoff home"><LogoMark /><span>Bakeoff</span></Link>
+        <div className="footer-brand">
+          <Link to="/" className="footer-mark" aria-label="Bakeoff home"><LogoMark /><span>Bakeoff</span></Link>
+          <p className="footer-tag">Set a goal. Compare solutions. <span className="serif">Reward results.</span></p>
+        </div>
         <div className="footer-links">
           <div>
             <h4>Product</h4>
