@@ -28,7 +28,8 @@ const BAR = H * 0.56;
 /** The two peaks a pin can stand on. */
 export const PEAKS = { winner: 0.4 * W, team: 0.71 * W };
 
-interface Tile { x: number; y: number; tone: string }
+/** A tile, and when its colour comes in, in seconds after the page loads. */
+interface Tile { x: number; y: number; tone: string; delay: number }
 
 function ridgeTiles(): Tile[][] {
   const random = seeded(hashString("bakeoff ridge"));
@@ -47,7 +48,9 @@ function ridgeTiles(): Tile[][] {
         : depth === 1 && roll < 0.35 ? "snow"
         : above ? (roll < 0.72 ? "gold" : roll < 0.9 ? "snow" : "stone")
         : roll < 0.4 ? "green" : roll < 0.72 ? "stone" : roll < 0.9 ? "sage" : "gold";
-      (rows[r] ??= []).push({ x, y, tone });
+      // The tiles build in a blank colour; each then takes its own, drifting left to right.
+      const delay = 0.9 + (x / W) * 0.8 + random() * 1.8;
+      (rows[r] ??= []).push({ x, y, tone, delay });
     }
   }
   return rows;
@@ -77,7 +80,8 @@ function RidgePin({ pin }: { pin: Pin }) {
 
 /**
  * The hero's band, and a chart of the latest win: a ridge of ticket tiles
- * under a dashed bar. The winner's peak rises past the bar and turns gold;
+ * under a dashed bar. The tiles build up blank, then each breathes in its
+ * colour and keeps it. The winner's peak rises past the bar and turns gold;
  * the team's own setup stays under it. Pins label each peak when there is a
  * result to show, and the bar names the requirements.
  */
@@ -90,20 +94,13 @@ export function RidgeArt({ pins = [], bar = "the bar" }: { pins?: Pin[]; bar?: s
           <stop offset="0.62" style={{ stopColor: "var(--ridge-sky-b)" }} />
           <stop offset="1" style={{ stopColor: "var(--ridge-sky-c)" }} />
         </linearGradient>
-        <linearGradient id="ridge-scan" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#fff" stopOpacity="0" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
       </defs>
       <rect width={W} height={H} fill="url(#ridge-sky)" />
       {TILES.map((row, r) => (
         <g key={r} className="ridge-row" style={{ "--r": r } as React.CSSProperties}>
-          {row.map((t) => <rect key={t.x} x={t.x + 1} y={t.y + 1} width={SIZE} height={SIZE} rx="2" className={`ridge-${t.tone}`} />)}
+          {row.map((t) => <rect key={t.x} x={t.x + 1} y={t.y + 1} width={SIZE} height={SIZE} rx="2" className={`ridge-${t.tone}`} style={{ "--d": `${t.delay.toFixed(2)}s` } as React.CSSProperties} />)}
         </g>
       ))}
-      {/* One pass of light across the tiles, as if they were being scored. */}
-      <rect className="ridge-scan" x="-240" y="0" width="240" height={H} fill="url(#ridge-scan)" />
       <path d={`M0 ${H - BAR}H${W}`} className="ridge-bar" />
       <text x="24" y={H - BAR - 9} className="ridge-bar-label">{bar}</text>
       {ROUTES.map(([from, to]) => {

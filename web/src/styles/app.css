@@ -209,7 +209,7 @@
   @keyframes flow-down { to { background-position: 0 24px; } }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel *, .ridge-row, .ridge-pin, .ridge-scan, .wall-raised, .spot-progress { animation: none !important; transition: none !important; }
+  .panel *, .ridge-row, .ridge-row rect, .ridge-pin, .wall-raised, .spot-progress { animation: none !important; transition: none !important; }
 }
 
 @media (max-width: 420px) { .card-grid { grid-template-columns: 1fr; } }

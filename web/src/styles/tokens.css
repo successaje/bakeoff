@@ -84,6 +84,7 @@
   --glass: rgba(255, 255, 255, 0.82);
   --grid-line: rgba(32, 33, 36, 0.06);
   /* The landing page's ridge: a warm sky, and tiles in the brand's green and gold. */
+  --ridge-blank: #f7f4ec;
   --ridge-sky-a: #ddd6c6;
   --ridge-sky-b: #ece6d7;
   --ridge-sky-c: #f2cd66;
@@ -133,6 +134,7 @@
   --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
   --glass: rgba(10, 13, 12, 0.78);
   --grid-line: rgba(255, 255, 255, 0.05);
+  --ridge-blank: #2b3431;
   --ridge-sky-a: #0f1513;
   --ridge-sky-b: #121a17;
   --ridge-sky-c: #3b2f0e;
@@ -182,7 +184,8 @@
     --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
     --glass: rgba(10, 13, 12, 0.78);
     --grid-line: rgba(255, 255, 255, 0.05);
-    --ridge-sky-a: #0f1513;
+    --ridge-blank: #2b3431;
+  --ridge-sky-a: #0f1513;
     --ridge-sky-b: #121a17;
     --ridge-sky-c: #3b2f0e;
     --ridge-snow: #d6e0db;
