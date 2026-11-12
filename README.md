@@ -101,7 +101,7 @@ Each attempt below is refused by the contract or the evaluator, and a test shows
 ## The web board
 
 The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet by default. [`web/`](web/README.md) is a static page. Rewards, results and payments come from the challenge contracts; titles, descriptions and baselines come from each owner's listing, and the page says which is which. It is laid out like a competition site:
-- **Home:** the latest results and payments read from the chain, the challenges, and each one's top builders;
+- **Home:** a short hero over a band of artwork with the latest on-chain activity, a leaderboard for each requirement, the challenges, how a bake-off works one step at a time, and what a team gets;
 - **Challenges:** every listed challenge as a card, with search and filters for open, awarded and upcoming ones;
 - **A page per challenge, in tabs:**
   - Overview: the problem today, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked;

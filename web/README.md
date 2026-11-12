@@ -6,13 +6,15 @@ The public face of Bakeoff: a static React app that reads bounties, results and 
 
 | Page | What it is for |
 |---|---|
-| Home | **Hero:** "Make your AI work better", with *Explore challenges* and *Set up a challenge*, and beside them the latest winning result replayed as the sealed run that produced it. **Live stats** from the contracts. **How a bake-off works,** as a scroll story. **From goal to result:** the latest winner against the baseline, linking to its result. Then the challenges, the two audiences, and what can be checked. |
-| Challenges | Every listed challenge, filterable by open, awarded and draft. Each card shows its reward, a live countdown, its requirements and any winner. |
-| Challenge | A story in sections, with a bar to jump between them. **Header:** the reward card and one action: see the winning result, take part, or see the results. **The problem** in the owner's words and figures. **The goal** as one sentence, and each requirement as a gauge against the baseline and the best result. **How it's tested:** what builders can see and what stays hidden. **Results**, each opening its own page. **Take part** and **Rules and verification.** The owner also sees a **Manage** section. |
+| Home | Laid out like a competition site's front page. **Hero:** "Make your AI work better" over a full-width band of artwork, a ridge of ticket tiles under a dashed bar, with a card cycling through the latest on-chain activity. **Built on.** **Leaderboards:** one card per requirement, each builder's best result next to the team's own setup. **Challenges** as wide cards. **Agents:** bringing Claude Code, Codex or any MCP client. **How a bake-off works,** one step at a time with a tab for each, ending on the winning result replayed. **Everything you need to run a bake-off,** with live counts. **Guides** and **About**. |
+| Challenges | Every listed challenge as a card, with search and category tiles: open, awarded, coming up and demo rounds. |
+| Challenge | A competition page in tabs, with the tab bar pinned under the top bar as you scroll. **Overview:** the problem, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked. **Data:** the public practice tickets, a field dictionary from the on-chain rules, label charts and a ticket explorer. **Leaderboard:** a podium, then each builder once by their best result, or every result as recorded. **Rules:** the requirements, how the reward is won, what a solution may change, and the in-browser checks. **Take part.** The owner also sees a **Manage** tab. |
 | Result | Did it meet each requirement; how it compares with the baseline; the solution's config, to copy or download; the exact request to try it safely; the test's limitations; and the evidence on-chain. |
 | For builders | Connecting Claude Code, Codex or any MCP client; the seven tools and what each costs; the safety model. |
 | For teams | What a team brings, how the requirements come from its baseline, a challenge's lifecycle, the ways to fund it, and what setting one up takes today. |
 | How it works | One submission end to end; what stays hidden and what is public; what you still have to trust; questions. |
+| Leaderboard | Builders across every listed challenge, ranked by rewards won, then results that met every requirement. |
+| Account | One NEAR account's record: rewards won, every result it submitted, and the challenges it hosts. |
 
 `/agents` and `/sponsors`, the guides' earlier addresses, redirect to `/builders` and `/teams`.
 
@@ -25,16 +27,18 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
 ## Design
 
 - **Type.** Geist for text and headings, Geist Mono for hashes and figures, and Instrument Serif italics for the one accent word in a headline. All three are self-hosted.
+- **Frame.** A top bar with the destinations, a search button that opens in place of the links (or press `/`), the network and theme controls, and the wallet. Narrow screens move the destinations into a drawer. The footer is a cream band with the wordmark and link columns.
 - **Colour.** Tokens in [`src/styles/tokens.css`](src/styles/tokens.css):
-  - **Dark:** NEAR's near-black with its green.
-  - **Light:** a warm off-white with a deeper green that keeps text above 4.5:1 contrast.
+  - **Light,** the default: white pages, cream bands, ink pills for the main action, and a deep green that keeps text above 4.5:1 contrast.
+  - **Dark:** NEAR's near-black with its green, picked from the theme button or the system's setting.
   - Amber marks money, coral marks failures.
-  - The theme follows the system until the visitor picks one, and is applied before first paint.
+  - The theme is applied before first paint.
+- **Generated art.** Every challenge gets a cover and every account an avatar, drawn from a hash of its name. The landing page's ridge, tile wall and card stack ([`landing.tsx`](src/components/landing.tsx)) are drawn in code from a fixed seed.
 - **Motion that shows the product working.** Every animation acts out something Bakeoff does, with real data from the chain:
-  - **The hero** ([`EvaluationRun`](src/components/EvaluationRun.tsx)) replays the latest winning result. The hidden tickets scan, the totals settle into place, each requirement is checked and the payment lands. Only totals leave the enclave, so the squares fill in order and the caption says so. It starts once the panel is in view.
-  - **How a bake-off works** ([`StepStory`](src/components/StepStory.tsx)) is a scroll story. The steps scroll past while one panel stays pinned, showing that challenge's goal, an agent's practice loop through the MCP tools, the sealed run, and the checks behind the payment. Narrow screens show each panel under its step.
+  - **The hero's card** cycles through what just happened on-chain: rewards paid, results that passed, and the owner's trials.
+  - **How a bake-off works** steps through four panels ([`StepPanels`](src/components/StepPanels.tsx)): that challenge's goal, an agent's practice loop through the MCP tools, the sealed run, and the payment. The last ([`EvaluationRun`](src/components/EvaluationRun.tsx)) replays the latest winning result: the hidden tickets scan, the totals settle, each requirement is checked and the payment lands. Only totals leave the enclave, so the squares fill in order and the caption says so.
   - **Results that settle** while a challenge page is open glow once, and a result still scoring shimmers its label.
-- **Restraint.** Headings are set at weight 520. Entrances rise 10 px over half a second, and interface transitions take 140–200 ms. Everything respects `prefers-reduced-motion`; the hero then shows the finished run.
+- **Restraint.** Headings are set light, at weight 450. Entrances rise 10 px over half a second, and interface transitions take 140–200 ms. Everything respects `prefers-reduced-motion`: the steps stop advancing on their own and the replay shows the finished run.
 - **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
 
 ## Trust and status
