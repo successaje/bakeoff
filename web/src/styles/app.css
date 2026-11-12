@@ -88,7 +88,7 @@
 @media (max-width: 760px) {
   .footer-top { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding-bottom: var(--space-7); }
   .footer-bottom-inner { flex-wrap: wrap; gap: var(--space-3); }
-  .footer-note { order: 3; width: 100%; }
+  .footer-note { order: 3; flex-basis: 100%; }
 }
 
 /* ---------- Evaluation run ----------
