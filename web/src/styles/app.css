@@ -67,26 +67,31 @@
 .menu-item svg { width: 16px; height: 16px; }
 
 /* ---------- Footer ---------- */
-.site-footer { border-top: 1px solid var(--border); margin-top: var(--space-8); padding: var(--space-8) 0 var(--space-6); }
-.footer-top { display: grid; grid-template-columns: 1.3fr 2fr; gap: var(--space-7); }
-.footer-brand p { margin-top: var(--space-3); max-width: 300px; font-size: var(--text-sm); }
-.footer-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
-.footer-links h4 { font-size: var(--text-xs); font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-bottom: var(--space-3); }
-.footer-links a { display: block; font-size: var(--text-sm); color: var(--text-2); padding: 4px 0; transition: color var(--dur-fast); }
+/* A cream band: the wordmark on the left, link columns on the right, and a thin bar beneath. */
+.site-footer { margin-top: var(--space-9); background: var(--cream); border-top: 1px solid var(--border); }
+.footer-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-7); padding-top: var(--space-8); padding-bottom: var(--space-9); }
+.footer-mark { display: inline-flex; align-items: center; gap: 14px; align-self: start; font-size: clamp(2.2rem, 1.6rem + 2vw, 3.2rem); font-weight: 600; letter-spacing: -0.045em; line-height: 1; color: var(--text); }
+.footer-mark svg { width: 0.95em; height: 0.95em; }
+.footer-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-5); }
+.footer-links h4 { font-size: var(--text-sm); font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.footer-links a { display: block; width: fit-content; font-size: var(--text-sm); color: var(--text-2); padding: 3px 0; transition: color var(--dur-fast); }
 .footer-links a:hover { color: var(--text); }
-.footer-bottom { display: flex; align-items: center; gap: var(--space-5); margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--border); font-size: var(--text-xs); }
-.footer-bottom .muted { margin-right: auto; }
-.footer-status { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-family: var(--font-mono); }
+.footer-bottom { border-top: 1px solid var(--border); }
+.footer-bottom-inner { display: flex; align-items: center; gap: var(--space-5); padding-top: var(--space-4); padding-bottom: var(--space-4); font-size: var(--text-xs); }
+.footer-bottom-inner > span:first-child { white-space: nowrap; }
+.footer-note { flex: 1; min-width: 0; }
+.footer-status { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-family: var(--font-mono); white-space: nowrap; }
+.footer-gh { display: inline-grid; place-items: center; color: var(--text-2); }
+.footer-gh:hover { color: var(--text); }
+.footer-gh svg { width: 18px; height: 18px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent-glow); animation: pulse 2s var(--ease-in-out) infinite; color: var(--accent); }
 @media (max-width: 760px) {
-  .footer-top { grid-template-columns: 1fr; gap: var(--space-6); }
-  .footer-bottom { flex-wrap: wrap; gap: var(--space-3); }
-  .footer-bottom .muted { order: 3; width: 100%; }
+  .footer-top { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding-bottom: var(--space-7); }
+  .footer-bottom-inner { flex-wrap: wrap; gap: var(--space-3); }
+  .footer-note { order: 3; width: 100%; }
 }
 
-/* ---------- Hero ---------- */
-
-/* ---------- Evaluation run (hero) ----------
+/* ---------- Evaluation run ----------
  * Phases are cumulative classes: is-scoring, is-scored, is-checked, is-paid.
  * Each phase's final look is a plain style, so with reduced motion (no
  * animations) the panel simply shows the finished run. */
@@ -152,37 +157,8 @@
 /* ---------- Stats band ---------- */
 
 /* ---------- Home sections ---------- */
-.step-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
-.step-icon svg { width: 20px; height: 20px; }
 
-/* How a bake-off works: steps scroll on the left, one panel stays pinned. */
-.story-steps { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--space-8); }
-.story-list { list-style: none; padding: 0; margin: 0; }
-.story-step {
-  min-height: 58vh; display: flex; flex-direction: column; justify-content: center; gap: var(--space-3);
-  padding-left: var(--space-5); border-left: 2px solid var(--border); opacity: 0.4;
-  transition: opacity 300ms var(--ease-out), border-color 300ms var(--ease-out);
-}
-.story-step:first-child { min-height: 44vh; justify-content: flex-start; padding-top: var(--space-6); }
-.story-step:last-child { min-height: 52vh; }
-.story-step.active { opacity: 1; border-left-color: var(--accent); }
-.story-step-head { display: flex; align-items: center; gap: var(--space-3); }
-.story-step h3 { font-size: var(--text-xl); }
-.story-step p { max-width: 420px; }
-.story-stage { position: sticky; top: calc(var(--header-h) + 9vh); align-self: start; }
-.story-progress { display: flex; gap: 6px; margin-bottom: var(--space-4); }
-.story-progress span { height: 3px; width: 24px; border-radius: 2px; background: var(--border-strong); transition: background 300ms var(--ease-out), width 300ms var(--ease-out); }
-.story-progress span.on { background: color-mix(in srgb, var(--accent) 45%, transparent); }
-.story-progress span.current { width: 44px; background: var(--accent); }
-.story-inline { display: none; }
-@media (max-width: 900px) {
-  .story-steps { grid-template-columns: 1fr; gap: 0; }
-  .story-stage { display: none; }
-  .story-step, .story-step:first-child, .story-step:last-child { min-height: 0; opacity: 1; padding: var(--space-5) 0 var(--space-6) var(--space-4); justify-content: flex-start; }
-  .story-inline { display: block; margin-top: var(--space-3); }
-}
-
-/* The panels the story shows. Their rows rise in one after another. */
+/* The step panels the landing page's spotlight shows. Their rows rise in one after another. */
 .panel { border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); padding: var(--space-5); min-height: 340px; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); font-size: var(--text-sm); font-weight: 550; margin-bottom: var(--space-4); }
 .panel-row, .panel-facts > div, .panel-checks li, .panel-pay, .term-line { animation: row-in 360ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms); }
@@ -236,43 +212,17 @@
   @keyframes flow-down { to { background-position: 0 24px; } }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel *, .story-step, .story-progress span { animation: none !important; transition: none !important; }
+  .panel *, .ridge-row, .spot-progress { animation: none !important; transition: none !important; }
 }
-
-@media (max-width: 900px) { .spotlight-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 420px) { .card-grid { grid-template-columns: 1fr; } }
 .skeleton-card { height: 340px; border: 0; }
 
-@media (max-width: 760px) { .audience-grid { grid-template-columns: 1fr; } }
-
 .section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
-@media (max-width: 760px) { .trust-items { grid-template-columns: 1fr; } }
 
 .final-cta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding: var(--space-7); overflow: hidden; background: radial-gradient(ellipse at 100% 0%, var(--accent-soft), transparent 55%), var(--surface); }
 .final-cta h2 { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
 @media (max-width: 760px) { .final-cta { flex-direction: column; align-items: flex-start; padding: var(--space-6); } }
-
-/* ---------- Challenge card ---------- */
-.challenge-card { overflow: hidden; transition: transform var(--dur) var(--ease-out), border-color var(--dur), box-shadow var(--dur); }
-.challenge-card:hover { transform: translateY(-4px); border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
-.challenge-card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(400px circle at 100% 0%, var(--accent-soft), transparent 50%); opacity: 0; transition: opacity var(--dur); pointer-events: none; }
-.challenge-card:hover::before { opacity: 1; }
-.challenge-card-link { display: grid; gap: var(--space-4); padding: var(--space-6); height: 100%; position: relative; }
-.challenge-card-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-.card-owner { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.challenge-card h3 { font-size: var(--text-xl); }
-.challenge-card-summary { color: var(--text-2); font-size: var(--text-sm); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.challenge-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); padding: var(--space-4) 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.challenge-card-stats > div { display: grid; gap: 4px; min-width: 0; }
-.challenge-card-stats strong { font-size: var(--text-base); font-weight: 600; white-space: nowrap; }
-.challenge-card-stats .countdown i { margin-right: 3px; }
-.gate-chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.gate-chips li { font-size: 12px; font-family: var(--font-mono); padding: 3px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
-.challenge-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); margin-top: auto; }
-.win-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-.card-arrow { width: 18px; height: 18px; color: var(--muted); transition: transform var(--dur) var(--ease-out), color var(--dur); flex: none; }
-.challenge-card:hover .card-arrow { transform: translateX(4px); color: var(--accent); }
 
 /* ---------- The bar ---------- */
 .the-bar { display: grid; gap: var(--space-6); }

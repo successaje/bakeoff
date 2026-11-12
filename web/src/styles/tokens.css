@@ -19,6 +19,9 @@
   --text-2xl: clamp(1.6rem, 1.2rem + 1.4vw, 2.1rem);
   --text-3xl: clamp(2rem, 1.3rem + 2.6vw, 3.1rem);
   --text-hero: clamp(2.6rem, 1.4rem + 4.6vw, 4.9rem);
+  /* Section headings, and the larger ones a feature card carries. */
+  --text-section: clamp(1.75rem, 1.3rem + 1.2vw, 2.25rem);
+  --text-feature: clamp(1.9rem, 1.3rem + 1.8vw, 2.8rem);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -35,10 +38,8 @@
   --radius-lg: 18px;
   --radius-pill: 999px;
 
-  --container: 1180px;
+  --container: 1240px;
   --header-h: 64px;
-  --rail-w: 72px;
-  --rail-w-open: 232px;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -82,6 +83,16 @@
   --shadow-lg: 0 2px 4px rgba(32, 33, 36, 0.04), 0 18px 44px -20px rgba(32, 33, 36, 0.28);
   --glass: rgba(255, 255, 255, 0.82);
   --grid-line: rgba(32, 33, 36, 0.06);
+  /* The landing page's ridge: a warm sky, and tiles in the brand's green and gold. */
+  --ridge-sky-a: #ddd6c6;
+  --ridge-sky-b: #ece6d7;
+  --ridge-sky-c: #f2cd66;
+  --ridge-snow: #fbf8f0;
+  --ridge-gold: #e7b52c;
+  --ridge-green: #3fa97a;
+  --ridge-sage: #a3cbb6;
+  --ridge-stone: #bcc5c2;
+  --ridge-line: #ffffff;
 }
 
 /* Dark, picked by the visitor or by the system when they chose "system". */
@@ -122,6 +133,15 @@
   --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
   --glass: rgba(10, 13, 12, 0.78);
   --grid-line: rgba(255, 255, 255, 0.05);
+  --ridge-sky-a: #0f1513;
+  --ridge-sky-b: #121a17;
+  --ridge-sky-c: #3b2f0e;
+  --ridge-snow: #d6e0db;
+  --ridge-gold: #f2c14e;
+  --ridge-green: #00b877;
+  --ridge-sage: #2c6a52;
+  --ridge-stone: #27322f;
+  --ridge-line: rgba(255, 255, 255, 0.7);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -162,5 +182,14 @@
     --shadow-lg: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 40px 90px -40px rgba(0, 0, 0, 0.9);
     --glass: rgba(10, 13, 12, 0.78);
     --grid-line: rgba(255, 255, 255, 0.05);
+    --ridge-sky-a: #0f1513;
+    --ridge-sky-b: #121a17;
+    --ridge-sky-c: #3b2f0e;
+    --ridge-snow: #d6e0db;
+    --ridge-gold: #f2c14e;
+    --ridge-green: #00b877;
+    --ridge-sage: #2c6a52;
+    --ridge-stone: #27322f;
+    --ridge-line: rgba(255, 255, 255, 0.7);
   }
 }
