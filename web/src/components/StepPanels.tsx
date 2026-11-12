@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash } from "../lib/format.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
-import { Bot, Building, Check, Coins, Lock } from "./Icons.tsx";
+import { Bot, Building, Check, Coins, Cube, Download, Lock } from "./Icons.tsx";
 
 export const STEPS = [
   { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
@@ -56,24 +56,26 @@ export function GoalPanel({ win }: Props) {
   );
 }
 
-export function CompetePanel({ win }: Props) {
-  const lines = [
-    ["get_challenge", "rules, requirements and commitments"],
-    ["get_practice_tickets", `${win?.listing.practice_tickets ?? "the"} public practice tickets`],
-    ["score_on_practice", `evaluator ${win?.view ? shortHash(win.view.evaluator.sha256) : "build"}, checked against its hash`],
-    [null, "edits the prompt, scores again"],
-    ["submit_candidate", "asks you, then submits for the sealed run"],
-  ] as const;
+/** What builders work with: the public practice set beside the sealed test set, scored by one evaluator build. */
+export function PracticePanel({ win }: Props) {
+  const view = win?.view;
   return (
-    <Panel title="Your agent, through the Bakeoff MCP server" tag={<span className="badge">Practice</span>}>
-      <div className="term" role="presentation">
-        {lines.map(([tool, note], i) => (
-          <div key={i} className={`term-line ${tool ? "" : "term-comment"}`} style={{ "--i": i } as React.CSSProperties}>
-            {tool ? <><span className="term-prompt">›</span><span className="term-tool">{tool}</span></> : <span className="term-prompt">#</span>}
-            <span className="term-note">{note}</span>
-          </div>
-        ))}
-        <span className="term-cursor" />
+    <Panel title={win ? `${win.listing.sponsor} · ${win.listing.title}` : "A challenge"} tag={<span className="badge">Practice</span>}>
+      <div className="sets">
+        <div className="sets-col" style={{ "--i": 0 } as React.CSSProperties}>
+          <span className="enclave-label"><Download /> Public</span>
+          <strong className="sets-n">{win?.listing.practice_tickets ?? "–"}</strong>
+          <span className="sets-note">practice tickets, labelled, to download and score on as often as you like</span>
+        </div>
+        <div className="sets-col sealed" style={{ "--i": 1 } as React.CSSProperties}>
+          <span className="enclave-label"><Lock /> Sealed</span>
+          <strong className="sets-n">{win?.listing.tickets ?? "–"}</strong>
+          <span className="sets-note">hidden test cases, committed by hash {view ? <span className="mono">{shortHash(view.test_set_sha256)}</span> : null}</span>
+        </div>
+      </div>
+      <div className="panel-facts">
+        <div style={{ "--i": 2 } as React.CSSProperties}><Cube /><span>One evaluator build scores both</span><span className="mono">{view ? shortHash(view.evaluator.sha256) : "–"}</span></div>
+        <div style={{ "--i": 3 } as React.CSSProperties}><Bot /><span>Agents score through the MCP server</span><span className="mono">score_on_practice</span></div>
       </div>
     </Panel>
   );

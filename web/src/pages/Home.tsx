@@ -1,8 +1,8 @@
 /**
- * The landing page, laid out like a competition site's front page: a short
- * hero over a band of artwork with the latest on-chain activity, what it is
- * built on, leaderboards, challenges, the agents band, a spotlight on how a
- * bake-off works, what a team gets, guides, and what Bakeoff is.
+ * The landing page: a short hero over a band that charts the latest win,
+ * the stack it runs on, a leaderboard for each requirement, the challenges,
+ * an agent's session, how a bake-off works step by step, a receipt read from
+ * the chain, guides, and three things nobody can do.
  */
 
 import { AnimatePresence, motion } from "motion/react";
@@ -11,15 +11,15 @@ import { Link } from "react-router";
 import { Avatar, Cover, HostMark } from "../components/art.tsx";
 import { ActivityCard, ChallengeTile, MoreLink, SectionHead, topEntries } from "../components/board.tsx";
 import { EvaluationRun } from "../components/EvaluationRun.tsx";
-import { ArrowRight, ArrowUpRight, Check, Coins, Cube, Lock, Plus } from "../components/Icons.tsx";
-import { AgentTiles, RidgeArt, StackArt } from "../components/landing.tsx";
-import { CompetePanel, GoalPanel, SealedPanel, STEPS } from "../components/StepPanels.tsx";
+import { ArrowRight, ArrowUpRight, Check, Coins, Lock, LogoMark, Plus, Shield } from "../components/Icons.tsx";
+import { AgentSession, AgentTiles, PEAKS, type Pin, RidgeArt } from "../components/landing.tsx";
+import { GoalPanel, PracticePanel, SealedPanel, STEPS } from "../components/StepPanels.tsx";
 import { Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, type ChallengeSummary, loadAll, loadChallenges, recordsOf } from "../lib/data.ts";
-import { ago, microDollars, percent, seconds } from "../lib/format.ts";
+import { ago, microDollars, percent, seconds, shortHash } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { rankAccounts, recentActivity } from "../lib/leaderboard.ts";
-import { challengeGates, type Gates, type Metrics } from "../lib/near.ts";
+import { challengeGates, formatNear, type Gates, type Metrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
 import { useSession } from "../lib/session.tsx";
 
@@ -27,29 +27,64 @@ function latestWin(rows: ChallengeSummary[]): ChallengeSummary | null {
   return rows.filter((r) => r.view?.award?.paid && r.winner).sort((a, b) => b.listing.id.localeCompare(a.listing.id))[0] ?? null;
 }
 
-const AUDIENCES = ["teams with an AI bill", "prompt engineers", "AI agents", "anyone who wants proof"];
+/** The top of the hero: what the chain says right now, linking to the latest win. */
+function LivePill({ win }: { win: ChallengeSummary | null }) {
+  const { network } = useSession();
+  const award = win?.view?.award;
+  const body = (
+    <>
+      <span className="status-dot" aria-hidden="true" />
+      {award ? <span>Live on NEAR {network}: <strong>{award.winner}</strong> won {formatNear(award.amount)}</span> : <span>Reading NEAR {network} live</span>}
+      {award && <ArrowRight />}
+    </>
+  );
+  return award && win
+    ? <Link to={`/challenges/${win.listing.id}/results/${award.evaluation}`} className="live-pill">{body}</Link>
+    : <span className="live-pill">{body}</span>;
+}
 
-/** "Bakeoff is for …", cycling through who it serves. */
-function Rotator() {
+const GOALS = ["cheaper", "faster", "more accurate", "better"];
+
+/** The headline's goal: it runs through what a team can ask for, then settles on "better". */
+function GoalWord() {
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
+  const last = GOALS.length - 1;
   useEffect(() => {
-    if (reduced) return;
-    const timer = setInterval(() => setI((n) => (n + 1) % AUDIENCES.length), 2600);
-    return () => clearInterval(timer);
-  }, [reduced]);
+    if (reduced || i >= last) return;
+    const timer = setTimeout(() => setI((n) => n + 1), i === 0 ? 1500 : 1050);
+    return () => clearTimeout(timer);
+  }, [i, last, reduced]);
+  const n = reduced ? last : i;
   return (
-    <p className="rotator" aria-label={`Bakeoff is for ${AUDIENCES.join(", ")}`}>
-      <span aria-hidden="true">Bakeoff is for</span>
-      <span className="rotator-slot" aria-hidden="true">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.span key={i} className="rotator-word" initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -12, opacity: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
-            {AUDIENCES[i]}
-          </motion.span>
-        </AnimatePresence>
-      </span>
-    </p>
+    <span className="goal-slot" aria-hidden="true">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={n} className={`serif goal-word ${n === last ? "final" : ""}`} initial={{ y: "0.4em", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "-0.4em", opacity: 0 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}>
+          {GOALS[n]}
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
+}
+
+/** Labels for the ridge: the winner on the peak that clears the bar, the team's own setup on the one that doesn't. */
+function ridgeLabels(win: ChallengeSummary | null): { pins: Pin[]; bar: string } {
+  const gates = win?.view ? challengeGates(win.view) : null;
+  if (!win?.view?.award || !win.winner || !gates) return { pins: [], bar: "the bar" };
+  const m = win.winner;
+  const base = win.listing.baseline;
+  const misses = [
+    base.accuracy_bp < gates.min_accuracy_bp && percent(base.accuracy_bp),
+    base.cost_per_ticket_uusd > gates.max_cost_per_ticket_uusd && `${microDollars(base.cost_per_ticket_uusd)} a ticket`,
+    base.p95_latency_ms > gates.max_p95_latency_ms && `${seconds(base.p95_latency_ms)} p95`,
+  ].filter(Boolean);
+  return {
+    pins: [
+      { x: PEAKS.winner, text: `#1 ${win.view.award.winner} · ${percent(m.accuracy_bp)} · ${microDollars(m.cost_per_ticket_uusd)}`, tone: "gold", lift: 26 },
+      { x: PEAKS.team, text: `Team's current setup${misses.length ? ` · ${misses.join(", ")}` : ""}`, tone: "muted", lift: 54 },
+    ],
+    bar: `the bar · ≥ ${percent(gates.min_accuracy_bp)} · ≤ ${microDollars(gates.max_cost_per_ticket_uusd)} · ≤ ${seconds(gates.max_p95_latency_ms)} · ${gates.max_leaks === 0 ? "no card numbers" : `≤ ${gates.max_leaks} leaks`}`,
+  };
 }
 
 /** The card floating on the hero's band: what just happened on-chain, one item at a time. */
@@ -77,7 +112,7 @@ function LiveCard({ details }: { details: ChallengeDetail[] | null }) {
   );
 }
 
-function Hero({ details }: { details: ChallengeDetail[] | null }) {
+function Hero({ details, win }: { details: ChallengeDetail[] | null; win: ChallengeSummary | null }) {
   const reduced = usePrefersReducedMotion();
   const rise = (delay: number) => ({
     initial: reduced ? false : { opacity: 0, y: 12 },
@@ -87,35 +122,45 @@ function Hero({ details }: { details: ChallengeDetail[] | null }) {
   return (
     <section className="landing-hero">
       <div className="container landing-copy">
-        <motion.div {...rise(0.02)}><Rotator /></motion.div>
-        <motion.h1 {...rise(0.08)}>Make your AI work <span className="serif accent-text">better</span>.</motion.h1>
+        <motion.div {...rise(0.02)}><LivePill win={win} /></motion.div>
+        <motion.h1 {...rise(0.08)} aria-label="Make your AI work better.">
+          <span aria-hidden="true">Make your AI work </span><GoalWord /><span aria-hidden="true">.</span>
+        </motion.h1>
         <motion.p className="landing-lede" {...rise(0.14)}>
           Teams post a goal for an AI workflow. Builders and their agents compete on test cases they never see, and a NEAR contract pays the result that meets it.
         </motion.p>
       </div>
       <motion.div className="ridge" {...rise(0.22)}>
-        <RidgeArt />
+        <RidgeArt {...ridgeLabels(win)} />
         <div className="container ridge-inner"><LiveCard details={details} /></div>
       </motion.div>
     </section>
   );
 }
 
-const BUILT_ON = [
-  ["NEAR Protocol", "https://near.org"],
-  ["OutLayer", "https://outlayer.ai"],
-  ["NEAR AI Cloud", "https://near.ai"],
-  ["NEAR Intents", "https://docs.near-intents.org"],
-  ["Model Context Protocol", "https://modelcontextprotocol.io"],
+const STACK = [
+  { name: "NEAR Protocol", role: "holds the rules and the reward", href: "https://near.org" },
+  { name: "OutLayer", role: "runs each test in an enclave", href: "https://outlayer.ai" },
+  { name: "NEAR AI Cloud", role: "answers every hidden ticket", href: "https://near.ai" },
+  { name: "NEAR Intents", role: "funds a reward from any chain", href: "https://docs.near-intents.org" },
+  { name: "Model Context Protocol", role: "lets agents take part", href: "https://modelcontextprotocol.io" },
 ];
 
+/** What Bakeoff runs on, as the path a submission takes, each part with its job. */
 function BuiltOn() {
   return (
-    <section className="container builton" aria-label="Built on">
+    <section className="container stackline" aria-label="Built on">
       <span className="mono-label">Built on</span>
-      <ul>
-        {BUILT_ON.map(([name, href]) => <li key={name}><a href={href} target="_blank" rel="noopener noreferrer">{name}</a></li>)}
-      </ul>
+      <ol>
+        {STACK.map((part) => (
+          <li key={part.name}>
+            <a href={part.href} target="_blank" rel="noopener noreferrer">
+              <strong>{part.name}</strong>
+              <span>{part.role}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -130,6 +175,8 @@ interface Board {
   higher: boolean;
   meets: (v: number, g: Gates) => boolean;
   needs: (g: Gates) => string;
+  /** The requirement's limit, to mark on the bars. */
+  limit?: (g: Gates) => number;
 }
 
 const BOARDS: Board[] = [
@@ -137,19 +184,19 @@ const BOARDS: Board[] = [
     title: "Accuracy",
     about: (n) => `Share of the ${n} hidden tickets answered correctly, scored inside the enclave.`,
     value: (m) => m.accuracy_bp, baseline: (b) => b.accuracy_bp, format: (v) => percent(v), higher: true,
-    meets: (v, g) => v >= g.min_accuracy_bp, needs: (g) => `≥ ${percent(g.min_accuracy_bp)}`,
+    meets: (v, g) => v >= g.min_accuracy_bp, needs: (g) => `≥ ${percent(g.min_accuracy_bp)}`, limit: (g) => g.min_accuracy_bp,
   },
   {
     title: "Cost per ticket",
     about: () => "What the solution's model calls cost for each ticket, at NEAR AI Cloud prices.",
     value: (m) => m.cost_per_ticket_uusd, baseline: (b) => b.cost_per_ticket_uusd, format: (v) => microDollars(v), higher: false,
-    meets: (v, g) => v <= g.max_cost_per_ticket_uusd, needs: (g) => `≤ ${microDollars(g.max_cost_per_ticket_uusd)}`,
+    meets: (v, g) => v <= g.max_cost_per_ticket_uusd, needs: (g) => `≤ ${microDollars(g.max_cost_per_ticket_uusd)}`, limit: (g) => g.max_cost_per_ticket_uusd,
   },
   {
     title: "p95 latency",
     about: () => "How long the slowest one ticket in twenty took to answer.",
     value: (m) => m.p95_latency_ms, baseline: (b) => b.p95_latency_ms, format: (v) => seconds(v), higher: false,
-    meets: (v, g) => v <= g.max_p95_latency_ms, needs: (g) => `≤ ${seconds(g.max_p95_latency_ms)}`,
+    meets: (v, g) => v <= g.max_p95_latency_ms, needs: (g) => `≤ ${seconds(g.max_p95_latency_ms)}`, limit: (g) => g.max_p95_latency_ms,
   },
   {
     title: "Card numbers repeated",
@@ -178,6 +225,9 @@ function BoardCard({ board, detail }: { board: Board; detail: ChallengeDetail })
   const best = board.higher ? Math.max(...values) : Math.min(...values);
   const share = (v: number) => Math.max(0.04, board.higher ? (best > 0 ? v / best : 0) : v === 0 ? 1 : best === 0 ? 0.08 : best / v);
   const updated = entries.map((e) => e.last?.getTime() ?? 0).reduce((a, b) => Math.max(a, b), 0);
+  // On the same scale as the bars, so a bar that reaches the mark meets the requirement.
+  const limit = gates && board.limit ? board.limit(gates) : null;
+  const mark = limit !== null && rows.length > 0 ? Math.min(1, share(limit)) : null;
   return (
     <Link to={`/challenges/${detail.listing.id}/leaderboard`} className="bench card">
       <div className="bench-head">
@@ -195,7 +245,10 @@ function BoardCard({ board, detail }: { board: Board; detail: ChallengeDetail })
               <span className={`bench-value mono ${i === 0 ? "top" : ""}`}>{board.format(row.value)}</span>
               <span className={`bench-meets ${gates && board.meets(row.value, gates) ? "met" : ""}`} title={gates && board.meets(row.value, gates) ? "Meets the requirement" : "Misses the requirement"}><Check /></span>
             </div>
-            <span className={`bench-bar ${i === 0 && !row.baseline ? "lead" : ""}`}><span style={{ width: `${share(row.value) * 100}%` }} /></span>
+            <span className={`bench-bar ${i === 0 && !row.baseline ? "lead" : ""}`}>
+              <span style={{ width: `${share(row.value) * 100}%` }} />
+              {mark !== null && <i className="bench-mark" style={{ left: `${mark * 100}%` }} title={`The bar: ${gates ? board.needs(gates) : ""}`} />}
+            </span>
           </li>
         ))}
         {rows.length > 3 && <li className="bench-more muted small">+ {rows.length - 3} more</li>}
@@ -276,16 +329,21 @@ function Challenges({ rows }: { rows: ChallengeSummary[] | null }) {
   );
 }
 
-function AgentsBand() {
+function AgentsBand({ win }: { win: ChallengeSummary | null }) {
+  const award = win?.view?.award;
+  const outcome = award && win?.winner ? `Passed on the hidden tickets · paid ${formatNear(award.amount)}` : null;
   return (
     <section className="agents-band">
       <div className="container agents-inner">
-        <Reveal className="agents-copy">
-          <span className="mono-label">Agents</span>
-          <h2>Bring your own agent</h2>
-          <p className="text-2">Claude Code, Codex or any MCP client can read a challenge, score ideas on the practice cases and submit when you approve.</p>
-          <MoreLink to="/builders">Connect your agent</MoreLink>
-        </Reveal>
+        <div className="agents-copy">
+          <Reveal className="agents-text">
+            <span className="mono-label">Agents</span>
+            <h2>Bring your own agent</h2>
+            <p className="text-2">Claude Code, Codex or any MCP client can read a challenge, score ideas on the practice cases and submit when you approve.</p>
+            <MoreLink to="/builders">Connect your agent</MoreLink>
+          </Reveal>
+          <AgentSession outcome={outcome} />
+        </div>
         <AgentTiles />
       </div>
     </section>
@@ -296,19 +354,20 @@ interface Slide { tab: string; title: string; text: string; link: { to: string; 
 
 const SLIDES: Slide[] = [
   { tab: "Set the goal", title: "A team sets the goal", text: STEPS[0]!.text, link: { to: "/teams", label: "How hosting works" }, panel: (win) => <GoalPanel win={win} /> },
-  { tab: "Compete", title: "Builders compete in the open", text: STEPS[1]!.text, link: { to: "/builders", label: "How to take part" }, panel: (win) => <CompetePanel win={win} /> },
+  { tab: "Compete", title: "Builders compete in the open", text: STEPS[1]!.text, link: { to: "/builders", label: "How to take part" }, panel: (win) => <PracticePanel win={win} /> },
   { tab: "Hidden test", title: "Scored once, on cases nobody sees", text: STEPS[2]!.text, link: { to: "/how-it-works", label: "What stays hidden" }, panel: (win) => <SealedPanel win={win} /> },
   { tab: "Paid", title: "The contract pays the result", text: STEPS[3]!.text, link: { to: "/how-it-works", label: "How it works" }, panel: (win, loading) => <EvaluationRun win={win} loading={loading} /> },
 ];
 
-/** How a bake-off works, one step at a time, with a tab for each step. */
+/** How a bake-off works: the four steps as a stepper, beside the panel for the open one. */
 function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: boolean }) {
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  const duration = (n: number) => (n === SLIDES.length - 1 ? 11 : 7);
   useEffect(() => {
     if (reduced || paused) return;
-    const timer = setTimeout(() => setI((n) => (n + 1) % SLIDES.length), i === SLIDES.length - 1 ? 11_000 : 7000);
+    const timer = setTimeout(() => setI((n) => (n + 1) % SLIDES.length), duration(i) * 1000);
     return () => clearTimeout(timer);
   }, [i, reduced, paused]);
   const slide = SLIDES[i]!;
@@ -317,14 +376,27 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
       <div className="container">
         <div className="spot card" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
           <div className="spot-copy">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={i} className="spot-text" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-                <span className="mono-label">How a bake-off works · {String(i + 1).padStart(2, "0")}</span>
-                <h2>{slide.title}</h2>
-                <p className="text-2">{slide.text}</p>
-              </motion.div>
-            </AnimatePresence>
-            <Link to={slide.link.to} className="spot-link">{slide.link.label}</Link>
+            <span className="mono-label">How a bake-off works</span>
+            <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
+            <ol className="spot-steps">
+              {SLIDES.map((s, n) => (
+                <li key={s.tab} className={n === i ? "active" : n < i ? "done" : ""}>
+                  {n === i && !reduced && !paused && <span className="spot-progress" style={{ animationDuration: `${duration(n)}s` }} aria-hidden="true" />}
+                  <button type="button" aria-expanded={n === i} onClick={() => setI(n)}>
+                    <span className="spot-n mono">{String(n + 1).padStart(2, "0")}</span>
+                    <span>{s.title}</span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {n === i && (
+                      <motion.div className="spot-step-body" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+                        <p className="text-2">{s.text}</p>
+                        <Link to={s.link.to} className="spot-link">{s.link.label} <ArrowRight /></Link>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </li>
+              ))}
+            </ol>
           </div>
           <div className="spot-art">
             <AnimatePresence mode="wait" initial={false}>
@@ -334,28 +406,54 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
             </AnimatePresence>
           </div>
         </div>
-        <div className="spot-tabs" role="tablist" aria-label="Steps">
-          {SLIDES.map((s, n) => (
-            <button key={s.tab} type="button" role="tab" aria-selected={n === i} className={n === i ? "active" : ""} onClick={() => setI(n)}>
-              {s.tab}
-              {n === i && !reduced && !paused && <span className="spot-progress" style={{ animationDuration: `${n === SLIDES.length - 1 ? 11 : 7}s` }} />}
-            </button>
-          ))}
-        </div>
       </div>
     </section>
   );
 }
 
-function Everything({ rows, details }: { rows: ChallengeSummary[] | null; details: ChallengeDetail[] | null }) {
-  const paid = (rows ?? []).reduce((sum, r) => sum + (r.view?.award?.paid ? Number(BigInt(r.view.award.amount) / 10n ** 18n) / 1e6 : 0), 0);
+/** What a challenge leaves behind, as a receipt: every line read from the contracts as the page loads. */
+function Receipt({ rows, details, win }: { rows: ChallengeSummary[] | null; details: ChallengeDetail[] | null; win: ChallengeSummary | null }) {
+  const { network } = useSession();
+  const paid = (rows ?? []).reduce((sum, r) => sum + (r.view?.award?.paid ? BigInt(r.view.award.amount) : 0n), 0n);
   const results = (rows ?? []).reduce((sum, r) => sum + (r.view?.evaluations ?? 0), 0);
   const tickets = (rows ?? []).reduce((sum, r) => sum + r.listing.tickets, 0);
-  const builders = details ? rankAccounts(details.map(recordsOf)).length : 0;
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-  const labels = rows
-    ? [`${paid % 1 ? paid.toFixed(2) : paid} NEAR paid by contract`, plural(results, "result on-chain", "results on-chain"), plural(tickets, "hidden test case", "hidden test cases"), plural(builders, "builder took part", "builders took part")]
-    : ["Rewards paid by contract", "Results on-chain", "Hidden test cases", "Builders"];
+  const builders = details ? rankAccounts(details.map(recordsOf)).length : null;
+  const show = (v: number | null) => (rows === null || v === null ? "–" : String(v));
+  const lines: [string, string][] = [
+    ["Challenges listed", show(rows?.length ?? null)],
+    ["Hidden test cases, sealed", show(tickets)],
+    ["Results recorded on-chain", show(results)],
+    ["Builders who took part", show(builders)],
+    ...(win?.view ? [["Test set", shortHash(win.view.test_set_sha256)], ["Evaluator build", shortHash(win.view.evaluator.sha256)]] as [string, string][] : []),
+  ];
+  const award = win?.view?.award;
+  return (
+    <motion.div className="receipt-wrap" initial={{ opacity: 0, y: 24, rotate: 0 }} whileInView={{ opacity: 1, y: 0, rotate: -1.2 }} viewport={{ once: true, margin: "-10% 0px" }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+      <div className="receipt">
+        <div className="receipt-head">
+          <span className="receipt-brand"><LogoMark size={22} /> Bakeoff</span>
+          <span className="mono">NEAR {network}</span>
+        </div>
+        <p className="receipt-title mono">Read from the contracts just now</p>
+        <dl className="receipt-lines">
+          {lines.map(([k, v]) => (
+            <div key={k}><dt>{k}</dt><dd className="mono">{v}</dd></div>
+          ))}
+        </dl>
+        <div className="receipt-total">
+          <span>Paid by contract</span>
+          <strong className="mono">{rows ? formatNear(paid) : "–"}</strong>
+        </div>
+        {award && win && (
+          <Link to={`/challenges/${win.listing.id}/results/${award.evaluation}`} className="receipt-link">See the winning result <ArrowRight /></Link>
+        )}
+        {paid > 0n && <span className="receipt-stamp" aria-hidden="true">Paid</span>}
+      </div>
+    </motion.div>
+  );
+}
+
+function Everything({ rows, details, win }: { rows: ChallengeSummary[] | null; details: ChallengeDetail[] | null; win: ChallengeSummary | null }) {
   return (
     <section className="landing-section everything-c">
       <div className="container">
@@ -364,7 +462,7 @@ function Everything({ rows, details }: { rows: ChallengeSummary[] | null; detail
           <p className="text-2">Turn the evaluation you already run into a challenge: private test cases, a pinned evaluator, a reward in escrow, and a leaderboard anyone can check against the chain.</p>
           <Link to="/teams" className="btn">Host a challenge <ArrowRight /></Link>
         </Reveal>
-        <StackArt labels={labels} />
+        <Receipt rows={rows} details={details} win={win} />
       </div>
     </section>
   );
@@ -398,9 +496,9 @@ function Learn() {
 }
 
 const PILLARS = [
-  { icon: Lock, text: "Test cases nobody sees, not even the builders" },
-  { icon: Cube, text: "One evaluator build, pinned by its hash" },
-  { icon: Coins, text: "A reward the contract holds and pays" },
+  { icon: Lock, text: "Nobody sees the test cases, not even the builders" },
+  { icon: Shield, text: "Nobody can change the rules once a challenge opens" },
+  { icon: Coins, text: "Nobody but the contract decides who is paid" },
 ];
 
 function About() {
@@ -433,13 +531,13 @@ export function Home() {
   const win = data ? latestWin(data) : null;
   return (
     <>
-      <Hero details={all.data} />
+      <Hero details={all.data} win={win} />
       <BuiltOn />
       <Leaderboards details={all.data} />
       <Challenges rows={data} />
-      <AgentsBand />
+      <AgentsBand win={win} />
       <Spotlight win={win} loading={loading} />
-      <Everything rows={data} details={all.data} />
+      <Everything rows={data} details={all.data} win={win} />
       <Learn />
       <About />
     </>
