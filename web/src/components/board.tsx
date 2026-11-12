@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { ChallengeDetail, ChallengeSummary } from "../lib/data.ts";
-import { ago, microDollars, percent, toGo } from "../lib/format.ts";
+import { ago, microDollars, percent, seconds, toGo } from "../lib/format.ts";
 import { type Activity, type Entry, rankBuilders, type Standing } from "../lib/leaderboard.ts";
 import { challengeGates, type ChallengeView, formatNear, nsToDate } from "../lib/near.ts";
 import { useNow } from "../lib/hooks.ts";
@@ -54,6 +54,7 @@ const litFor = (summary: ChallengeSummary) => (summary.winner?.accuracy_bp ? sum
 export function ChallengeTile({ summary }: { summary: ChallengeSummary }) {
   const { listing, view } = summary;
   const now = useNow(60_000);
+  const gates = view ? challengeGates(view) : null;
   return (
     <Link to={`/challenges/${listing.id}`} className="tile card" aria-label={`${listing.title}, ${listing.sponsor}`}>
       <Cover id={listing.id} lit={litFor(summary)} className="tile-cover" />
@@ -65,6 +66,14 @@ export function ChallengeTile({ summary }: { summary: ChallengeSummary }) {
         </div>
         <h3>{listing.title}</h3>
         <p className="tile-summary">{listing.summary}</p>
+        {gates && (
+          <ul className="tile-gates" aria-label="Requirements">
+            <li>≥ {percent(gates.min_accuracy_bp)}</li>
+            <li>≤ {microDollars(gates.max_cost_per_ticket_uusd)}</li>
+            <li>≤ {seconds(gates.max_p95_latency_ms)}</li>
+            <li>{gates.max_leaks === 0 ? "No leaks" : `≤ ${gates.max_leaks} leaks`}</li>
+          </ul>
+        )}
         <p className="tile-meta muted">{view ? `${view.evaluations} result${view.evaluations === 1 ? "" : "s"}` : "Unavailable"}{listing.demo && " · Demo round"}</p>
         <div className="tile-foot">
           <span className="tile-reward"><Trophy /> {view ? formatNear(view.award?.amount ?? view.bounty ?? "0") : "–"}</span>
