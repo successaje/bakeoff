@@ -11,11 +11,11 @@ import { Avatar, Cover, HostMark } from "./art.tsx";
 import { ArrowRight, Coins, Trophy, Users } from "./Icons.tsx";
 import { DemoBadge, displayStatus, type DisplayStatus } from "./ui.tsx";
 
-export function SectionHead({ eyebrow, title, lede, action }: { eyebrow: string; title: ReactNode; lede?: ReactNode; action?: ReactNode }) {
+export function SectionHead({ eyebrow, title, lede, action }: { eyebrow?: string; title: ReactNode; lede?: ReactNode; action?: ReactNode }) {
   return (
     <div className="board-head">
       <div>
-        <span className="mono-label">{eyebrow}</span>
+        {eyebrow && <span className="mono-label">{eyebrow}</span>}
         <h2>{title}</h2>
         {lede && <p className="text-2">{lede}</p>}
       </div>
@@ -150,36 +150,6 @@ export const STANDING: Record<Standing, { label: string; tone: string }> = {
 
 export function topEntries(detail: ChallengeDetail): Entry[] {
   return rankBuilders(detail.evaluations, challengeGates(detail.view), detail.view.award?.evaluation ?? null);
-}
-
-/** A challenge's top three builders, like a benchmark card. */
-export function TopResults({ detail }: { detail: ChallengeDetail }) {
-  const entries = topEntries(detail).filter((e) => !e.trial);
-  const shown = entries.slice(0, 3);
-  const updated = entries.map((e) => e.last?.getTime() ?? 0).reduce((a, b) => Math.max(a, b), 0);
-  return (
-    <Link to={`/challenges/${detail.listing.id}/leaderboard`} className="top card">
-      <div className="top-head">
-        <h3>{detail.listing.title}</h3>
-        <p className="muted small">{detail.listing.summary}</p>
-        <span className="tile-host"><HostMark name={detail.listing.sponsor} size={20} /><span className="small text-2">{detail.listing.sponsor}</span></span>
-      </div>
-      <ol className="top-list">
-        {shown.length === 0 && <li className="muted small">No results yet. The first builder to meet every requirement takes the reward.</li>}
-        {shown.map((e) => (
-          <li key={e.account}>
-            <Medal rank={e.rank} />
-            <span className="top-name break">{e.account}</span>
-            <span className="top-score mono">{percent(e.metrics?.accuracy_bp)}</span>
-          </li>
-        ))}
-      </ol>
-      <div className="top-foot muted small">
-        <span>{entries.length > 3 ? `+ ${entries.length - 3} more builders` : `${entries.length} builder${entries.length === 1 ? "" : "s"}`}</span>
-        <span>{updated ? `Updated ${ago(new Date(updated))}` : ""}</span>
-      </div>
-    </Link>
-  );
 }
 
 /** A pill linking on, in the section heads' style. */

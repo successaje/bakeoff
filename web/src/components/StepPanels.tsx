@@ -1,25 +1,23 @@
 /**
- * "How a bake-off works" as a scroll story: the steps scroll past on the left
- * while one panel stays pinned on the right, showing the latest winning
- * challenge at that step. On narrow screens each step carries its own panel.
+ * The four steps of a bake-off, each with a panel showing the latest winning
+ * challenge at that step. The landing page's spotlight shows them one at a
+ * time.
  */
 
-import { AnimatePresence, motion } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash } from "../lib/format.ts";
-import { usePrefersReducedMotion } from "../lib/hooks.ts";
 import { challengeGates, formatNear } from "../lib/near.ts";
 import { Bot, Building, Check, Coins, Lock } from "./Icons.tsx";
 
-const STEPS = [
+export const STEPS = [
   { icon: Building, title: "Set the goal", text: "A team publishes its workflow's baseline, commits to hidden test cases by hash, sets requirements for quality, cost, speed and leaks, and puts up a reward." },
   { icon: Bot, title: "Compete in the open", text: "Builders and their agents tune solutions on public practice cases, scored by the exact evaluator the challenge pins." },
   { icon: Lock, title: "Test on hidden cases", text: "Each submission runs once inside an OutLayer enclave against the hidden cases. Only totals and hashes come out." },
   { icon: Coins, title: "Reward the result", text: "The contract checks every hash against its commitments, records the result, and pays the earliest-submitted solution that meets every requirement." },
 ];
 
-type Props = { win: ChallengeSummary | null };
+export type Props = { win: ChallengeSummary | null };
 
 function Panel({ title, tag, children }: { title: ReactNode; tag?: ReactNode; children: ReactNode }) {
   return (
@@ -30,7 +28,7 @@ function Panel({ title, tag, children }: { title: ReactNode; tag?: ReactNode; ch
   );
 }
 
-function GoalPanel({ win }: Props) {
+export function GoalPanel({ win }: Props) {
   const gates = win?.view ? challengeGates(win.view) : null;
   const base = win?.listing.baseline;
   const reward = win?.view?.award?.amount ?? win?.view?.bounty;
@@ -58,7 +56,7 @@ function GoalPanel({ win }: Props) {
   );
 }
 
-function CompetePanel({ win }: Props) {
+export function CompetePanel({ win }: Props) {
   const lines = [
     ["get_challenge", "rules, requirements and commitments"],
     ["get_practice_tickets", `${win?.listing.practice_tickets ?? "the"} public practice tickets`],
@@ -81,7 +79,7 @@ function CompetePanel({ win }: Props) {
   );
 }
 
-function SealedPanel({ win }: Props) {
+export function SealedPanel({ win }: Props) {
   const m = win?.winner;
   const tickets = m?.tickets ?? win?.listing.tickets ?? 100;
   const out = [
@@ -113,7 +111,7 @@ function SealedPanel({ win }: Props) {
   );
 }
 
-function RewardPanel({ win }: Props) {
+export function RewardPanel({ win }: Props) {
   const award = win?.view?.award;
   const checks = ["The rules hash matches its commitment", "The test set hash matches its commitment", "Scored by the pinned evaluator build", "Every requirement is met"];
   return (
@@ -126,57 +124,5 @@ function RewardPanel({ win }: Props) {
         <span>Paid <strong className="amber">{award ? formatNear(award.amount) : "the reward"}</strong> to <span className="mono">{award?.winner ?? "the winner"}</span>, in the same transaction</span>
       </div>
     </Panel>
-  );
-}
-
-const PANELS = [GoalPanel, CompetePanel, SealedPanel, RewardPanel];
-
-export function StepStory({ win }: Props) {
-  const reduced = usePrefersReducedMotion();
-  const [active, setActive] = useState(0);
-  const items = useRef<(HTMLLIElement | null)[]>([]);
-
-  useEffect(() => {
-    // The step crossing the middle of the viewport is the active one.
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) if (entry.isIntersecting) setActive(Number((entry.target as HTMLElement).dataset.index));
-    }, { rootMargin: "-48% 0px -48% 0px" });
-    items.current.forEach((item) => item && observer.observe(item));
-    return () => observer.disconnect();
-  }, []);
-
-  const Active = PANELS[active]!;
-  return (
-    <div className="story-steps">
-      <ol className="story-list">
-        {STEPS.map((step, i) => {
-          const Inline = PANELS[i]!;
-          return (
-            <li key={step.title} ref={(el) => { items.current[i] = el; }} data-index={i} className={`story-step ${i === active ? "active" : ""}`}>
-              <span className="story-step-head"><span className="step-icon"><step.icon /></span><span className="mono muted small">0{i + 1}</span></span>
-              <h3>{step.title}</h3>
-              <p className="text-2">{step.text}</p>
-              <div className="story-inline"><Inline win={win} /></div>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="story-stage" aria-hidden="true">
-        <div className="story-progress">
-          {STEPS.map((step, i) => <span key={step.title} className={`${i <= active ? "on" : ""} ${i === active ? "current" : ""}`} />)}
-        </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={active}
-            initial={reduced ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -10 }}
-            transition={{ duration: reduced ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <Active win={win} />
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
   );
 }
