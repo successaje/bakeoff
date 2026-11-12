@@ -112,7 +112,7 @@ export function ChallengeCard({ summary }: { summary: ChallengeSummary }) {
       </div>
       <div className="ccard-foot">
         <strong className="ccard-reward"><Coins /> {view ? formatNear(view.award?.amount ?? view.bounty ?? "0") : "–"}</strong>
-        <span className="muted small">{view ? `${view.evaluations} results · ${timeLine(view, now)}` : ""}</span>
+        <span className="muted small">{view ? `${view.evaluations} result${view.evaluations === 1 ? "" : "s"} · ${timeLine(view, now)}` : ""}</span>
       </div>
     </Link>
   );
