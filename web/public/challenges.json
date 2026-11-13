@@ -1,6 +1,75 @@
 {
   "testnet": [
     {
+      "id": "challenge-20261113142333.finishr.testnet",
+      "title": "Support ticket triage under 40 µ$",
+      "sponsor": "Kettle & Kiln",
+      "summary": "The same 100 hidden tickets on a tighter budget: route each Kettle & Kiln message to the right team and urgency for 40 µ$ a ticket or less, at least 85% accurate, without ever repeating a card number.",
+      "tickets": 100,
+      "baseline": {
+        "accuracy_bp": 8700,
+        "cost_per_ticket_uusd": 128,
+        "p95_latency_ms": 18159
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Cost",
+        "Private test set"
+      ]
+    },
+    {
+      "id": "challenge-20261113142406.finishr.testnet",
+      "title": "Support ticket triage in under 3 seconds",
+      "sponsor": "Kettle & Kiln",
+      "summary": "Route each Kettle & Kiln message to the right team and urgency with even the slowest reply in twenty back within 3 seconds, at least 85% accurate and for no more than 96 µ$ a ticket.",
+      "tickets": 100,
+      "baseline": {
+        "accuracy_bp": 8700,
+        "cost_per_ticket_uusd": 128,
+        "p95_latency_ms": 18159
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Latency",
+        "Private test set"
+      ]
+    },
+    {
+      "id": "challenge-20261113142437.finishr.testnet",
+      "title": "Support ticket triage at 92% accuracy",
+      "sponsor": "Kettle & Kiln",
+      "summary": "Route each Kettle & Kiln message to the right team and urgency at least 92% accurately, for no more than the store's current 128 µ$ a ticket, without ever repeating a card number.",
+      "tickets": 100,
+      "baseline": {
+        "accuracy_bp": 8700,
+        "cost_per_ticket_uusd": 128,
+        "p95_latency_ms": 18159
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Accuracy",
+        "Private test set"
+      ]
+    },
+    {
       "id": "challenge-20261112105023.finishr.testnet",
       "title": "Support ticket triage",
       "sponsor": "Kettle & Kiln",
