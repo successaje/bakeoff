@@ -5,7 +5,9 @@
  *
  * Keys: Space plays and pauses, ← and → move between scenes, R restarts,
  * F goes full screen, H hides the controls. To rehearse one moment, open
- * #/demo?scene=<id>&at=<ms>, which starts paused there.
+ * #/demo?scene=<id>&at=<ms>, which starts paused there. With ?render the
+ * film hides its controls and plays as soon as its data and fonts are in,
+ * and reports through window.__film, for rendering it to a video file.
  */
 
 import { animate, AnimatePresence, motion } from "motion/react";
@@ -33,6 +35,10 @@ const MAINNET_PAYMENT = "9PGW15xgpFqaueAWr9Q6LedH6bvdQWH6aP1njCT22BUy";
 
 interface Ticket { id: string; text: string; label: { category: string; priority: string } }
 interface FilmData { win: ChallengeSummary | null; tickets: Ticket[] }
+
+declare global {
+  interface Window { __film?: { ready: boolean; done: boolean; total: number } }
+}
 
 /** Milliseconds into the current scene. */
 const Clock = createContext(0);
@@ -419,7 +425,8 @@ export function Demo() {
   const [playing, setPlaying] = useState(false);
   const [scale, setScale] = useState(1);
   const [awake, setAwake] = useState(true);
-  const [hudHidden, setHudHidden] = useState(false);
+  const render = params.has("render");
+  const [hudHidden, setHudHidden] = useState(render);
   const sleep = useRef<number | undefined>(undefined);
 
   // A new ?scene= or ?at= while the film is open moves to it, paused.
@@ -454,6 +461,23 @@ export function Demo() {
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, []);
+
+  // Rendering to video: start once the chain data, the tickets and the fonts are in, and say when it ends.
+  useEffect(() => {
+    if (!render || !data.win || data.tickets.length === 0) return;
+    let live = true;
+    void document.fonts.ready.then(() => {
+      if (!live) return;
+      window.__film = { ready: true, done: false, total: TOTAL };
+      setPlaying(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [render, data.win, data.tickets.length]);
+  useEffect(() => {
+    if (render && window.__film && i === SCENES.length - 1 && t >= SCENES[i]!.ms) window.__film.done = true;
+  }, [render, i, t]);
 
   // The clock: ticks while playing, and moves to the next scene when one ends.
   useEffect(() => {
@@ -513,7 +537,7 @@ export function Demo() {
   const scene = SCENES[i]!;
   const elapsed = SCENES.slice(0, i).reduce((sum, s) => sum + s.ms, 0) + Math.min(t, scene.ms);
   const showHud = !hudHidden && (!playing || awake);
-  const fresh = !playing && i === 0 && t === 0;
+  const fresh = !render && !playing && i === 0 && t === 0;
 
   return (
     <div className={`film ${playing && !awake ? "film-quiet" : ""}`} onMouseMove={wake} onClick={toggle}>

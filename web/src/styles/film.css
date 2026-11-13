@@ -77,9 +77,9 @@
 .film .turn-name { font-size: 150px; font-weight: 600; letter-spacing: -0.06em; line-height: 0.95; }
 .film .turn-tag { font-size: 52px; letter-spacing: -0.03em; color: var(--film-muted); }
 
-/* Tall enough for the ridge's full height at the stage's width, so the pins are not clipped. */
+/* The ridge's own proportions at the stage's width (1920 × 320/1440), so nothing is cropped: not the pins, not the bar's label. */
 
-.film .turn-ridge { position: absolute; left: 0; right: 0; bottom: 0; height: 448px; }
+.film .turn-ridge { position: absolute; left: 0; right: 0; bottom: 0; height: 427px; }
 
 /* How it works */
 
@@ -99,6 +99,7 @@
 .film .pay-box { display: grid; gap: 14px; justify-items: start; padding: 34px 38px; border-radius: 26px; text-align: left; background: var(--surface); border: 2px solid var(--border-strong); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08); }
 .film .pay-k { font-family: var(--font-mono); font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--film-muted); }
 .film .pay-box strong { font-size: 30px; letter-spacing: -0.02em; }
+.film .pay-box strong.mono { font-size: 24px; white-space: nowrap; }
 .film .pay-sub { display: inline-flex; align-items: center; gap: 8px; font-size: 21px; color: var(--accent); }
 .film .pay-sub svg { width: 20px; height: 20px; }
 .film .pay-who { display: inline-flex; align-items: center; gap: 12px; }
