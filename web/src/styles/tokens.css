@@ -83,7 +83,7 @@
   --shadow-lg: 0 2px 4px rgba(32, 33, 36, 0.04), 0 18px 44px -20px rgba(32, 33, 36, 0.28);
   --glass: rgba(255, 255, 255, 0.82);
   --grid-line: rgba(32, 33, 36, 0.06);
-  /* The landing page's ridge: a warm sky, and tiles in the brand's green and gold. */
+  /* The landing page's ridge: a warm sky, and tiles in the brand's green and gold. Heat is the orange a footer tile glows when it warms up. */
   --ridge-blank: #f7f4ec;
   --ridge-sky-a: #ddd6c6;
   --ridge-sky-b: #ece6d7;
@@ -94,6 +94,7 @@
   --ridge-sage: #a3cbb6;
   --ridge-stone: #bcc5c2;
   --ridge-line: #ffffff;
+  --ridge-heat: #ee7b26;
 }
 
 /* Dark, picked by the visitor or by the system when they chose "system". */
@@ -144,6 +145,7 @@
   --ridge-sage: #2c6a52;
   --ridge-stone: #27322f;
   --ridge-line: rgba(255, 255, 255, 0.7);
+  --ridge-heat: #ff9d42;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -194,5 +196,6 @@
     --ridge-sage: #2c6a52;
     --ridge-stone: #27322f;
     --ridge-line: rgba(255, 255, 255, 0.7);
+    --ridge-heat: #ff9d42;
   }
 }
