@@ -184,7 +184,7 @@ export function Teams() {
           <Reveal className="guide-head"><span className="step-num mono">05</span><h2>Set up a challenge</h2></Reveal>
           <Reveal className="card card-pad split">
             <div>
-              <p className="text-2">Setup runs from the command line today, with the open-source scripts. You need:</p>
+              <p className="text-2">Setup runs from the command line, with the open-source scripts. <Link to="/challenges/new">The setup form</Link> writes the rules file, the listing and every command for you. You need:</p>
               <ul className="check-list">
                 <li>Your current agent as a config for a NEAR AI Cloud model</li>
                 <li>About 100 real cases, labelled the way you want them answered</li>
@@ -198,8 +198,11 @@ export function Teams() {
         </section>
 
         <Reveal className="final-cta card">
-          <div><h2>Ready to set a <span className="serif">goal</span>?</h2><p className="text-2">The scripts, contract and evaluator are open source. The deployment guide walks through each step.</p></div>
-          <a href="https://github.com/successaje/bakeoff#deployment" target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-lg">Deployment guide <ArrowRight /></a>
+          <div><h2>Ready to set a <span className="serif">goal</span>?</h2><p className="text-2">The setup form writes your rules file, listing and commands. The scripts, contract and evaluator are open source, and the deployment guide walks through each step.</p></div>
+          <div className="final-cta-actions">
+            <Link to="/challenges/new" className="btn btn-primary btn-lg">Set up a challenge <ArrowRight /></Link>
+            <a href="https://github.com/successaje/bakeoff#deployment" target="_blank" rel="noopener noreferrer" className="btn btn-lg">Deployment guide</a>
+          </div>
         </Reveal>
       </div>
     </div>

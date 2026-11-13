@@ -272,13 +272,13 @@ function Leaderboards({ details }: { details: ChallengeDetail[] | null }) {
 
 function HostTile() {
   return (
-    <Link to="/teams" className="tile tile-new card">
+    <Link to="/challenges/new" className="tile tile-new card">
       <span className="tile-new-art"><Plus /></span>
       <div className="tile-body">
         <span className="tile-sponsor">Your team</span>
         <h3>Host a challenge</h3>
         <p className="tile-summary">Turn the evaluation you already run into a challenge, and pay only for a result that meets your goal.</p>
-        <span className="tile-new-link">How hosting works <ArrowRight /></span>
+        <span className="tile-new-link">Set one up <ArrowRight /></span>
       </div>
     </Link>
   );
@@ -437,7 +437,7 @@ function Everything({ rows, details, win }: { rows: ChallengeSummary[] | null; d
         <Reveal className="everything-head">
           <h2>Everything you need to run a bake-off</h2>
           <p className="text-2">Turn the evaluation you already run into a challenge: private test cases, a pinned evaluator, a reward in escrow, and a leaderboard anyone can check against the chain.</p>
-          <Link to="/teams" className="btn">Host a challenge <ArrowRight /></Link>
+          <Link to="/challenges/new" className="btn">Host a challenge <ArrowRight /></Link>
         </Reveal>
         <Receipt rows={rows} details={details} win={win} />
       </div>
