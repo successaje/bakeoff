@@ -30,6 +30,7 @@ const router = createHashRouter([
       { path: "/", element: <Home />, ErrorBoundary: PageError },
       // Other pages load when first visited.
       { path: "/challenges", lazy: () => import("./pages/Challenges.tsx").then((m) => ({ Component: m.Challenges })), ErrorBoundary: PageError },
+      { path: "/challenges/new", lazy: () => import("./pages/NewChallenge.tsx").then((m) => ({ Component: m.NewChallenge })), ErrorBoundary: PageError },
       { path: "/challenges/:id", lazy: () => import("./pages/Challenge.tsx").then((m) => ({ Component: m.Challenge })), ErrorBoundary: PageError },
       { path: "/challenges/:id/results/:n", lazy: () => import("./pages/Result.tsx").then((m) => ({ Component: m.Result })), ErrorBoundary: PageError },
       { path: "/challenges/:id/:tab", lazy: () => import("./pages/Challenge.tsx").then((m) => ({ Component: m.Challenge })), ErrorBoundary: PageError },

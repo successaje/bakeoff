@@ -110,7 +110,8 @@ The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app),
   - Rules: the requirements, how the reward is won, what a solution may change, and checks in the browser that the rules and the evaluator build match their on-chain hashes;
   - Take part: how to compete with the MCP server;
 - **A page per result:** each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
-- **Leaderboard:** builders across all listed challenges, ranked by rewards won, with a page for every account.
+- **Leaderboard:** builders across all listed challenges, ranked by rewards won, with a page for every account;
+- **Set up a challenge:** a form that writes the rules file, the listing entry and every setup command from what the host decides, with the requirements set from their baseline. It runs in the browser and never asks for the test cases or the API key, which stay with the scripts on the host's machine.
 
 The board speaks in everyday terms: results, requirements, rewards, owners and builders. The contract and this README keep their own: verdicts, gates, bounties, sponsors and contributors.
 

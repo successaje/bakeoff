@@ -54,7 +54,7 @@ export function Challenges() {
               Builders and their agents compete, and the earliest result that meets every requirement is paid.
             </p>
             <div className="row">
-              <Link to="/teams" className="btn btn-primary"><Plus /> Host a challenge</Link>
+              <Link to="/challenges/new" className="btn btn-primary"><Plus /> Host a challenge</Link>
               <Link to="/how-it-works" className="btn">How it works</Link>
             </div>
           </div>

@@ -278,7 +278,7 @@ function TopNav({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean })
           )}
           <span className="nav-wide"><NetworkSwitch /></span>
           <span className="nav-wide"><ThemeToggle /></span>
-          <Link to="/teams" className="nav-text">Host a challenge</Link>
+          <Link to="/challenges/new" className="nav-text">Host a challenge</Link>
           <WalletButton />
         </div>
       </div>
@@ -292,7 +292,7 @@ function Drawer({ onClose }: { onClose: () => void }) {
       <motion.aside className="drawer" aria-label="Menu" initial={{ x: -24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }} transition={{ duration: 0.22 }} onClick={(event) => event.stopPropagation()}>
         <div className="drawer-head"><Brand /><button type="button" className="icon-btn" aria-label="Close menu" onClick={onClose}><Close /></button></div>
         <div className="drawer-search"><SearchBox onDone={onClose} /></div>
-        <Link to="/teams" className="btn btn-primary drawer-create" onClick={onClose}><Plus /> Host a challenge</Link>
+        <Link to="/challenges/new" className="btn btn-primary drawer-create" onClick={onClose}><Plus /> Host a challenge</Link>
         <nav className="drawer-nav">
           {[{ to: "/", label: "Home", icon: Home, end: true }, ...NAV].map((item) => (
             <NavLink key={item.to} to={item.to} end={"end" in item} className={({ isActive }) => `drawer-link ${isActive ? "active" : ""}`} onClick={onClose}>
@@ -325,7 +325,7 @@ function Footer() {
           </div>
           <div>
             <h4>Take part</h4>
-            <Link to="/teams">Host a challenge</Link>
+            <Link to="/challenges/new">Host a challenge</Link>
             <Link to="/builders">For builders</Link>
             <Link to="/builders">Connect an agent</Link>
           </div>
