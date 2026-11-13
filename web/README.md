@@ -15,7 +15,7 @@ The public face of Bakeoff: a static React app that reads bounties, results and 
 | How it works | One submission end to end; what stays hidden and what is public; what you still have to trust; questions. |
 | Leaderboard | Builders across every listed challenge, ranked by rewards won, then results that met every requirement. |
 | Account | One NEAR account's record: rewards won, every result it submitted, and the challenges it hosts. |
-| Demo (`/#/demo`) | A self-playing film of Bakeoff, 2:13, made to be screen-recorded at 1920×1080: the problem, the turn, how a bake-off works, the mainnet result from the chain, and what it could change. Space plays, ←/→ move between scenes, F goes full screen, H hides the controls, and `?scene=<id>&at=<ms>` opens one moment paused. |
+| Demo (`/#/demo`) | A self-playing film of Bakeoff, 2:13, made to be screen-recorded at 1920×1080: the problem, the turn, how a bake-off works, the mainnet result from the chain, and what it could change. Space plays, ←/→ move between scenes, F goes full screen, H hides the controls, and `?scene=<id>&at=<ms>` opens one moment paused. `npm run film` renders it to a 60 fps MP4, frame by frame, on a virtual clock (needs Chrome, ffmpeg and the dev server on port 5180). |
 
 `/agents` and `/sponsors`, the guides' earlier addresses, redirect to `/builders` and `/teams`.
 

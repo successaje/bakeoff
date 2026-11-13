@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# Rendered demo films
+*.mp4
