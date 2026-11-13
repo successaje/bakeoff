@@ -15,6 +15,7 @@ import { accountItems, challengeItems, search, type SearchItem } from "../lib/se
 import { useSession } from "../lib/session.tsx";
 import { applyTheme, storedTheme, type ThemeChoice } from "../lib/theme.ts";
 import { Avatar, HostMark } from "./art.tsx";
+import { FooterWordmark } from "./FooterWordmark.tsx";
 import { Building, Bot, Chevron, Close, Copy, External, Github, Home, LogoMark, LogOut, Menu, Monitor, Moon, Plus, Podium, Search, Shield, Sun, Trophy, Wallet } from "./Icons.tsx";
 import { explorer } from "./ui.tsx";
 
@@ -341,6 +342,9 @@ function Footer() {
             <a href={`${REPO}/blob/main/LICENSE-MIT`} target="_blank" rel="noopener noreferrer">License</a>
           </div>
         </div>
+      </div>
+      <div className="container footer-word">
+        <FooterWordmark />
       </div>
       <div className="footer-bottom">
         <div className="container footer-bottom-inner">
