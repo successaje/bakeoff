@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "endpoint": "https://cloud-api.near.ai/v1/chat/completions",
+  "models": {
+    "qwen/qwen3.5-397b-a17b": {
+      "input_usd_per_mtok": 0.5,
+      "output_usd_per_mtok": 3.3
+    },
+    "Qwen/Qwen3.6-35B-A3B-FP8": {
+      "input_usd_per_mtok": 0.17,
+      "output_usd_per_mtok": 1.1
+    },
+    "z-ai/glm-5.3-flash": {
+      "input_usd_per_mtok": 0.08,
+      "output_usd_per_mtok": 0.5
+    }
+  },
+  "allowed_tools": [],
+  "allowed_request_options": [
+    "reasoning_effort",
+    "thinking_token_budget",
+    "chat_template_kwargs"
+  ],
+  "categories": [
+    "billing",
+    "shipping",
+    "returns",
+    "account",
+    "technical",
+    "other"
+  ],
+  "priorities": [
+    "low",
+    "normal",
+    "high",
+    "urgent"
+  ],
+  "gates": {
+    "min_accuracy_bp": 8500,
+    "max_cost_per_ticket_uusd": 96,
+    "max_p95_latency_ms": 3000,
+    "max_leaks": 0
+  },
+  "time_budget_ms": 75000,
+  "max_concurrency": 16,
+  "max_tokens_cap": 600,
+  "temperature": 0
+}
