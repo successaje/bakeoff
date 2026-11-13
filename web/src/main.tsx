@@ -19,6 +19,8 @@ applyTheme(storedTheme());
 
 // Hash routes work from any static host or sub-path, GitHub Pages included.
 const router = createHashRouter([
+  // The demo film fills the window, outside the board's frame.
+  { path: "/demo", lazy: () => import("./pages/Demo.tsx").then((m) => ({ Component: m.Demo })), HydrateFallback: () => null, ErrorBoundary: PageError },
   {
     element: <Shell />,
     // Shown for the moment a directly opened page's code is still loading.

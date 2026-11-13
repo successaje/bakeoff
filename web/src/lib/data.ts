@@ -95,3 +95,8 @@ export function forget(id: string): void {
   cache.delete(`list:${networkOf(id)}`);
   cache.delete(`all:${networkOf(id)}`);
 }
+
+/** The most recent listed challenge whose reward has been paid, with its winning metrics. */
+export function latestWin(rows: ChallengeSummary[]): ChallengeSummary | null {
+  return rows.filter((r) => r.view?.award?.paid && r.winner).sort((a, b) => b.listing.id.localeCompare(a.listing.id))[0] ?? null;
+}

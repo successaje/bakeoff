@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts"
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "film": "node scripts/render-film.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "5.3.0",

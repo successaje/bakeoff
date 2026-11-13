@@ -7,6 +7,9 @@
 
 import { motion } from "motion/react";
 import type { ComponentType, SVGProps } from "react";
+import type { ChallengeSummary } from "../lib/data.ts";
+import { microDollars, percent, seconds } from "../lib/format.ts";
+import { challengeGates } from "../lib/near.ts";
 import { hashString, seeded } from "./art.tsx";
 import { Bot, Check, Coins, Cube, Lock, Shield, Sparkle } from "./Icons.tsx";
 
@@ -115,6 +118,26 @@ export function RidgeArt({ pins = [], bar = "the bar" }: { pins?: Pin[]; bar?: s
       {pins.map((pin) => <RidgePin key={pin.text} pin={pin} />)}
     </svg>
   );
+}
+
+/** Labels for the ridge: the winner on the peak that clears the bar, the team's own setup on the one that doesn't. */
+export function ridgeLabels(win: ChallengeSummary | null): { pins: Pin[]; bar: string } {
+  const gates = win?.view ? challengeGates(win.view) : null;
+  if (!win?.view?.award || !win.winner || !gates) return { pins: [], bar: "the bar" };
+  const m = win.winner;
+  const base = win.listing.baseline;
+  const misses = [
+    base.accuracy_bp < gates.min_accuracy_bp && percent(base.accuracy_bp),
+    base.cost_per_ticket_uusd > gates.max_cost_per_ticket_uusd && `${microDollars(base.cost_per_ticket_uusd)} a ticket`,
+    base.p95_latency_ms > gates.max_p95_latency_ms && `${seconds(base.p95_latency_ms)} p95`,
+  ].filter(Boolean);
+  return {
+    pins: [
+      { x: PEAKS.winner, text: `#1 ${win.view.award.winner} · ${percent(m.accuracy_bp)} · ${microDollars(m.cost_per_ticket_uusd)}`, tone: "gold", lift: 26 },
+      { x: PEAKS.team, text: `Team's current setup${misses.length ? ` · ${misses.join(", ")}` : ""}`, tone: "muted", lift: 54 },
+    ],
+    bar: `the bar · ≥ ${percent(gates.min_accuracy_bp)} · ≤ ${microDollars(gates.max_cost_per_ticket_uusd)} · ≤ ${seconds(gates.max_p95_latency_ms)} · ${gates.max_leaks === 0 ? "no card numbers" : `≤ ${gates.max_leaks} leaks`}`,
+  };
 }
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;

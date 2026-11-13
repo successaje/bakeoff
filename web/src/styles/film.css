@@ -1,0 +1,174 @@
+/*
+ * The demo film: a fixed 1920×1080 stage scaled to the window, dark for the
+ * problem and light from the turn on. Motion is opacity and transform only.
+ */
+
+.film { position: fixed; inset: 0; z-index: 200; overflow: hidden; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.film-quiet { cursor: none; }
+.film-bg { position: absolute; inset: 0; }
+.film-stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: center; }
+.film .scene { position: absolute; inset: 0; will-change: opacity, transform; }
+.film .scene-dark { --film-muted: #8f9b96; --film-soft: #b9c3be; --film-hot: #ff7a59; --film-good: #00e08f; color: #f2f5f3; }
+.film .scene-light { --film-muted: #5f6763; --film-soft: #3c4043; --film-hot: var(--coral); --film-good: var(--accent); color: #1d201e; }
+
+/* Type */
+
+.film .sc { position: absolute; inset: 0; padding: 120px 160px; }
+.film .beat-abs { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 28px; padding: 0 220px; text-align: center; }
+.film .w { display: inline-block; }
+.film .sc-kicker { font-size: 46px; letter-spacing: -0.02em; color: var(--film-muted); }
+.film .sc-h1 { font-size: 106px; line-height: 1.04; font-weight: 450; letter-spacing: -0.045em; text-wrap: balance; }
+.film .sc-h2 { font-size: 66px; line-height: 1.08; font-weight: 450; letter-spacing: -0.04em; text-wrap: balance; }
+.film .sc-p { max-width: 760px; font-size: 30px; line-height: 1.45; color: var(--film-muted); }
+.film .sc-lead { font-size: 44px; line-height: 1.28; letter-spacing: -0.025em; }
+.film .sc-label { display: inline-flex; align-items: center; gap: 12px; font-family: var(--font-mono); font-size: 22px; letter-spacing: 0.01em; color: var(--film-muted); }
+.film .center { margin-left: auto; margin-right: auto; text-align: center; justify-content: center; }
+.film .sc-p.center { max-width: 1120px; }
+.film .hot { color: var(--film-hot); }
+.film .good, .film .scene-dark .accent { color: var(--film-good); }
+.film .soft { color: var(--film-muted); }
+.film .sc .serif { font-size: 1.1em; }
+
+/* Layouts */
+
+.film .sc-split { display: grid; grid-template-columns: 760px minmax(0, 1fr); gap: 110px; align-items: center; }
+.film .sc-col { display: grid; gap: 30px; align-content: center; }
+.film .sc-stackv { display: grid; align-content: center; justify-items: center; gap: 56px; text-align: center; }
+
+/* The bill */
+
+.film .bill-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+.film .bill-stats div { display: grid; gap: 6px; padding: 26px 30px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.04); }
+.film .bill-stats strong { font-family: var(--font-mono); font-size: 56px; font-weight: 600; letter-spacing: -0.03em; color: var(--film-hot); }
+.film .bill-stats span { font-size: 22px; line-height: 1.35; color: var(--film-muted); }
+.film .bill-stream { height: 840px; }
+.film .stream { position: relative; height: 840px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+
+/* Each card carries its own spacing, so half the doubled list is exactly one loop. */
+
+.film .stream-track { animation: stream linear infinite; will-change: transform; }
+@keyframes stream { to { transform: translateY(-50%); } }
+.film .ticket { margin-bottom: 18px; padding: 22px 26px; border-radius: 18px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+.film .ticket p { font-size: 24px; line-height: 1.4; color: #e6ebe8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.film .ticket-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 18px; }
+.film .ticket-chip { padding: 3px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--film-soft); font-family: var(--font-mono); font-size: 16px; }
+.film .ticket-chip.urgent { color: #ff9d82; background: rgba(255, 122, 89, 0.14); }
+.film .ticket-cost { margin-left: auto; font-family: var(--font-mono); font-weight: 600; color: var(--film-hot); }
+.film .ticket-wait { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); color: var(--film-soft); }
+.film .ticket-wait i { position: relative; width: 46px; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.1); }
+.film .ticket-wait i::after { content: ""; position: absolute; inset: 0; background: var(--film-hot); transform-origin: left; animation: wait 2.6s var(--ease-in-out) infinite; animation-delay: inherit; }
+@keyframes wait { 0% { transform: scaleX(0); } 75%, 100% { transform: scaleX(1); } }
+
+/* The problem */
+
+.film .paths { display: grid; grid-template-columns: repeat(3, 470px); gap: 32px; }
+.film .path-wrap { display: grid; }
+.film .path { position: relative; display: grid; gap: 14px; align-content: start; padding: 36px 36px 42px; border-radius: 24px; text-align: left; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); overflow: hidden; }
+.film .path-n { font-family: var(--font-mono); font-size: 20px; color: var(--film-muted); }
+.film .path h3 { font-size: 40px; font-weight: 520; letter-spacing: -0.03em; }
+.film .path p { font-size: 25px; line-height: 1.4; color: var(--film-soft); }
+.film .path h3 { position: relative; justify-self: start; }
+.film .path-strike { position: absolute; left: -8px; right: -8px; top: 54%; height: 4px; border-radius: 2px; background: var(--film-hot); transform-origin: left; }
+
+/* The turn and the close */
+
+.film .turn-brand { position: absolute; left: 0; right: 0; top: 140px; display: grid; justify-items: center; gap: 20px; text-align: center; }
+.film .turn-mark { display: inline-grid; }
+.film .turn-name { font-size: 150px; font-weight: 600; letter-spacing: -0.06em; line-height: 0.95; }
+.film .turn-tag { font-size: 52px; letter-spacing: -0.03em; color: var(--film-muted); }
+
+/* The ridge's own proportions at the stage's width (1920 × 320/1440), so nothing is cropped: not the pins, not the bar's label. */
+
+.film .turn-ridge { position: absolute; left: 0; right: 0; bottom: 0; height: 427px; }
+
+/* How it works */
+
+.film .step-art { position: relative; display: grid; place-items: center; height: 820px; border-radius: 36px; background:
+  radial-gradient(55% 60% at 80% 10%, color-mix(in srgb, var(--gold) 30%, transparent), transparent 70%),
+  radial-gradient(50% 55% at 10% 95%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%),
+  radial-gradient(55% 55% at 95% 95%, color-mix(in srgb, var(--sky) 18%, transparent), transparent 70%),
+  var(--cream); }
+.film-panel { zoom: 1.45; width: 470px; }
+.film-session { zoom: 1.3; width: 560px; }
+.film-run { zoom: 1.32; width: 470px; }
+.film-run .run { background: var(--surface); }
+
+/* The payment */
+
+.film .pay-row { display: grid; grid-template-columns: 480px 340px 480px; align-items: center; }
+.film .pay-box { display: grid; gap: 14px; justify-items: start; padding: 34px 38px; border-radius: 26px; text-align: left; background: var(--surface); border: 2px solid var(--border-strong); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08); }
+.film .pay-k { font-family: var(--font-mono); font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--film-muted); }
+.film .pay-box strong { font-size: 30px; letter-spacing: -0.02em; }
+.film .pay-box strong.mono { font-size: 24px; white-space: nowrap; }
+.film .pay-sub { display: inline-flex; align-items: center; gap: 8px; font-size: 21px; color: var(--accent); }
+.film .pay-sub svg { width: 20px; height: 20px; }
+.film .pay-who { display: inline-flex; align-items: center; gap: 12px; }
+.film .pay-amount { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 46px; font-weight: 650; color: var(--gold); }
+.film .pay-amount svg { width: 34px; height: 34px; stroke-width: 2.4; }
+.film .pay-lane { position: relative; height: 4px; margin: 0 26px; background: repeating-linear-gradient(90deg, var(--border-strong) 0 10px, transparent 10px 20px); }
+.film .pay-coin { position: absolute; left: 0; top: 50%; width: 66px; height: 66px; margin: -33px 0 0 -33px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(140deg, #f8d77a, #b8860b); color: #3d2b00; box-shadow: 0 10px 26px rgba(184, 134, 11, 0.35); }
+.film .pay-coin svg { width: 34px; height: 34px; }
+.film .pay-tx { font-size: 22px; color: var(--film-muted); }
+
+/* The proof */
+
+.film .sc-label.live i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); color: var(--accent); animation: pulse 1.8s var(--ease-in-out) infinite; }
+.film .proof-grid { display: grid; grid-template-columns: repeat(4, 360px); gap: 28px; }
+.film .proof { display: grid; gap: 10px; justify-items: start; padding: 34px 32px; border-radius: 24px; text-align: left; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.06); }
+.film .proof-k { font-size: 22px; color: var(--film-muted); }
+.film .proof strong { font-family: var(--font-mono); font-size: 64px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; }
+.film .proof-was { font-size: 20px; color: var(--film-muted); }
+.film .proof-chip { margin-top: 6px; padding: 6px 14px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 20px; font-weight: 600; }
+
+/* Trust */
+
+.film .trust { justify-items: start; gap: 54px; padding-left: 260px; text-align: left; }
+.film .promise { display: grid; grid-template-columns: 88px minmax(0, 1fr); column-gap: 34px; row-gap: 8px; align-items: center; }
+.film .promise-icon { grid-row: span 2; width: 88px; height: 88px; border-radius: 26px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.film .promise-icon svg { width: 44px; height: 44px; }
+.film .promise .sc-h2 { font-size: 62px; }
+.film .promise-proof { font-size: 22px; color: var(--film-muted); }
+
+/* The potential */
+
+.film .uses { display: grid; grid-template-columns: repeat(4, 370px); gap: 24px; }
+.film .use { position: relative; display: grid; gap: 8px; justify-items: start; padding: 28px 30px; border-radius: 22px; text-align: left; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 14px 36px rgba(0, 0, 0, 0.05); }
+.film .use-icon { width: 56px; height: 56px; margin-bottom: 8px; border-radius: 16px; display: grid; place-items: center; background: var(--surface-2); }
+.film .use-icon svg { width: 28px; height: 28px; }
+.film .use strong { font-size: 30px; font-weight: 560; letter-spacing: -0.02em; }
+.film .use-goal { font-size: 21px; color: var(--film-muted); }
+.film .use-live { position: absolute; top: 24px; right: 24px; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 16px; font-weight: 600; }
+
+/* The close */
+
+.film .close { gap: 30px; }
+.film .close-brand { display: flex; align-items: center; gap: 26px; }
+.film .close-links { display: flex; align-items: center; gap: 20px; }
+.film .close-url { padding: 16px 32px; border-radius: 999px; background: var(--ink); color: var(--ink-text); font-size: 30px; font-weight: 560; }
+.film .close-gh { padding: 16px 28px; border-radius: 999px; border: 1px solid var(--border-strong); font-size: 24px; }
+.film .close-stack { display: flex; align-items: center; gap: 50px; margin-top: 24px; font-size: 24px; font-weight: 620; color: var(--text-2); }
+.film .close-stack span { display: inline-flex; align-items: center; gap: 12px; }
+.film .close-stack svg { width: 32px; height: 32px; }
+.film .close-stack svg.wide { width: auto; height: 32px; }
+.film .close-stack svg.wider { width: auto; height: 25px; }
+.film .close-built { margin-top: 12px; font-size: 22px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--film-muted); }
+
+/* Start card and controls, outside the scaled stage */
+
+.film-start { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 12px; text-align: center; color: #f2f5f3; pointer-events: none; }
+.film-start strong { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.film-start span { font-size: 14px; color: #8f9b96; }
+.film-hud { position: absolute; left: 50%; bottom: 20px; width: min(980px, calc(100% - 32px)); display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 16px; background: rgba(12, 16, 14, 0.8); color: #e8ece9; font-size: 13px; cursor: default; opacity: 0; pointer-events: none; transform: translate(-50%, 12px); transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.film-hud.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.film-hud > button { height: 30px; min-width: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: inherit; font: inherit; cursor: pointer; }
+.film-hud > button:hover { background: rgba(255, 255, 255, 0.16); }
+.film-play { min-width: 64px !important; }
+.film-bars { flex: 1; display: flex; gap: 3px; }
+.film-bar { position: relative; flex-basis: 0; height: 6px; padding: 0; border: 0; border-radius: 3px; background: rgba(255, 255, 255, 0.18); overflow: hidden; cursor: pointer; }
+.film-bar span { position: absolute; inset: 0; background: #00e08f; transform-origin: left; transition: transform 60ms linear; }
+.film-time { font-family: var(--font-mono); color: #9aa6a1; white-space: nowrap; }
+.film-label { min-width: 120px; text-align: right; color: #c4ccc8; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .film .stream-track, .film .ticket-wait i::after { animation: none !important; }
+}
