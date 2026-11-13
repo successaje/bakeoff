@@ -1,10 +1,33 @@
 {
   "testnet": [
     {
-      "id": "challenge-20261107114823.finishr.testnet",
+      "id": "challenge-20261112105023.finishr.testnet",
       "title": "Support ticket triage",
       "sponsor": "Kettle & Kiln",
       "summary": "Route each message sent to Kettle & Kiln, a fictional homeware store, to the right team and urgency with a one-line summary, for less than the store's current agent costs and without ever repeating a card number.",
+      "tickets": 100,
+      "baseline": {
+        "accuracy_bp": 8700,
+        "cost_per_ticket_uusd": 128,
+        "p95_latency_ms": 18159
+      },
+      "demo": true,
+      "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
+      "practice_tickets": 80,
+      "practice_set": "data/practice.json",
+      "labeling_guide": "data/labeling-guide.md",
+      "tags": [
+        "Classification",
+        "Customer support",
+        "Cost",
+        "Private test set"
+      ]
+    },
+    {
+      "id": "challenge-20261107114823.finishr.testnet",
+      "title": "Support ticket triage, second reward round",
+      "sponsor": "Kettle & Kiln",
+      "summary": "The second reward round on the same 100 hidden tickets: a Claude Code agent working through the Bakeoff MCP server won it on its first submission.",
       "tickets": 100,
       "baseline": {
         "accuracy_bp": 8700,
