@@ -166,7 +166,10 @@ console.log(`ready: ${total} ms of film, rendering ${frames} frames at ${FPS} fp
 const ffmpeg = spawn("ffmpeg", [
   "-y", "-loglevel", "error",
   "-f", "image2pipe", "-framerate", String(FPS), "-c:v", "mjpeg", "-i", "-",
-  "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-pix_fmt", "yuv420p",
+  // The JPEG frames are full range; convert to the standard video range, tagged BT.709, so players and X show true colours.
+  "-vf", "scale=in_range=pc:out_range=tv,format=yuv420p",
+  "-c:v", "libx264", "-preset", "slow", "-crf", "16",
+  "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
   "-r", String(FPS), "-movflags", "+faststart", out,
 ], { stdio: ["pipe", "inherit", "inherit"] });
 const write = (buf) => new Promise((resolve) => (ffmpeg.stdin.write(buf) ? resolve() : ffmpeg.stdin.once("drain", resolve)));
