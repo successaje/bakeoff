@@ -29,7 +29,7 @@ The sealed test set and the model API key are OutLayer secrets bound to one eval
 
 The first three steps need only a browser; the last two need Rust (see [Local quick start](#local-quick-start)) but no accounts or keys.
 
-1. Open the [winning result](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). You see each requirement against the result and the baseline: 89.0% accuracy, 51 µ$ a ticket, 2.6 s p95, no leaks, and the 1 NEAR payment with its transaction.
+1. Open the [winning result](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/1). You see each requirement against the result and the baseline: 89.0% accuracy, 51 µ$ a ticket, 2.6 s p95, no leaks, and the 1 NEAR payment with its transaction. Press **Check the enclave proof**: your browser verifies OutLayer's Intel-signed TDX quote for the run and ties it to the pinned evaluator and to the verdict the contract recorded.
 2. Open the [mainnet challenge's Rules tab](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/rules) and scroll to Verification. Press Check on Rules and on Evaluator build. Each shows "Matches": your browser hashed the rules and the downloaded evaluator build, and both equal the contract's commitments.
 3. In the same section, the Contract code row reads "Locked · 0 keys": the challenge account has no access keys, so nobody can change its code. The Overview tab's sidebar shows the same.
 4. Run `cargo test --workspace`. The contract and evaluator tests pass, including the attacks in [How would you cheat it?](#how-would-you-cheat-it).
@@ -48,6 +48,7 @@ Bakeoff is entered in three tracks. What each brief asks for, and where Bakeoff 
 | Leaks are a failure, not a footnote | Any card number repeated in an answer fails the run | [`evaluator/src/grading.rs`](evaluator/src/grading.rs) |
 | Keys never pass through Bakeoff | The model key is encrypted on the owner's machine; the MCP server signs through near-cli-rs and never sees a private key; the setup form never asks for either | [`mcp/src/submit.ts`](mcp/src/submit.ts), [`web/src/lib/setup.ts`](web/src/lib/setup.ts) |
 | Checkable from outside | The board hashes the rules and the evaluator build in your browser and compares them with the contract's commitments | [Try it](#try-it), step 2 |
+| A proof the enclave ran it | Each result page verifies OutLayer's Intel TDX quote for the run in the browser, with a WebAssembly build of `dcap-qvl`: signed by Intel, committing to the run's record, from an approved machine, running the pinned evaluator and producing the recorded verdict | [`web/src/lib/attestation.ts`](web/src/lib/attestation.ts), [`web/quote-verifier/`](web/quote-verifier/) |
 
 **Agent Economy** (agents that earn, spend and pay, with crypto or through NEAR Intents)
 | The brief | In Bakeoff | Where |
@@ -306,7 +307,7 @@ Kettle & Kiln is a fictional store, and its tickets are synthetic. The project's
 
 A result can only come from the enclave: `on_evaluation_result` is private and runs as the callback of the contract's own `request_execution` call to OutLayer. The one key that could change that is the challenge account's own, which could deploy different code. `scripts/near/open.sh` deletes it when it opens a challenge, so from then on no key, Bakeoff's or the owner's, can write a result; the challenge page shows "Locked · 0 keys" once it is gone. The contract checks every hash, but some things are beyond what it can check:
 - **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
-- **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave.
+- **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave. Each result page checks the run's Intel TDX quote in your browser, which shows a genuine, approved machine ran the pinned evaluator and produced the recorded verdict; it does not show that OutLayer's approved image is itself trustworthy, or that the result was delivered on-chain from inside the enclave. The page lists what the check leaves out.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
 - **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
 

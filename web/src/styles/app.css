@@ -498,6 +498,26 @@
 .try-steps .code { width: 100%; }
 .plain-list { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-2); color: var(--text-2); }
 .evidence { display: grid; margin: 0; }
+/* The enclave proof: a head with the outcome, the checks once run, and what the proof leaves out. */
+.tee-proof { display: grid; gap: var(--space-4); }
+.tee-proof-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-4); align-items: start; }
+.tee-proof-head h2 { margin-bottom: 4px; }
+.tee-proof a { white-space: nowrap; }
+.tee-proof a svg { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; margin-left: 2px; }
+.tee-proof-run { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.tee-checks { list-style: none; margin: 0; padding: 0; display: grid; }
+.tee-check { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border); }
+.tee-check:first-child { border-top: 0; }
+.tee-check h4 { font-size: var(--text-sm); margin-bottom: 2px; }
+.tee-check p { overflow-wrap: anywhere; }
+.tee-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+.tee-mark svg { width: 13px; height: 13px; }
+.tee-check.ok .tee-mark { background: var(--accent-soft); color: var(--accent); }
+.tee-check.warn .tee-mark { background: var(--amber-soft); color: var(--amber); }
+.tee-check.fail .tee-mark { background: var(--coral-soft); color: var(--coral); }
+.tee-limits summary { cursor: pointer; color: var(--text-2); font-weight: 500; width: fit-content; }
+.tee-limits ul { margin: var(--space-3) 0 0; padding-left: 18px; display: grid; gap: 6px; }
+@media (max-width: 640px) { .tee-proof-head { grid-template-columns: auto minmax(0, 1fr); } .tee-proof-head .badge { grid-column: 1 / -1; justify-self: start; } }
 .evidence > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--border); }
 .evidence > div:first-child { border-top: 0; }
 .evidence dt { color: var(--muted); font-size: var(--text-sm); }
