@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { reasonText } from "../components/challenge.tsx";
 import { Check, Close, Coins, Download, External, Timer } from "../components/Icons.tsx";
+import { EnclaveProof } from "../components/EnclaveProof.tsx";
 import { RetryPayment } from "../components/Manage.tsx";
 import { Account, CodeBlock, CopyButton, DemoBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
@@ -290,6 +291,12 @@ export function Result() {
             <div><dt>Recorded</dt><dd>{settled ? utc(settled) : "Not yet"}</dd></div>
           </dl>
         </Reveal>
+
+        {e.verdict && (
+          <Reveal className="card card-pad result-section">
+            <EnclaveProof network={network} transaction={submission?.transaction ?? null} lookupError={lookup.error?.message ?? null} evaluatorSha256={view.evaluator.sha256} verdict={e.verdict} submitter={e.submitter} />
+          </Reveal>
+        )}
 
         <nav className="result-nav" aria-label="Other results">
           {previous !== undefined ? <Link to={`/challenges/${id}/results/${previous}`} className="btn btn-ghost">← Result #{previous}</Link> : <span />}

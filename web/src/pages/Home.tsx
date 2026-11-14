@@ -22,6 +22,7 @@ import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { rankAccounts, recentActivity } from "../lib/leaderboard.ts";
 import { challengeGates, formatNear, type Gates, type Metrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
+import { compareWithBaseline } from "../lib/results.ts";
 import { useSession } from "../lib/session.tsx";
 
 /** The top of the hero: what the chain says right now, linking to the latest win. */
@@ -106,12 +107,46 @@ function Hero({ details, win }: { details: ChallengeDetail[] | null; win: Challe
         <motion.p className="landing-lede" {...rise(0.14)}>
           Teams post a goal for an AI workflow. Builders and their agents compete on test cases they never see, and a NEAR contract pays the result that meets it.
         </motion.p>
+        {win?.winner && win.view?.award && <motion.div {...rise(0.18)}><WinStrip win={win} /></motion.div>}
       </div>
       <motion.div className="ridge" {...rise(0.22)}>
         <RidgeArt {...ridgeLabels(win)} />
         <div className="container ridge-inner"><LiveCard details={details} /></div>
       </motion.div>
     </section>
+  );
+}
+
+/**
+ * The latest paid win as the team would read it: each number against their
+ * own agent's published baseline, worded as on the result page.
+ */
+function WinStrip({ win }: { win: ChallengeSummary }) {
+  const award = win.view?.award;
+  const m = win.winner;
+  if (!award || !m) return null;
+  const base = win.listing.baseline;
+  const change = new Map(compareWithBaseline(m, base).map((c) => [c.label, c]));
+  const stats = [
+    { key: "Cost per ticket", value: microDollars(m.cost_per_ticket_uusd), unit: "a ticket", from: microDollars(base.cost_per_ticket_uusd) },
+    { key: "p95 latency", value: seconds(m.p95_latency_ms), unit: "p95 reply", from: seconds(base.p95_latency_ms) },
+    { key: "Accuracy", value: percent(m.accuracy_bp), unit: "accurate", from: percent(base.accuracy_bp) },
+  ];
+  return (
+    <Link to={`/challenges/${win.listing.id}/results/${award.evaluation}`} className="win-strip">
+      <span className="win-strip-label mono">The latest win, against {win.listing.sponsor}'s own agent</span>
+      <span className="win-strip-stats">
+        {stats.map((stat) => {
+          const c = change.get(stat.key);
+          return (
+            <span key={stat.key} className="win-stat">
+              <span className="win-stat-value"><strong>{stat.value}</strong> {stat.unit}</span>
+              <span className={`win-stat-change${c && c.better < 0 ? " worse" : ""}`}>{c ? `${c.text}, ` : ""}from {stat.from}</span>
+            </span>
+          );
+        })}
+      </span>
+    </Link>
   );
 }
 
