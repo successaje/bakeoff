@@ -15,14 +15,14 @@ import { StatusChip } from "../components/board.tsx";
 import { ChallengeLeaderboard } from "../components/ChallengeLeaderboard.tsx";
 import { costCut, TheBar } from "../components/challenge.tsx";
 import { DataExplorer } from "../components/DataExplorer.tsx";
-import { ErrorBoundary } from "../components/ErrorBoundary.tsx";
+import { ErrorBoundary, ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Copy, Cube, External, Hash, Lock, More, Replay, Shield, Timer } from "../components/Icons.tsx";
 import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
 import { CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
-import { challengeGates, type EvaluationView, formatNear, type Gates, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
+import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
@@ -468,9 +468,10 @@ export function Challenge() {
 
   if (!data) {
     if (error && !loading) {
-      // No such account, or an account that is not a challenge contract.
-      return /UNKNOWN_ACCOUNT|does not exist|MethodNotFound|CodeDoesNotExist|wasm execution failed/.test(error.message) ? <NotFound what="challenge" /> : (
-        <div className="container page-body"><p className="coral">Could not read {id}: {error.message}</p></div>
+      // No such account, or an account that is not a challenge contract; anything else is a read
+      // that failed, and can be tried again.
+      return isMissingAccount(error) ? <NotFound what="challenge" /> : (
+        <div className="container page-body"><ErrorNotice error={new Error(`Could not read ${id} from NEAR: ${error.message}`)} onRetry={refresh} /></div>
       );
     }
     return (
