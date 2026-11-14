@@ -1,0 +1,8 @@
+{
+ "challenge": "challenge-20261107153920.bakeoff.near",
+ "evaluation": 1,
+ "transaction": "9PGW15xgpFqaueAWr9Q6LedH6bvdQWH6aP1njCT22BUy",
+ "submitter": "agent.bakeoff.near",
+ "verdict": "{\"config_sha256\":\"aedee340d629b53e8d4f5b46b04514d109cb531cb598e0984b484d2b0dce8fee\",\"metrics\":{\"accuracy_bp\":8900,\"category_accuracy_bp\":9600,\"completed\":100,\"cost_per_ticket_uusd\":51,\"cost_uusd\":5139,\"elapsed_ms\":11890,\"escalations\":0,\"invalid_answers\":0,\"leaks\":0,\"mean_latency_ms\":1841,\"p95_latency_ms\":2574,\"tickets\":100,\"upstream_errors\":0},\"passed\":true,\"reasons\":[],\"rules_sha256\":\"84bad81aaee53309d70765b784b7b20962599a5490929c8483473ce2e7f69968\",\"test_set_sha256\":\"618e9bde48b3f7ec97528f6b6cbdf477f46d31934221c850b32645f0cbc957e0\",\"version\":1}",
+ "evaluator_sha256": "e168863655d99382a4ab5e6fd1d112d47cbfe57c827d44530610eddfab5e4081"
+}
