@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { acceptingSubmissions, type ChallengeView, formatNear, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
+import { acceptingSubmissions, type ChallengeView, formatNear, isMissingAccount, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
 import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
 import * as tx from "../src/lib/transactions.ts";
 
@@ -124,4 +124,52 @@ test("the RPC client reads views and an account's access keys at final finality"
 test("an RPC error names the call that failed", async () => {
   const fetchImpl = (async () => Response.json({ result: { error: "wasm execution failed" } })) as typeof fetch;
   await assert.rejects(new NearRpc("https://rpc.example", fetchImpl).view("c.near", "get_challenge"), /c\.near\.get_challenge: wasm execution failed/);
+});
+
+const viewReply = () => Response.json({ result: { result: [...new TextEncoder().encode('"ok"')] } });
+const noWait = { retryDelaysMs: [0, 0, 0, 0] };
+
+test("a refused RPC call is retried until it gets through", async () => {
+  // Free RPCs refuse bursts with a 429 that has no CORS headers, which a browser reports as a network error.
+  let calls = 0;
+  const fetchImpl = (async () => {
+    calls++;
+    if (calls <= 2) throw new TypeError("Failed to fetch");
+    if (calls === 3) return new Response("", { status: 429 });
+    return viewReply();
+  }) as typeof fetch;
+  assert.equal(await new NearRpc("https://rpc.example", fetchImpl, noWait).view("c.near", "get_challenge"), "ok");
+  assert.equal(calls, 4);
+});
+
+test("a call that keeps failing gives up with a reason, and is not taken for a missing account", async () => {
+  let calls = 0;
+  const fetchImpl = (async () => { calls++; throw new TypeError("Failed to fetch"); }) as typeof fetch;
+  const failure = await new NearRpc("https://rpc.example", fetchImpl, noWait).view("c.near", "get_challenge").catch((e: Error) => e);
+  assert.match(String(failure), /NEAR RPC could not be reached \(Failed to fetch\)/);
+  assert.equal(calls, 5);
+  assert.equal(isMissingAccount(failure), false);
+});
+
+test("an account that does not exist is reported at once, as missing", async () => {
+  let calls = 0;
+  const fetchImpl = (async () => { calls++; return Response.json({ error: { cause: { name: "UNKNOWN_ACCOUNT" } } }); }) as typeof fetch;
+  const failure = await new NearRpc("https://rpc.example", fetchImpl, noWait).view("nobody.near", "get_challenge").catch((e: Error) => e);
+  assert.equal(calls, 1);
+  assert.equal(isMissingAccount(failure), true);
+});
+
+test("no more than four RPC calls run at once", async () => {
+  let running = 0, most = 0;
+  const fetchImpl = (async () => {
+    running++;
+    most = Math.max(most, running);
+    await new Promise((r) => setTimeout(r, 5));
+    running--;
+    return viewReply();
+  }) as typeof fetch;
+  const rpc = new NearRpc("https://rpc.example", fetchImpl, noWait);
+  const results = await Promise.all(Array.from({ length: 12 }, () => rpc.view("c.near", "get_challenge")));
+  assert.equal(results.length, 12);
+  assert.equal(most, 4);
 });

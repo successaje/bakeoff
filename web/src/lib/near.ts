@@ -56,29 +56,78 @@ export interface Gates {
   max_leaks: number;
 }
 
+/** NEAR says the account, its contract or the method does not exist: there is truly nothing to show. */
+export function isMissingAccount(error: unknown): boolean {
+  return /UNKNOWN_ACCOUNT|does not exist|MethodNotFound|CodeDoesNotExist|wasm execution failed/.test(error instanceof Error ? error.message : String(error));
+}
+
+/** Calls in flight at once per endpoint. Free public RPCs refuse bursts of a few dozen. */
+const MAX_IN_FLIGHT = 4;
+/** Waits before each retry of a refused call, in ms; each is spread by ±25% so retries do not land together. */
+const RETRY_DELAYS_MS = [400, 1000, 2200, 4500];
+
+type RpcBody<T> = { error?: { cause?: { name?: string }; message?: string }; result?: T & { error?: string } };
+
 export class NearRpc {
   readonly url: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly retryDelaysMs: number[];
+  private active = 0;
+  private readonly waiting: (() => void)[] = [];
 
-  constructor(url: string, fetchImpl: typeof fetch = fetch.bind(globalThis)) {
+  constructor(url: string, fetchImpl: typeof fetch = fetch.bind(globalThis), options: { retryDelaysMs?: number[] } = {}) {
     this.url = url;
     this.fetchImpl = fetchImpl;
+    this.retryDelaysMs = options.retryDelaysMs ?? RETRY_DELAYS_MS;
+  }
+
+  /** Runs one call once fewer than MAX_IN_FLIGHT are running, so a page's reads queue instead of bursting. */
+  private async slot<R>(work: () => Promise<R>): Promise<R> {
+    if (this.active >= MAX_IN_FLIGHT) await new Promise<void>((resolve) => this.waiting.push(resolve));
+    this.active++;
+    try {
+      return await work();
+    } finally {
+      this.active--;
+      this.waiting.shift()?.();
+    }
+  }
+
+  private pause(attempt: number): Promise<void> {
+    const ms = this.retryDelaysMs[attempt]! * (0.75 + Math.random() * 0.5);
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async query<T>(params: object, label: string): Promise<T> {
-    const response = await this.fetchImpl(this.url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-web", method: "query", params: { finality: "final", ...params } }),
-    });
-    if (!response.ok) throw new Error(`NEAR RPC answered ${response.status}`);
-    const body = (await response.json()) as {
-      error?: { cause?: { name?: string }; message?: string };
-      result?: T & { error?: string };
-    };
-    if (body.error) throw new Error(`${label}: ${body.error.cause?.name ?? body.error.message}`);
-    if (body.result?.error) throw new Error(`${label}: ${body.result.error}`);
-    return body.result as T;
+    const request = JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-web", method: "query", params: { finality: "final", ...params } });
+    for (let attempt = 0; ; attempt++) {
+      const retryable = attempt < this.retryDelaysMs.length;
+      let reply: { status: number; body: RpcBody<T> | null };
+      try {
+        reply = await this.slot(async () => {
+          const response = await this.fetchImpl(this.url, { method: "POST", headers: { "content-type": "application/json" }, body: request });
+          return { status: response.status, body: response.ok ? ((await response.json()) as RpcBody<T>) : null };
+        });
+      } catch (error) {
+        // A rate limit answered without CORS headers reaches the page as a network error, so a
+        // failed request is retried like a 429.
+        if (retryable) { await this.pause(attempt); continue; }
+        throw new Error(`NEAR RPC could not be reached (${(error as Error).message})`);
+      }
+      if (reply.status === 429 || reply.status >= 500) {
+        if (retryable) { await this.pause(attempt); continue; }
+        throw new Error(`NEAR RPC answered ${reply.status}`);
+      }
+      if (!reply.body) throw new Error(`NEAR RPC answered ${reply.status}`);
+      const { error, result } = reply.body;
+      if (error) {
+        const name = error.cause?.name ?? error.message ?? "";
+        if (retryable && /TIMEOUT|TOO_MANY_REQUESTS|NO_SYNCED_BLOCKS/.test(name)) { await this.pause(attempt); continue; }
+        throw new Error(`${label}: ${name}`);
+      }
+      if (result?.error) throw new Error(`${label}: ${result.error}`);
+      return result as T;
+    }
   }
 
   async view<T>(accountId: string, method: string, args: object = {}): Promise<T> {

@@ -9,11 +9,12 @@ import { Link, useParams } from "react-router";
 import { reasonText } from "../components/challenge.tsx";
 import { Check, Close, Coins, Download, External, Timer } from "../components/Icons.tsx";
 import { EnclaveProof } from "../components/EnclaveProof.tsx";
+import { ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { RetryPayment } from "../components/Manage.tsx";
 import { Account, CodeBlock, CopyButton, DemoBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
-import { challengeGates, type EvaluationView, formatNear, nsToDate, verdictMetrics } from "../lib/near.ts";
+import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
 import { NotFound } from "./NotFound.tsx";
@@ -136,7 +137,11 @@ export function Result() {
   }, [e?.verdict]);
 
   if (!data) {
-    if (error && !loading) return <NotFound what="challenge" />;
+    if (error && !loading) {
+      return isMissingAccount(error) ? <NotFound what="challenge" /> : (
+        <div className="container page-body"><ErrorNotice error={new Error(`Could not read ${id} from NEAR: ${error.message}`)} onRetry={refresh} /></div>
+      );
+    }
     return <div className="container page-body"><div className="skeleton" style={{ height: 56, width: "60%", marginBottom: 32 }} /><div className="skeleton skeleton-card" /></div>;
   }
   if (!Number.isInteger(index) || !e) return <NotFound what="result" />;
