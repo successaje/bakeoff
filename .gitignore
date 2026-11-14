@@ -2,6 +2,8 @@
 **/target
 *.wasm
 !examples/**/*.wasm
+# The board's TDX quote verifier, built from web/quote-verifier and served to visitors.
+!web/src/vendor/quote-verifier/*.wasm
 
 # Local credentials and deployment state
 .env
