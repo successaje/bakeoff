@@ -153,7 +153,7 @@ export function NewChallenge() {
         <Reveal className="setup-safe">
           <span className="feature-icon"><Shield /></span>
           <div>
-            <h3>Your test cases and API key never touch this page.</h3>
+            <h2>Your test cases and API key never touch this page.</h2>
             <p className="text-2 small">The form runs in your browser and sends nothing; your draft is kept in this browser only. To deploy, it can hash your test set file here, without uploading it. You seal the test cases and key on your own machine, where the OutLayer CLI encrypts them for the evaluator. <Link to="/teams">How hosting works</Link></p>
           </div>
         </Reveal>

@@ -184,14 +184,14 @@ export function Teams() {
           <Reveal className="guide-head"><span className="step-num mono">05</span><h2>Set up a challenge</h2></Reveal>
           <Reveal className="card card-pad split">
             <div>
-              <p className="text-2">Setup runs from the command line, with the open-source scripts. <Link to="/challenges/new">The setup form</Link> writes the rules file, the listing and every command for you. You need:</p>
+              <p className="text-2"><Link to="/challenges/new">The setup form</Link> writes the rules file, the listing and every command, and deploys the challenge from your wallet in one approval. Sealing your test cases and model key stays on your machine, with the open-source scripts. You need:</p>
               <ul className="check-list">
                 <li>Your current agent as a config for a NEAR AI Cloud model</li>
                 <li>About 100 real cases, labelled the way you want them answered</li>
                 <li>A NEAR account with about 3 NEAR, plus the reward</li>
                 <li>A NEAR AI Cloud API key, stored with OutLayer so only the evaluator can use it</li>
               </ul>
-              <p className="muted small">Deploying costs about 2.5 NEAR, mostly storage you get back by deleting the challenge. Storing the test cases takes a deposit of about 0.25 NEAR. Each test costs about 0.02 NEAR. Once deployed, you fund and open the challenge from its page, in the Manage section.</p>
+              <p className="muted small">Deploying from your wallet costs about 1.9 NEAR of storage, which stays with the challenge: it is locked from the start and can never be deleted. The scripts send 2.5 NEAR instead, which you get back by deleting the challenge before you lock it. Storing the test cases takes a deposit of about 0.25 NEAR, and each test about 0.02 NEAR. Once deployed, you fund and open the challenge from its page, in the Manage section.</p>
             </div>
             <CodeBlock code={"python3 tools/calibrate.py --runs 3 ...\nscripts/near/deploy.sh\nscripts/near/store-secrets.sh\nscripts/near/submit.sh your-agent.json   # a trial run"} />
           </Reveal>
