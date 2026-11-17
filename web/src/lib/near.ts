@@ -9,12 +9,23 @@ export const NETWORKS: Record<Network, { rpc: string; explorer: string; wrap: st
   mainnet: { rpc: "https://free.rpc.fastnear.com", explorer: "https://nearblocks.io", wrap: "wrap.near" },
 };
 
+/** How a winner is paid: NEAR, or wNEAR into their NEAR Intents balance. */
+export type Payout = "Near" | "Intents";
+
 export interface Award {
   evaluation: number;
   winner: string;
   amount: string;
   paid: boolean;
   in_flight: boolean;
+  /** The rest are absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
+  /** yoctoNEAR deposited into the winner's NEAR Intents balance. */
+  to_intents?: string;
+  /** yoctoNEAR spent registering the contract with the wNEAR token. */
+  fee?: string;
+  /** yoctoNEAR of wNEAR the verifier refused, owed to the winner as NEAR. */
+  wrapped?: string;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -34,6 +45,8 @@ export interface ChallengeView {
   bounty?: string;
   closes_at?: string | null;
   award?: Award | null;
+  /** Where a winner may be paid into NEAR Intents; absent or null where they cannot. */
+  intents?: { wrap: string; verifier: string } | null;
 }
 
 export interface EvaluationView {
@@ -45,6 +58,8 @@ export interface EvaluationView {
   status: "Pending" | "Passed" | "Failed" | "Rejected";
   reasons: string[];
   verdict: string | null;
+  /** Absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
   requested_at: string;
   settled_at: string | null;
 }

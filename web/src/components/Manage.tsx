@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { relative, utc } from "../lib/format.ts";
 import { type Award, type ChallengeView, formatNear, type NearRpc, type Network, NETWORKS, nsToDate, parseNear } from "../lib/near.ts";
 import { FINAL_STATUSES, OneClick, type Quote, quoteRequest, type SwapStatus, type Token } from "../lib/oneclick.ts";
+import { awardStage, claimTgas } from "../lib/payout.ts";
 import { useSession } from "../lib/session.tsx";
 import * as tx from "../lib/transactions.ts";
 import { Coins, Wallet } from "./Icons.tsx";
@@ -300,20 +301,30 @@ function CrossChain({ id, network, rpc, account, onChanged }: { id: string; netw
 }
 
 /**
- * Sends a won reward that did not arrive. The contract lets any account call
- * this, and pays only the recorded winner.
+ * Sends a won reward that is still owed: into the winner's NEAR Intents
+ * balance if they asked for that, or a NEAR payment that did not arrive. The
+ * contract lets any account call this, and pays only the recorded winner.
  */
 export function RetryPayment({ id, award, onChanged }: { id: string; award: Award; onChanged: () => void }) {
   const { account, signIn, send } = useSession();
-  if (award.paid || award.in_flight) return null;
+  const stage = awardStage(award);
+  if (stage.stage === "paid" || stage.stage === "sending") return null;
+  const intents = stage.stage === "to-intents";
   if (!account) {
-    return <button type="button" className="btn btn-sm" onClick={() => void signIn()}>Connect a wallet to retry the payment</button>;
+    return (
+      <button type="button" className="btn btn-sm" onClick={() => void signIn()}>
+        {intents ? "Connect a wallet to send the reward" : "Connect a wallet to retry the payment"}
+      </button>
+    );
   }
+  const label = intents
+    ? `Send ${formatNear(stage.amount)} into ${award.winner}'s NEAR Intents balance`
+    : `Send ${formatNear(stage.amount)} to ${award.winner}`;
   return (
-    <ActionButton label={`Send ${formatNear(award.amount)} to ${award.winner}`} run={async () => {
-      await send([tx.claimAward(id)]);
+    <ActionButton label={label} run={async () => {
+      await send([tx.claimAward(id, claimTgas(award))]);
       onChanged();
-      return "Payment sent to the winner.";
+      return intents ? "Sent into the winner's NEAR Intents balance." : "Payment sent to the winner.";
     }} />
   );
 }

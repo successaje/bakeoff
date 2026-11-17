@@ -17,6 +17,7 @@ import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts
 import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
+import { rewardText } from "../lib/payout.ts";
 import { NotFound } from "./NotFound.tsx";
 
 const TICKET_PLACEHOLDER = "<the customer's message>";
@@ -54,14 +55,8 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
       {won && award ? (
         <>
           <strong className="bounty-amount amber">{formatNear(award.amount)}</strong>
-          {award.paid ? (
-            <p className="reward-state ok"><Check /> Paid by the contract with this result</p>
-          ) : (
-            <>
-              <p className="reward-state pending"><Timer /> {award.in_flight ? "Won; the payment is on its way" : "Won; the payment has not completed"}</p>
-              <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
-            </>
-          )}
+          <RewardState award={award} />
+          <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
         </>
       ) : (
         <p className="reward-state">
@@ -73,6 +68,16 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
         </p>
       )}
     </aside>
+  );
+}
+
+function RewardState({ award }: { award: NonNullable<ChallengeDetail["view"]["award"]> }) {
+  const { done, text, note } = rewardText(award);
+  return (
+    <>
+      <p className={`reward-state ${done ? "ok" : "pending"}`}>{done ? <Check /> : <Timer />} {text}</p>
+      {note && <p className="muted small">{note}</p>}
+    </>
   );
 }
 
