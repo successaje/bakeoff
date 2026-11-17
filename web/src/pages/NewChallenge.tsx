@@ -16,7 +16,7 @@ import { microDollars, percent, seconds } from "../lib/format.ts";
 import type { Gates, Network } from "../lib/near.ts";
 import { useSession } from "../lib/session.tsx";
 import {
-  baselineFromReport, baselineOf, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, type Goal, issuesOf,
+  baselineConfigFromReport, baselineFromReport, baselineOf, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, type Goal, issuesOf,
   json, LIMITS, listingOf, lockCommand, num, REQUEST_OPTIONS, rulesOf, suffix, TEST_SET_PATH,
 } from "../lib/setup.ts";
 
@@ -131,7 +131,7 @@ export function NewChallenge() {
     const baseline = baselineFromReport(text);
     if (!baseline) return setReportError("That isn't calibration's report.json: it has no baseline_metrics.");
     setReportError(null);
-    up({ baseline });
+    up({ baseline, baselineConfig: baselineConfigFromReport(text) ?? draft.baselineConfig });
   };
 
   return (
@@ -271,6 +271,9 @@ export function NewChallenge() {
                 <textarea className="textarea" rows={4} value={report} onChange={(e) => readReport(e.target.value)} placeholder='{ "baseline_metrics": { … } }' spellCheck={false} aria-label="report.json" />
                 {reportError ? <p className="setup-error small">{reportError}</p> : report.trim() && <p className="setup-ok small"><Check /> Baseline read from the report.</p>}
                 <p className="muted small">The report holds only totals, nothing about individual test cases, so it is safe to paste and to publish.</p>
+                <Field label="Baseline config's SHA-256 (optional)" hint="From the report. With it, the board finds your trial runs of this config and shows them as your baseline measured in the enclave, beside these figures.">
+                  <input className="input mono" value={draft.baselineConfig ?? ""} onChange={(e) => up({ baselineConfig: e.target.value.trim().toLowerCase() })} placeholder="64 hex characters" spellCheck={false} />
+                </Field>
               </details>
 
               <div className="setup-goals" role="radiogroup" aria-label="Goal">

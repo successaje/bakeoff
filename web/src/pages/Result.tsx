@@ -14,6 +14,7 @@ import { RetryPayment } from "../components/Manage.tsx";
 import { Account, CodeBlock, CopyButton, DemoBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
+import { enclaveBaseline } from "../lib/baseline.ts";
 import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
@@ -104,6 +105,18 @@ function Solution({ submission, error, loading, configSha }: { submission: Submi
         <span className="outcome ok"><Check /> Hashes to this result's record</span>
       </div>
     </>
+  );
+}
+
+/** Says which baseline the comparison uses, and what the enclave measured for the same agent. */
+function MeasuredBaseline({ id, detail }: { id: string; detail: { listing: Parameters<typeof enclaveBaseline>[0]; view: { owner: string }; evaluations: EvaluationView[] } }) {
+  const { listing } = detail;
+  const measured = enclaveBaseline(listing, detail.view, detail.evaluations);
+  if (!measured) return <p className="muted small">Against {listing.sponsor}'s published figures for its current agent.</p>;
+  return (
+    <p className="muted small">
+      Against {listing.sponsor}'s published figures, the median of three calibration runs. The same agent scored {percent(measured.metrics.accuracy_bp)}, {microDollars(measured.metrics.cost_per_ticket_uusd)} a ticket and {seconds(measured.metrics.p95_latency_ms)} p95 in the enclave on these hidden tickets{measured.runs.length > 1 ? `, the median of ${measured.runs.length} runs` : ""}, in {measured.runs.map((r, i) => <span key={r.id}>{i ? ", " : ""}<Link to={`/challenges/${id}/results/${r.id}`}>result #{r.id}</Link></span>)}.
+    </p>
   );
 }
 
@@ -235,6 +248,7 @@ export function Result() {
                 </div>
               ))}
             </div>
+            <MeasuredBaseline id={id} detail={data} />
           </Reveal>
         )}
 
