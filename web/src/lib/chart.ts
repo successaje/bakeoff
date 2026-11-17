@@ -61,13 +61,13 @@ export function plotResults(evaluations: EvaluationView[], owner: string, awarde
   return plotted;
 }
 
-/** A round step near `span / count`: 1, 2 or 5 times a power of ten. */
+/** A round step near `span / count`: 1, 2, 2.5 or 5 times a power of ten. */
 export function niceStep(span: number, count: number): number {
   const raw = span / Math.max(1, count);
   if (!(raw > 0)) return 1;
   const power = 10 ** Math.floor(Math.log10(raw));
   const unit = raw / power;
-  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * power;
+  return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 2.5 ? 2.5 : unit <= 5 ? 5 : 10) * power;
 }
 
 export interface Axis {
@@ -128,7 +128,38 @@ export function inTargetArea(point: Pick<Point, "cost" | "accuracy">, gates: Gat
   return point.cost <= gates.max_cost_per_ticket_uusd && point.accuracy >= gates.min_accuracy_bp;
 }
 
-/** An accuracy tick, "85%"; with a decimal where the ticks are closer than a point apart. */
+/** An accuracy tick, "85%"; with a decimal where the ticks fall between whole points. */
 export function accuracyTick(bp: number, step: number): string {
-  return `${(bp / 100).toFixed(step < 100 ? 1 : 0)}%`;
+  return `${(bp / 100).toFixed(step % 100 === 0 ? 0 : 1)}%`;
 }
+
+export interface Spot { x: number; y: number }
+export interface Bounds { left: number; right: number; top: number; bottom: number }
+export interface Placed { x: number; y: number; anchor: "start" | "middle" | "end" }
+
+/** The height a 12px label takes, and how close it may come to another mark. */
+const LABEL_HEIGHT = 14;
+const CLEARANCE = 6;
+
+/**
+ * Where a direct label fits beside its mark: to the right, the left, above
+ * or below, whichever first stays inside the plot and clear of every other
+ * mark. Null where it fits nowhere; the legend and the table still name it.
+ */
+export function placeLabel(at: Spot, width: number, gap: number, others: Spot[], bounds: Bounds): Placed | null {
+  const half = LABEL_HEIGHT / 2;
+  const options: (Placed & { box: [number, number, number, number] })[] = [
+    { x: at.x + gap, y: at.y, anchor: "start", box: [at.x + gap, at.y - half, at.x + gap + width, at.y + half] },
+    { x: at.x - gap, y: at.y, anchor: "end", box: [at.x - gap - width, at.y - half, at.x - gap, at.y + half] },
+    { x: at.x, y: at.y - gap - half, anchor: "middle", box: [at.x - width / 2, at.y - gap - LABEL_HEIGHT, at.x + width / 2, at.y - gap] },
+    { x: at.x, y: at.y + gap + half, anchor: "middle", box: [at.x - width / 2, at.y + gap, at.x + width / 2, at.y + gap + LABEL_HEIGHT] },
+  ];
+  const clear = ([x0, y0, x1, y1]: [number, number, number, number]) =>
+    x0 >= bounds.left && x1 <= bounds.right && y0 >= bounds.top && y1 <= bounds.bottom
+    && others.every((o) => o.x < x0 - CLEARANCE || o.x > x1 + CLEARANCE || o.y < y0 - CLEARANCE || o.y > y1 + CLEARANCE);
+  const found = options.find((o) => clear(o.box));
+  return found ? { x: found.x, y: found.y, anchor: found.anchor } : null;
+}
+
+/** A rough width for a 12px label, enough to keep it off other marks. */
+export const labelWidth = (text: string) => text.length * 7;

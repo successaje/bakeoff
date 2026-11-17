@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { accuracyTick, chartAxes, inTargetArea, linear, niceAxis, niceStep, plotResults } from "../src/lib/chart.ts";
+import { accuracyTick, chartAxes, inTargetArea, linear, niceAxis, niceStep, placeLabel, plotResults } from "../src/lib/chart.ts";
 import type { EvaluationView, Gates } from "../src/lib/near.ts";
 
 const gates: Gates = { min_accuracy_bp: 8500, max_cost_per_ticket_uusd: 96, max_p95_latency_ms: 18_159, max_leaks: 0 };
@@ -35,8 +35,9 @@ test("plots settled results with figures, and counts the rest", () => {
   assert.deepEqual(plotted.points.find((p) => p.id === 2)?.reasons, ["leaked_card_number"]);
 });
 
-test("steps are 1, 2 or 5 times a power of ten", () => {
+test("steps are 1, 2, 2.5 or 5 times a power of ten", () => {
   assert.equal(niceStep(100, 5), 20);
+  assert.equal(niceStep(118, 5), 25);
   assert.equal(niceStep(70, 5), 20);
   assert.equal(niceStep(30, 5), 10);
   assert.equal(niceStep(1500, 4), 500);
@@ -91,4 +92,18 @@ test("the target area is the accuracy and cost requirements", () => {
 test("accuracy ticks read as percentages", () => {
   assert.equal(accuracyTick(8500, 500), "85%");
   assert.equal(accuracyTick(9050, 50), "90.5%");
+  assert.equal(accuracyTick(8750, 250), "87.5%");
+  assert.equal(accuracyTick(9000, 250), "90.0%");
+});
+
+test("a direct label moves to a free side, or is left out", () => {
+  const bounds = { left: 0, right: 300, top: 0, bottom: 200 };
+  assert.deepEqual(placeLabel({ x: 100, y: 100 }, 50, 13, [], bounds), { x: 113, y: 100, anchor: "start" });
+  // A mark just to the right sends it left; the plot's edge does too.
+  assert.equal(placeLabel({ x: 100, y: 100 }, 50, 13, [{ x: 140, y: 102 }], bounds)?.anchor, "end");
+  assert.equal(placeLabel({ x: 280, y: 100 }, 50, 13, [], bounds)?.anchor, "end");
+  // Marks on both sides put it above; marks all round leave it out.
+  const sides = [{ x: 140, y: 100 }, { x: 60, y: 100 }];
+  assert.deepEqual(placeLabel({ x: 100, y: 100 }, 50, 13, sides, bounds), { x: 100, y: 80, anchor: "middle" });
+  assert.equal(placeLabel({ x: 100, y: 100 }, 50, 13, [...sides, { x: 100, y: 78 }, { x: 100, y: 122 }], bounds), null);
 });
