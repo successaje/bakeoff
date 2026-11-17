@@ -20,6 +20,11 @@ export interface ListedChallenge {
   summary: string;
   tickets: number;
   baseline: Baseline;
+  /**
+   * SHA-256 of the baseline agent's config, as calibrate.py's report gives it. The owner's trial
+   * runs of that config are the baseline as the enclave measured it.
+   */
+  baseline_config_sha256?: string;
   /** The workflow as it runs today, in the owner's words. */
   problem?: string;
   /** Public practice tickets builders can tune on. */
