@@ -936,16 +936,16 @@ fn an_intents_winner_is_paid_by_a_claim_not_by_the_verdict() {
 }
 
 #[test]
-#[should_panic(expected = "attach at least 130 Tgas to pay into NEAR Intents")]
+#[should_panic(expected = "attach at least 160 Tgas to pay into NEAR Intents")]
 fn an_intents_claim_needs_the_gas_for_the_deposit() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 100);
+    claim_with(&mut contract, NOW + 2, 150);
 }
 
 #[test]
 fn a_claim_wraps_the_award_and_deposits_it_into_the_winners_intents_balance() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 150);
+    claim_with(&mut contract, NOW + 2, 200);
     let deposit = near(5).saturating_sub(REGISTRATION);
     assert_eq!(
         calls_to("wrap.testnet"),
@@ -985,7 +985,7 @@ fn a_claim_wraps_the_award_and_deposits_it_into_the_winners_intents_balance() {
 #[test]
 fn wnear_the_verifier_refuses_is_unwrapped_and_paid_as_near() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 150);
+    claim_with(&mut contract, NOW + 2, 200);
     let deposit = near(5).saturating_sub(REGISTRATION);
     let kept = near(1);
     let refused = deposit.saturating_sub(kept);
@@ -1033,7 +1033,7 @@ fn wnear_the_verifier_refuses_is_unwrapped_and_paid_as_near() {
 #[test]
 fn a_failed_unwrap_keeps_the_wnear_owed_for_the_next_claim() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 150);
+    claim_with(&mut contract, NOW + 2, 200);
     let deposit = near(5).saturating_sub(REGISTRATION);
     callback_at(
         NOW + 3,
@@ -1055,7 +1055,7 @@ fn a_failed_unwrap_keeps_the_wnear_owed_for_the_next_claim() {
 #[test]
 fn a_deposit_that_fails_as_a_whole_leaves_the_award_owed_in_near() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 150);
+    claim_with(&mut contract, NOW + 2, 200);
     callback_at(NOW + 3, PromiseResult::Failed);
     contract.on_intents_deposit(U128(near(5).saturating_sub(REGISTRATION).as_yoctonear()));
     let owed = award(&contract);
@@ -1073,6 +1073,6 @@ fn a_deposit_that_fails_as_a_whole_leaves_the_award_owed_in_near() {
 #[should_panic(expected = "a payment is already in flight")]
 fn an_intents_deposit_cannot_be_claimed_twice_at_once() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
-    claim_with(&mut contract, NOW + 2, 150);
-    claim_with(&mut contract, NOW + 2, 150);
+    claim_with(&mut contract, NOW + 2, 200);
+    claim_with(&mut contract, NOW + 2, 200);
 }

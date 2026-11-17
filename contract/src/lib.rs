@@ -61,13 +61,14 @@ const EVENT_VERSION: &str = "1.2.0";
 const WNEAR_REGISTRATION: NearToken = NearToken::from_micronear(1_250);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 const WRAP_GAS: Gas = Gas::from_tgas(10);
-/// `ft_transfer_call` to the Intents verifier: its `ft_on_transfer` and the token's resolve.
-const INTENTS_DEPOSIT_GAS: Gas = Gas::from_tgas(70);
+/// `ft_transfer_call` to the Intents verifier, with its `ft_on_transfer` and the token's resolve,
+/// as NEAR Intents' deposit guide budgets it.
+const INTENTS_DEPOSIT_GAS: Gas = Gas::from_tgas(100);
 const INTENTS_CALLBACK_GAS: Gas = Gas::from_tgas(15);
 /// The unwrap's callback sends the NEAR on and schedules the payment's own callback.
 const UNWRAP_CALLBACK_GAS: Gas = Gas::from_tgas(20);
 /// What `claim_award` needs to send a reward into NEAR Intents: the wrap, the deposit and the callback.
-const MIN_INTENTS_CLAIM_GAS: Gas = Gas::from_tgas(130);
+const MIN_INTENTS_CLAIM_GAS: Gas = Gas::from_tgas(160);
 
 /// The contracts a reward goes through to reach a winner's NEAR Intents balance: the wNEAR token,
 /// since the Intents verifier takes NEP-141 tokens rather than NEAR, and the verifier. Set only
@@ -444,7 +445,7 @@ impl Contract {
     }
 
     /// Sends an award into NEAR Intents, or retries a payment that failed. Anyone may call it;
-    /// the money only ever goes to the winner. Attach 130 Tgas to send into Intents.
+    /// the money only ever goes to the winner. Attach 160 Tgas to send into Intents.
     pub fn claim_award(&mut self) {
         let award = self.award.as_ref().expect("no bounty has been awarded");
         require!(!award.paid, "the award has been paid");
@@ -452,7 +453,7 @@ impl Contract {
         if award.payout == Payout::Intents && award.wrapped.is_zero() {
             require!(
                 env::prepaid_gas() >= MIN_INTENTS_CLAIM_GAS,
-                "attach at least 130 Tgas to pay into NEAR Intents"
+                "attach at least 160 Tgas to pay into NEAR Intents"
             );
         }
         self.pay_award();
