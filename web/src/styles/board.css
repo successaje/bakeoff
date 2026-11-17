@@ -645,6 +645,21 @@ a.live-pill:hover svg { transform: translateX(3px); }
 .setup-foot svg { width: 14px; height: 14px; }
 .setup-lock { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 .final-cta-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); flex: none; }
+/* Deploying from the wallet: the test set's hash, what must hold first, and the button. */
+.deploy, .deploy-done { display: grid; gap: var(--space-4); }
+.deploy-hash { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); align-items: center; }
+.deploy-file { position: relative; cursor: pointer; }
+.deploy-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.deploy-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.deploy-checks li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; color: var(--text-2); }
+.deploy-checks li.ok { color: var(--text); }
+.deploy-mark { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border-strong); color: var(--accent); flex: none; }
+.deploy-checks li.ok .deploy-mark { border-color: transparent; background: var(--accent-soft); }
+.deploy-mark svg { width: 12px; height: 12px; }
+.deploy-terms { display: flex; gap: 8px; align-items: flex-start; }
+.deploy-terms svg { width: 14px; height: 14px; flex: none; margin-top: 3px; }
+.deploy .action .btn svg { width: 15px; height: 15px; }
+@media (max-width: 640px) { .deploy-hash { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1080px) {
   .setup { grid-template-columns: minmax(0, 1fr); }
   .setup-out { position: static; max-height: none; overflow: visible; }
