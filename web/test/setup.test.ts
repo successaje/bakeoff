@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { baselineFromReport, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, issuesOf, listingOf, rulesOf } from "../src/lib/setup.ts";
+import { baselineConfigFromReport, baselineFromReport, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, issuesOf, listingOf, rulesOf } from "../src/lib/setup.ts";
 
 const shipped = (name: string) => JSON.parse(readFileSync(new URL(`../../examples/rules/${name}`, import.meta.url), "utf8"));
 
@@ -75,4 +75,14 @@ test("calibration's report fills the baseline, and anything else is refused", ()
   assert.deepEqual(baselineFromReport(report), { accuracy: "87", cost: "128", p95: "18.159" });
   assert.equal(baselineFromReport("{}"), null);
   assert.equal(baselineFromReport("not json"), null);
+});
+
+test("the baseline config's hash goes from calibration's report into the listing", () => {
+  const hash = "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58";
+  const report = JSON.stringify({ baseline_config_sha256: hash, baseline_metrics: { accuracy_bp: 8700, cost_per_ticket_uusd: 128, p95_latency_ms: 18159 } });
+  assert.equal(baselineConfigFromReport(report), hash);
+  assert.equal(baselineConfigFromReport("{}"), null);
+  assert.equal((listingOf(kettleAndKiln({ baselineConfig: hash })) as { baseline_config_sha256?: string }).baseline_config_sha256, hash);
+  assert.equal("baseline_config_sha256" in listingOf(kettleAndKiln()), false);
+  assert.match(issuesOf(kettleAndKiln({ baselineConfig: "not-a-hash" }))[0]!.text, /64 hex characters/);
 });

@@ -23,7 +23,8 @@ import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
-import type { Baseline } from "../lib/registry.ts";
+import { enclaveBaseline } from "../lib/baseline.ts";
+import type { Baseline, ListedChallenge } from "../lib/registry.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
 
@@ -204,6 +205,39 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
         <span className="muted small">A submission costs 0.035 NEAR plus gas, most of it refunded. Its config becomes public on-chain.</span>
       </div>
     </div>
+  );
+}
+
+/** The owner's published baseline, with the enclave's measurement of the same agent beside it when there is one. */
+function TodayFigures({ id, listing, owner, evaluations }: { id: string; listing: ListedChallenge; owner: string; evaluations: EvaluationView[] }) {
+  const measured = enclaveBaseline(listing, { owner }, evaluations);
+  const published = listing.baseline;
+  const rows = [
+    { label: "Accuracy today", value: percent(published.accuracy_bp), enclave: measured && percent(measured.metrics.accuracy_bp) },
+    { label: "Cost per ticket", value: microDollars(published.cost_per_ticket_uusd), enclave: measured && microDollars(measured.metrics.cost_per_ticket_uusd) },
+    { label: "p95 latency", value: seconds(published.p95_latency_ms), enclave: measured && seconds(measured.metrics.p95_latency_ms) },
+  ];
+  const runs = measured?.runs ?? [];
+  return (
+    <>
+      {published.accuracy_bp > 0 && (
+        <dl className="today">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}{row.enclave && <span className="today-enclave">{row.enclave} in the enclave</span>}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <p className="muted small">
+        {!listing.baseline_config_sha256
+          ? <>Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</>
+          : !measured
+            ? <>Figures published by {listing.sponsor}: the median of three calibration runs of its current agent on its own machine. That agent has not been scored in the enclave on this challenge yet.</>
+            : <>Figures published by {listing.sponsor}: the median of three calibration runs of its current agent on its own machine. The same agent, config <span className="mono">{listing.baseline_config_sha256.slice(0, 10)}…</span>, was also scored in the enclave on these hidden tickets, in {runs.map((r, i) => <span key={r.id}>{i ? ", " : ""}<Link to={`/challenges/${id}/results/${r.id}`}>result #{r.id}</Link></span>)}{runs.length > 1 ? ", whose median is shown" : ""}. Single runs vary, latency most.</>}
+      </p>
+    </>
   );
 }
 
@@ -565,14 +599,7 @@ export function Challenge() {
               )}
               <DocSection id="problem" title="Overview" intro={`What ${listing.sponsor}'s workflow does today, in its own words and figures.`}>
                 <p className="problem-text">{listing.problem ?? listing.summary}</p>
-                {listing.baseline.accuracy_bp > 0 && (
-                  <dl className="today">
-                    <div><dt>Accuracy today</dt><dd>{percent(listing.baseline.accuracy_bp)}</dd></div>
-                    <div><dt>Cost per ticket</dt><dd>{microDollars(listing.baseline.cost_per_ticket_uusd)}</dd></div>
-                    <div><dt>p95 latency</dt><dd>{seconds(listing.baseline.p95_latency_ms)}</dd></div>
-                  </dl>
-                )}
-                <p className="muted small">Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</p>
+                <TodayFigures id={id} listing={listing} owner={view.owner} evaluations={data.evaluations} />
               </DocSection>
               {gates && (
                 <DocSection id="goal" title="Goal" intro={goalSentence(gates, listing.baseline)}>

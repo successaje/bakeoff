@@ -13,7 +13,7 @@ It has run end to end on NEAR mainnet. A support-triage agent cost 128 µ$ a tic
 | Accuracy | 87.0% | **89.0%** |
 | Card numbers repeated | | **none** |
 
-The contract paid the winner 1 NEAR in the same transaction that recorded the result. This was a demonstration round: the store is fictional and the project's author ran both sides ([what is real and what is a demo](#what-is-real-and-what-is-a-demo)).
+The team's figures are the median of three calibration runs on its own machine. The same agent was also scored once in the enclave, on the same hidden tickets: 85.0%, 126 µ$ and 11.5 s p95 ([result #0](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/0)); the board shows both. The contract paid the winner 1 NEAR in the same transaction that recorded the result. This was a demonstration round: the store is fictional and the project's author ran both sides ([what is real and what is a demo](#what-is-real-and-what-is-a-demo)).
 
 - **Live board:** [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet.
 - **The mainnet challenge:** [Support ticket triage](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near), on `challenge-20261107153920.bakeoff.near`.
@@ -328,7 +328,7 @@ A result can only come from the enclave: `on_evaluation_result` is private and r
 - **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
 - **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave. Each result page checks the run's Intel TDX quote in your browser, which shows a genuine, approved machine ran the pinned evaluator and produced the recorded verdict; it does not show that OutLayer's approved image is itself trustworthy, or that the result was delivered on-chain from inside the enclave. The page lists what the check leaves out.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
-- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
+- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. A baseline can be checked: when the listing names the baseline config's hash, the board finds the owner's trial runs of that config, scored in the enclave on the hidden tickets, and shows them beside the published figures. Rewards, results and payments are read from the contract.
 
 ## How it would pay for itself
 

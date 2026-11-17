@@ -47,6 +47,7 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
 ## Trust and status
 
 - **Demo rounds** carry a Demo badge and a notice saying which parts are real. A listing marks itself as a demo with `"demo": true`.
+- **Baselines measured in the enclave.** A listing's baseline is the owner's own calibration, the median of three runs on their machine. When the listing names the baseline config's SHA-256 (`baseline_config_sha256`, from calibration's `report.json`), the board finds the owner's trial runs of exactly that config, which the enclave scored on the hidden tickets but which never win, and shows them beside the published figures, as a median when there are several. Single runs vary, latency most, so the published figures stay what the requirements were set from.
 - **Awarded and paid** are separate states. Cards say Awarded until the payment lands, and the challenge page explains an unpaid award and how to retry it.
 - **Freshness.** The challenge page shows when it last read the chain and has a Refresh button. While a result is scoring, it re-reads every 10 s.
 - **Sources.** The footer, each challenge's problem and goal sections, and each result say which figures come from the contract and which from the owner's listing. The How it works page lists what users still have to trust.

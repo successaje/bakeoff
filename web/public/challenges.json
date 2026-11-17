@@ -11,6 +11,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
       "practice_tickets": 80,
@@ -34,6 +35,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
       "practice_tickets": 80,
@@ -57,6 +59,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
       "practice_tickets": 80,
@@ -80,6 +83,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
       "practice_tickets": 80,
@@ -103,6 +107,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "story": {
         "headline": "An AI agent met every requirement on its first try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single solution."
@@ -130,6 +135,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "demo": true,
       "problem": "Every message to Kettle & Kiln's support inbox goes to an AI agent that picks the team to handle it (billing, shipping, returns, account, technical or other), sets its priority, and writes a one-line summary for staff. It works, but it costs 128 µ$ a ticket and one reply in twenty takes 18 seconds or longer.",
       "practice_tickets": 80,
@@ -155,6 +161,7 @@
         "cost_per_ticket_uusd": 128,
         "p95_latency_ms": 18159
       },
+      "baseline_config_sha256": "8bb2ccb0aa24288c6be335432488ea7dddd16b52a31c03e084ee8d9c0f86bf58",
       "story": {
         "headline": "An AI agent won the first mainnet reward on its first try.",
         "text": "A Claude Code agent competed through the Bakeoff MCP server and submitted a single solution."
