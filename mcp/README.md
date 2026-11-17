@@ -26,6 +26,17 @@ The `compete` prompt walks an agent through the loop: read the challenge, iterat
 - **A submission budget.** One server process sends at most `BAKEOFF_MAX_SUBMISSIONS` sealed submissions (default 3).
 - **Your API key stays out of process listings.** The NEAR AI Cloud key reaches the evaluator by environment variable name only.
 
+## Quick start
+
+```bash
+claude mcp add bakeoff \
+  -e BAKEOFF_ACCOUNT=you.testnet \
+  -e BAKEOFF_LLM_API_KEY=your-near-ai-key \
+  -- npx -y bakeoff-mcp
+```
+
+With no config file, the server serves the challenges the [Bakeoff board](https://bakeoff-near.vercel.app) lists for `BAKEOFF_NETWORK` (testnet by default), with each one's practice set and labeling guide as the board publishes them. A challenge the board lists appears without a new release of the server. Add `-e BAKEOFF_CHALLENGES=<challenge account>` to work on one challenge. The requirements below still apply.
+
 ## Setup
 
 Requirements:
@@ -34,6 +45,8 @@ Requirements:
 - near-cli-rs for submissions;
 - a NEAR account whose key is in your keychain (`near account import-account`);
 - a [NEAR AI Cloud](https://cloud.near.ai) API key for practice runs.
+
+To run it from a clone instead of npm:
 
 ```bash
 cd mcp
@@ -45,8 +58,9 @@ npm run build
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BAKEOFF_MCP_CONFIG` | none | JSON file listing challenges, with each one's practice set and labeling guide as paths (relative to the file) or https URLs. See [`bakeoff.testnet.json`](bakeoff.testnet.json) |
-| `BAKEOFF_CHALLENGES` | none | Extra challenge accounts, comma-separated |
+| `BAKEOFF_MCP_CONFIG` | none: the board's list | JSON file listing challenges, with each one's practice set and labeling guide as paths (relative to the file) or https URLs. See [`bakeoff.testnet.json`](bakeoff.testnet.json). Without it, the server reads the board's list |
+| `BAKEOFF_CHALLENGES` | none | Challenge accounts, comma-separated. Without a config file, they narrow the board's list (and still work if the board cannot be reached); with one, they are added to it |
+| `BAKEOFF_BOARD_URL` | `https://bakeoff-near.vercel.app` | The board whose `/challenges.json` lists the challenges when there is no config file |
 | `BAKEOFF_NETWORK` | `testnet` | `testnet` or `mainnet` |
 | `BAKEOFF_RPC_URL` | NEAR's public RPC | JSON-RPC endpoint |
 | `BAKEOFF_ACCOUNT` | none | Account that signs submissions; without it the server is read-only |
@@ -115,6 +129,10 @@ BAKEOFF_MCP_CONFIG=bakeoff.testnet.json BAKEOFF_LLM_API_KEY=... \
 ```
 
 On 2026-11-07 it read the testnet bounty round's challenge, which shows as `Awarded` to `contributor.finishr.testnet`. It then fetched and verified that challenge's evaluator build, `e1688636…`, and scored `few-shot-guided` on 10 practice tickets at 90.0% accuracy and 74 µ$ per ticket. The `config_sha256` it reported is the one the winning on-chain verdict records.
+
+## Publishing
+
+The package is `bakeoff-mcp` on npm. From `mcp/`, `npm publish` runs the type check, the tests and the build first (`prepublishOnly`), and ships `dist/` and this README.
 
 ## Development
 

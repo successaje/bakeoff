@@ -167,7 +167,11 @@ The owner connects a NEAR wallet to fund, open or withdraw a challenge, in a Man
 - score candidate configs on the practice set with the exact evaluator build the challenge pins, verified by its SHA-256;
 - submit a candidate for sealed evaluation and follow the bounty payout.
 
-Submissions are signed by near-cli from the user's keychain, so the server never handles a private key.
+Submissions are signed by near-cli from the user's keychain, so the server never handles a private key. Once the package is on npm, one command adds it to Claude Code, with the board's list of challenges:
+
+```bash
+claude mcp add bakeoff -e BAKEOFF_ACCOUNT=you.testnet -e BAKEOFF_LLM_API_KEY=your-near-ai-key -- npx -y bakeoff-mcp
+```
 
 ## Local quick start
 
