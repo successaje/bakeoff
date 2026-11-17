@@ -56,7 +56,7 @@ test("the server offers the contributor workflow as tools and a prompt", async (
   const tools = (await client.listTools()).tools;
   assert.deepEqual(tools.map((t) => t.name), [
     "list_challenges", "get_challenge", "get_evaluations", "get_practice_tickets",
-    "get_labeling_guide", "score_on_practice", "submit_candidate",
+    "get_labeling_guide", "score_on_practice", "submit_candidate", "claim_award",
   ]);
   assert.equal(tools.find((t) => t.name === "list_challenges")?.annotations?.readOnlyHint, true);
   assert.equal(tools.find((t) => t.name === "submit_candidate")?.annotations?.readOnlyHint, false);
@@ -84,7 +84,7 @@ test("get_challenge fills in the evaluator's defaults for limits the rules leave
 
 test("only configured challenges are served", async () => {
   const { call } = await connect();
-  for (const name of ["get_challenge", "get_evaluations", "get_practice_tickets", "score_on_practice", "submit_candidate"]) {
+  for (const name of ["get_challenge", "get_evaluations", "get_practice_tickets", "score_on_practice", "submit_candidate", "claim_award"]) {
     const result = await call(name, { challenge_id: "elsewhere.testnet", config_json: "{}" });
     assert.ok(result.isError, name);
     assert.match(result.text, /not a challenge this server offers/);
