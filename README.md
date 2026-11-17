@@ -64,7 +64,7 @@ Bakeoff is entered in three tracks. What each brief asks for, and where Bakeoff 
 |---|---|---|
 | A new way to pay for intelligence | Proof-of-improvement: money moves only when a solution beats the team's own baseline on tests nobody has seen, as judged by the team's own requirements | [How a sealed evaluation runs](#how-a-sealed-evaluation-runs) |
 | Rules nobody can bend | Opening freezes the rules, test set and evaluator build; the owner's own runs never win; a copied config loses to the original | [How would you cheat it?](#how-would-you-cheat-it) |
-| Anyone can host | A setup form writes the rules file, listing and commands for a new challenge | [`web/src/pages/NewChallenge.tsx`](web/src/pages/NewChallenge.tsx) |
+| Anyone can host | A setup form writes the rules file, listing and commands, and deploys the challenge from the owner's wallet in one approval, locked from the start | [`web/src/pages/NewChallenge.tsx`](web/src/pages/NewChallenge.tsx), [`web/src/lib/deploy.ts`](web/src/lib/deploy.ts) |
 
 ## Built on NEAR
 
@@ -218,6 +218,20 @@ cd web && npm ci && npm run dev
 ```
 
 ## Deployment
+
+### From your wallet, on the board
+
+The setup form at [`/#/challenges/new`](https://bakeoff-near.vercel.app/#/challenges/new) deploys a challenge without the command line. Its last step sends one transaction, signed in the owner's wallet, to a new sub-account of theirs: create it, send it the storage it needs, deploy the contract, and call `new` with the rules, the pinned evaluator, the secrets location and the test set's hash, the same arguments as `deploy.sh`.
+
+- **Locked from the start.** No access key is added, so nobody, the owner included, can change the code or sign as the account; there is nothing to lock later. The owner's calls (fund, open, withdraw) come from the owner's own account, and payouts come from the contract.
+- **All or nothing.** NEAR applies a transaction's actions together, so if `new` rejects its arguments, no account is created and the deposit returns.
+- **About 1.9 NEAR.** It sends what the account stores: the contract, the rules and a small allowance. A locked account can never be deleted, so that storage stays with it.
+- **The pinned contract.** The board serves the same contract as the newest testnet challenges and refuses to deploy anything whose code hash differs (`HeXPDJmQ…`).
+- **The test set stays local.** The form hashes the sealed test set in the browser without uploading it, the way `deploy.sh` does; the hash can also be pasted.
+
+Then seal the test cases and model key on your machine: save the deployment record the form hands you as `.deploy/<network>.env` and run `scripts/near/store-secrets.sh`. Fund and open the challenge from its page. Browser-extension wallets take the 182 KB contract; wallets that open in a new page may refuse it.
+
+### From the command line
 
 Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
 
