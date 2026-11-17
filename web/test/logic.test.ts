@@ -159,6 +159,48 @@ test("an account that does not exist is reported at once, as missing", async () 
   assert.equal(isMissingAccount(failure), true);
 });
 
+test("a refused call moves to the fallback endpoint at once, without waiting", async () => {
+  const hosts: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    hosts.push(url);
+    if (url === "https://primary.example") throw new TypeError("Failed to fetch");
+    return viewReply();
+  }) as typeof fetch;
+  // A minute's wait before any retry: the call only finishes quickly if it does not wait.
+  const rpc = new NearRpc(["https://primary.example", "https://fallback.example"], fetchImpl, { retryDelaysMs: [60_000, 60_000] });
+  const started = Date.now();
+  assert.equal(await rpc.view("c.near", "get_challenge"), "ok");
+  assert.ok(Date.now() - started < 1000);
+  assert.deepEqual(hosts, ["https://primary.example", "https://fallback.example"]);
+});
+
+test("an endpoint that refused is rested, then used again", async () => {
+  const hosts: string[] = [];
+  let primaryDown = true;
+  const fetchImpl = (async (url: string) => {
+    hosts.push(url);
+    if (url === "https://primary.example" && primaryDown) return new Response("", { status: 429 });
+    return viewReply();
+  }) as typeof fetch;
+  const rpc = new NearRpc(["https://primary.example", "https://fallback.example"], fetchImpl, { retryDelaysMs: [0, 0], restMs: 40 });
+  await rpc.view("c.near", "get_challenge");
+  await rpc.view("c.near", "get_challenge");
+  primaryDown = false;
+  await new Promise((r) => setTimeout(r, 60));
+  await rpc.view("c.near", "get_challenge");
+  // Refused once, skipped while resting, preferred again after.
+  assert.deepEqual(hosts, ["https://primary.example", "https://fallback.example", "https://fallback.example", "https://primary.example"]);
+});
+
+test("when every endpoint refuses, they take turns until the call gives up", async () => {
+  const hosts: string[] = [];
+  const fetchImpl = (async (url: string) => { hosts.push(url); throw new TypeError("Failed to fetch"); }) as typeof fetch;
+  const failure = await new NearRpc(["https://a.example", "https://b.example"], fetchImpl, noWait).view("c.near", "get_challenge").catch((e: Error) => e);
+  assert.match(String(failure), /could not be reached/);
+  assert.equal(hosts.length, 5);
+  assert.ok(hosts.includes("https://a.example") && hosts.includes("https://b.example"));
+});
+
 test("no more than four RPC calls run at once", async () => {
   let running = 0, most = 0;
   const fetchImpl = (async () => {

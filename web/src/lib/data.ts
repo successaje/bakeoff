@@ -21,7 +21,12 @@ function cached<T>(key: string, load: () => Promise<T>, fresh = false): Promise<
 
 const rpcs: Partial<Record<Network, NearRpc>> = {};
 export function rpcFor(network: Network): NearRpc {
-  return (rpcs[network] ??= new NearRpc(NETWORKS[network].rpc));
+  return (rpcs[network] ??= new NearRpc([NETWORKS[network].rpc, NETWORKS[network].rpcFallback]));
+}
+
+/** A challenge's view, read once and shared by the list and the challenge's own page. */
+function viewOf(id: string, network: Network, fresh = false): Promise<ChallengeView> {
+  return cached(`view:${id}`, () => rpcFor(network).getChallenge(id), fresh);
 }
 
 export interface ChallengeSummary {
@@ -36,7 +41,7 @@ export interface ChallengeSummary {
 async function summarise(listing: ListedChallenge, network: Network): Promise<ChallengeSummary> {
   try {
     const rpc = rpcFor(network);
-    const view = await rpc.getChallenge(listing.id);
+    const view = await viewOf(listing.id, network);
     let winner: Metrics | null = null;
     if (view.award) {
       const evaluation = await rpc.view<EvaluationView | null>(listing.id, "get_evaluation", { id: view.award.evaluation });
@@ -69,7 +74,7 @@ export function loadChallenge(id: string, fresh = false): Promise<ChallengeDetai
       baseline: { accuracy_bp: 0, cost_per_ticket_uusd: 0, p95_latency_ms: 0 },
     };
     const rpc = rpcFor(network);
-    const view = await rpc.getChallenge(id);
+    const view = await viewOf(id, network, fresh);
     const evaluations = await rpc.getAllEvaluations(id, view.evaluations);
     const awarded = view.award ? evaluations.find((e) => e.id === view.award!.evaluation) : undefined;
     return { listing, network, view, error: null, evaluations, winner: awarded ? verdictMetrics(awarded) : null };
@@ -92,6 +97,7 @@ export function recordsOf(detail: ChallengeDetail): ChallengeRecords {
 
 export function forget(id: string): void {
   cache.delete(`challenge:${id}`);
+  cache.delete(`view:${id}`);
   cache.delete(`list:${networkOf(id)}`);
   cache.delete(`all:${networkOf(id)}`);
 }

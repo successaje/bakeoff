@@ -49,6 +49,7 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
 - **Awarded and paid** are separate states. Cards say Awarded until the payment lands, and the challenge page explains an unpaid award and how to retry it.
 - **Freshness.** The challenge page shows when it last read the chain and has a Refresh button. While a result is scoring, it re-reads every 10 s.
 - **Sources.** The footer, each challenge's problem and goal sections, and each result say which figures come from the contract and which from the owner's listing. The How it works page lists what users still have to trust.
+- **Reads that hold up.** Chain reads go to FastNear first and to NEAR's own RPC while FastNear rests: an endpoint that refuses a call rests for 8 s and the retry goes straight to the other, waiting with backoff only when both are resting. At most four calls run at once per network, so a page's reads queue instead of bursting into the free endpoints' rate limits. A challenge's view is read once and shared by the list and its page for 15 s. A read that fails after its retries shows the error with Try again; only an account or contract that does not exist shows not-found.
 
 ## Checks in the browser
 
