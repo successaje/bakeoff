@@ -65,7 +65,7 @@ Connect with [NEAR Connect](https://docs.near.org/web3-apps/tutorials/web-login/
 | Add to the reward from the wallet | Draft, or open before the deadline |
 | Open for N hours | Draft |
 | Withdraw the reward | Draft, or after an unwon deadline with nothing pending |
-| Retry a failed award payment | Any connected account, from the notice on the challenge or result page |
+| Send a reward into the winner's NEAR Intents balance, or retry a failed payment | Any connected account, from the notice on the challenge or result page |
 | Add wNEAR you hold | One approval unwraps it and funds the bounty |
 | Fund from another chain | Mainnet: see below |
 
@@ -85,6 +85,19 @@ The swap delivers to your own NEAR account, not to the contract:
 If a swap fails, 1Click refunds to your account's NEAR Intents balance. Without a partner key 1Click adds a 0.25% fee.
 
 NEAR Intents has no testnet, so cross-chain funding works on mainnet only. On testnet, use the wallet and wNEAR paths, from `wrap.testnet`.
+
+### Rewards paid into NEAR Intents
+
+On a challenge that can pay into NEAR Intents, the Rules and Take part tabs say so, and a winner who asked for it is shown at each stage ([`src/lib/payout.ts`](src/lib/payout.ts)):
+
+| Stage | The result page says | The button |
+|---|---|---|
+| Won, not sent yet | Won; to be paid into the winner's NEAR Intents balance | Send it into the winner's NEAR Intents balance, with 200 Tgas |
+| On its way | Won; the deposit into NEAR Intents is on its way | none |
+| Paid | Paid into the winner's NEAR Intents balance, as wNEAR, with the 0.00125 NEAR registration noted | none |
+| Refused | Won; NEAR Intents refused the deposit, so it is owed as NEAR | Send it to the winner as NEAR |
+
+Awards on contracts deployed before Intents payouts carry none of the new fields and read as before.
 
 ## Run it
 
@@ -112,6 +125,7 @@ The tests cover:
 - rebuilding the evaluator's chat request, and checking requirements and the baseline comparison;
 - NEAR amount parsing, refusing anything that is not a plain positive decimal;
 - the transactions the page asks a wallet to sign;
+- each stage of a reward paid into NEAR Intents, and the gas its claim needs;
 - the 1Click quote request;
 - the 1Click client against a fake API.
 
