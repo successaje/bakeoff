@@ -536,6 +536,8 @@ a.live-pill:hover svg { transform: translateX(3px); }
 
 /* ---------- Leaderboards ---------- */
 .leaderboard { display: grid; gap: var(--space-4); }
+/* Without it the builders table, which scrolls inside its card, would widen the whole page on a phone. */
+.leaderboard > * { min-width: 0; }
 .lb-note { max-width: 820px; }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .podium-card { display: grid; gap: var(--space-3); padding: var(--space-5); border-radius: 18px; transition: transform var(--dur) var(--ease-out), box-shadow var(--dur); }
