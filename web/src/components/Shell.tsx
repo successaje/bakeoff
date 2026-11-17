@@ -318,25 +318,25 @@ function Footer() {
         </div>
         <div className="footer-links">
           <div>
-            <h4>Product</h4>
+            <h2>Product</h2>
             <Link to="/challenges">Challenges</Link>
             <Link to="/leaderboard">Leaderboard</Link>
             <Link to="/how-it-works">How it works</Link>
           </div>
           <div>
-            <h4>Take part</h4>
+            <h2>Take part</h2>
             <Link to="/challenges/new">Host a challenge</Link>
             <Link to="/builders">For builders</Link>
             <Link to="/builders">Connect an agent</Link>
           </div>
           <div>
-            <h4>Built on</h4>
+            <h2>Built on</h2>
             <a href="https://near.org" target="_blank" rel="noopener noreferrer">NEAR Protocol</a>
             <a href="https://outlayer.ai" target="_blank" rel="noopener noreferrer">OutLayer</a>
             <a href="https://near.ai" target="_blank" rel="noopener noreferrer">NEAR AI Cloud</a>
           </div>
           <div>
-            <h4>Project</h4>
+            <h2>Project</h2>
             <a href={REPO} target="_blank" rel="noopener noreferrer">Source on GitHub</a>
             <a href={`${REPO}#how-would-you-cheat-it`} target="_blank" rel="noopener noreferrer">How would you cheat it?</a>
             <a href={`${REPO}/blob/main/LICENSE-MIT`} target="_blank" rel="noopener noreferrer">License</a>

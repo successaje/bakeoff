@@ -121,6 +121,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bakeoff-evaluator",
+ "near-crypto",
+ "near-jsonrpc-client",
+ "near-jsonrpc-primitives",
+ "near-primitives",
  "near-workspaces",
  "serde_json",
  "sha2 0.10.9",
@@ -1813,7 +1817,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-intents"
+version = "0.1.0"
+dependencies = [
+ "near-sdk",
+]
+
+[[package]]
 name = "mock-outlayer"
+version = "0.1.0"
+dependencies = [
+ "near-sdk",
+]
+
+[[package]]
+name = "mock-wnear"
 version = "0.1.0"
 dependencies = [
  "near-sdk",

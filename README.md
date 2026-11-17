@@ -13,7 +13,7 @@ It has run end to end on NEAR mainnet. A support-triage agent cost 128 µ$ a tic
 | Accuracy | 87.0% | **89.0%** |
 | Card numbers repeated | | **none** |
 
-The contract paid the winner 1 NEAR in the same transaction that recorded the result. This was a demonstration round: the store is fictional and the project's author ran both sides ([what is real and what is a demo](#what-is-real-and-what-is-a-demo)).
+The team's figures are the median of three calibration runs on its own machine. The same agent was also scored once in the enclave, on the same hidden tickets: 85.0%, 126 µ$ and 11.5 s p95 ([result #0](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near/results/0)); the board shows both. The contract paid the winner 1 NEAR in the same transaction that recorded the result. This was a demonstration round: the store is fictional and the project's author ran both sides ([what is real and what is a demo](#what-is-real-and-what-is-a-demo)).
 
 - **Live board:** [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app), reading NEAR mainnet.
 - **The mainnet challenge:** [Support ticket triage](https://bakeoff-near.vercel.app/#/challenges/challenge-20261107153920.bakeoff.near), on `challenge-20261107153920.bakeoff.near`.
@@ -57,14 +57,14 @@ Bakeoff is entered in three tracks. What each brief asks for, and where Bakeoff 
 | Agents pay for compute | Each submission attaches 0.035 NEAR: 0.01 pays for its record, and the rest pays OutLayer for its own TEE run, which refunds what the run does not use | [`contract/src/lib.rs`](contract/src/lib.rs) (`submit`) |
 | Agents work within a budget | One MCP server process sends at most a set number of sealed submissions (3 by default), and only to the challenges it is configured for | [`mcp/src/config.ts`](mcp/src/config.ts) |
 | Teams hire for an outcome | A reward is a hire paid only for a verified result, never for effort; it returns to the team if nobody meets the bar | [How the bounty is won](#the-bounty) |
-| NEAR Intents | A team can fund a reward from about 200 tokens on about 40 chains through 1Click | [`web/src/lib/oneclick.ts`](web/src/lib/oneclick.ts) |
+| NEAR Intents | A team can fund a reward from about 200 tokens on about 40 chains through 1Click, and a winner can ask to be paid into their NEAR Intents balance, to take it as another token or on another chain | [`web/src/lib/oneclick.ts`](web/src/lib/oneclick.ts), [Paid into NEAR Intents](#paid-into-near-intents) |
 
 **Open Innovation** (new ways for money, intelligence and ownership to work together)
 | The brief | In Bakeoff | Where |
 |---|---|---|
 | A new way to pay for intelligence | Proof-of-improvement: money moves only when a solution beats the team's own baseline on tests nobody has seen, as judged by the team's own requirements | [How a sealed evaluation runs](#how-a-sealed-evaluation-runs) |
 | Rules nobody can bend | Opening freezes the rules, test set and evaluator build; the owner's own runs never win; a copied config loses to the original | [How would you cheat it?](#how-would-you-cheat-it) |
-| Anyone can host | A setup form writes the rules file, listing and commands for a new challenge | [`web/src/pages/NewChallenge.tsx`](web/src/pages/NewChallenge.tsx) |
+| Anyone can host | A setup form writes the rules file, listing and commands, and deploys the challenge from the owner's wallet in one approval, locked from the start | [`web/src/pages/NewChallenge.tsx`](web/src/pages/NewChallenge.tsx), [`web/src/lib/deploy.ts`](web/src/lib/deploy.ts) |
 
 ## Built on NEAR
 
@@ -77,11 +77,12 @@ Bakeoff is entered in three tracks. What each brief asks for, and where Bakeoff 
 | FastFS | Hosts the evaluator's WebAssembly build, which the contract pins by SHA-256 | [`scripts/near/deploy.sh`](scripts/near/deploy.sh) |
 | NEAR Connect | Wallet sign-in on the board, for an owner to fund, open and withdraw | [`web/src/lib/wallet.ts`](web/src/lib/wallet.ts) |
 | NEAR Intents 1Click | Funding a reward from about 200 tokens on about 40 chains | [`web/src/lib/oneclick.ts`](web/src/lib/oneclick.ts) |
+| NEAR Intents (`intents.near`, `wrap.near`) | Paying a winner who asks for it into their Intents balance: the contract wraps the reward and deposits it with `ft_transfer_call` | [`contract/src/lib.rs`](contract/src/lib.rs) (`pay_award`) |
 | near-cli-rs | Signs a builder's submission from the system keychain, so the MCP server never handles a key | [`mcp/src/submit.ts`](mcp/src/submit.ts) |
 
 ## How a sealed evaluation runs
 
-1. A contributor calls `submit(config_json)` on the challenge contract, attaching 0.035 NEAR and 220+ Tgas. The contract keeps 0.01 NEAR to pay for the evaluation record and forwards the rest to OutLayer, which refunds what the run does not use.
+1. A contributor calls `submit(config_json, payout)` on the challenge contract, attaching 0.035 NEAR and 220+ Tgas. `payout` is optional: `"Near"` (the default) or `"Intents"`, where the challenge allows it. The contract keeps 0.01 NEAR to pay for the evaluation record and forwards the rest to OutLayer, which refunds what the run does not use.
 2. The contract calls `request_execution` on OutLayer with the evaluator pinned by its SHA-256, the challenge rules and the candidate as input, and a reference to the challenge's secrets.
 3. An OutLayer TEE worker runs the evaluator (`wasm32-wasip2`). The evaluator checks the candidate against the rules before spending anything, then triages every sealed ticket through NEAR AI Cloud, measuring accuracy, cost from token usage, latency and card-number leaks.
 4. The evaluator prints a verdict of under 900 bytes: aggregate metrics plus SHA-256 digests of the rules, candidate and test set it scored. No per-ticket data leaves the enclave.
@@ -102,12 +103,25 @@ Challenges deployed before this rule, including the mainnet round below, award t
 | Open | owner | `open(closes_at)`, nanoseconds since the epoch | once, from draft; freezes the commitments |
 | Win | contract | from a result callback | earliest passing submission made while open, not by the owner, once every eligible submission before it has settled |
 | Continue the award check | anyone | `advance_award()` | when more than 50 results settled while an earlier one was pending |
-| Retry a failed payout | anyone | `claim_award()` | when an award is owed and no payment is in flight |
+| Send an Intents payout, or retry a failed one | anyone | `claim_award()`, with 160 Tgas for Intents | when an award is owed and no payment is in flight |
 | Refund | owner | `withdraw_bounty()` | any time in draft; after the deadline with no winner, no pending evaluation and every result checked for the award |
 
 - A submission made before the deadline can still win after it. OutLayer answers within the yield window, about two minutes, and the refund waits until it does.
 - The owner's own submissions, in draft or open, are trial runs. Their verdicts are recorded but never win the bounty.
-- Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.1.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `challenge_closed`, `bounty_withdrawn`.
+- Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.2.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `challenge_closed`, `bounty_withdrawn`. Since 1.2.0, `evaluation_requested` and `bounty_awarded` carry the `payout`, and the payment events carry `"to": "intents"` for a deposit into NEAR Intents.
+
+### Paid into NEAR Intents
+
+A winner can take the bounty as wNEAR in their [NEAR Intents](https://docs.near-intents.org) balance instead of as NEAR, and from there swap it for another token or withdraw it to another chain. It works on challenges deployed with an Intents route: `scripts/near/deploy.sh` sets `wrap.near` and `intents.near` on mainnet, and none on testnet, where NEAR Intents does not run.
+
+1. The contributor submits with `payout: "Intents"` (the MCP server's `payout` option, or `PAYOUT=Intents scripts/near/submit.sh`). A challenge without a route refuses it.
+2. When that submission wins, the award is recorded but not sent: a deposit into Intents takes more gas than the verdict's callback holds.
+3. Anyone calls `claim_award()` with 160 Tgas or more: the board's button, the MCP server's `claim_award` tool, or near-cli. In one batch on `wrap.near`, the contract registers itself (0.00125 NEAR, kept by the token), wraps the rest, and calls `ft_transfer_call` to `intents.near` with the winner's account as `msg`, which credits the winner's Intents balance.
+4. If the verifier keeps it all, the award is paid. Whatever it refuses, the token returns to the contract as wNEAR; the award then turns to NEAR, and the next `claim_award()` unwraps it and sends it to the winner. If the batch fails as a whole, nothing moved, and the next claim pays the full award in NEAR.
+
+The challenge view's `award` shows each part: `to_intents` deposited, `fee` spent on registration, `wrapped` held for the winner, and `payout`, which is `"Near"` again after a refusal. NEAR Intents has no testnet, so the unit tests cover every state of the payment and two sandbox tests run it against mocks of `wrap.near` and `intents.near` ([`tools/mock-wnear`](tools/mock-wnear/src/lib.rs), [`tools/mock-intents`](tools/mock-intents/src/lib.rs)): one winner is paid into Intents; for the other the verifier refuses, the wNEAR comes back, and the next claim pays it as NEAR. It has not yet run against `intents.near` on mainnet.
+
+Two limits: if someone else has already registered the contract with `wrap.near`, the token refunds the 0.00125 NEAR to the contract and it stays there; and contracts deployed before this change take no `payout`, so their winners are paid in NEAR.
 
 ## How would you cheat it?
 
@@ -133,7 +147,7 @@ Each attempt below is refused by the contract or the evaluator, and a test shows
 | `evaluator/` | Rust evaluator: policy checks, grading, cost accounting, verdicts, and a `wasi:http` client |
 | `contract/` | NEAR challenge contract (near-sdk 5) |
 | `registry/` | NEAR listing registry: owners list their challenges on the board themselves, without a pull request ([README](registry/README.md)) |
-| `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view and access-key helpers |
+| `tools/` | Mock OpenAI-compatible model API, mock OutLayer, wNEAR and NEAR Intents contracts, request builder, JSON-RPC view and access-key helpers |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
 | `web/` | Static web board: challenges told as problem, goal and results; a page for every result with its config and how to try it; in-browser checks of the commitments; the owner's funding from a NEAR wallet or any chain through 1Click |
 | `mcp/` | MCP server that lets AI agents find challenges, score candidates on the practice set with the pinned evaluator, and submit them for the bounty |
@@ -167,9 +181,14 @@ The owner connects a NEAR wallet to fund, open or withdraw a challenge, in a Man
 [`mcp/`](mcp/README.md) exposes the contributor workflow as Model Context Protocol tools. With it, Claude Code, Codex or any other MCP client can:
 - list challenges and read their gates and labeling guide;
 - score candidate configs on the practice set with the exact evaluator build the challenge pins, verified by its SHA-256;
-- submit a candidate for sealed evaluation and follow the bounty payout.
+- submit a candidate for sealed evaluation and follow the bounty payout;
+- ask to be paid into NEAR Intents where a challenge allows it, and send a won bounty that is still owed.
 
-Submissions are signed by near-cli from the user's keychain, so the server never handles a private key.
+Submissions are signed by near-cli from the user's keychain, so the server never handles a private key. Once the package is on npm, one command adds it to Claude Code, with the board's list of challenges:
+
+```bash
+claude mcp add bakeoff -e BAKEOFF_ACCOUNT=you.testnet -e BAKEOFF_LLM_API_KEY=your-near-ai-key -- npx -y bakeoff-mcp
+```
 
 ## Local quick start
 
@@ -220,6 +239,21 @@ cd web && npm ci && npm run dev
 ```
 
 ## Deployment
+
+### From your wallet, on the board
+
+The setup form at [`/#/challenges/new`](https://bakeoff-near.vercel.app/#/challenges/new) deploys a challenge without the command line. Its last step sends one transaction, signed in the owner's wallet, to a new sub-account of theirs: create it, send it the storage it needs, deploy the contract, and call `new` with the rules, the pinned evaluator, the secrets location and the test set's hash, the same arguments as `deploy.sh`.
+
+- **Locked from the start.** No access key is added, so nobody, the owner included, can change the code or sign as the account; there is nothing to lock later. The owner's calls (fund, open, withdraw) come from the owner's own account, and payouts come from the contract.
+- **All or nothing.** NEAR applies a transaction's actions together, so if `new` rejects its arguments, no account is created and the deposit returns.
+- **About 1.9 NEAR.** It sends what the account stores: the contract, the rules and a small allowance. A locked account can never be deleted, so that storage stays with it.
+- **The pinned contract.** The board serves the same contract as the newest testnet challenges and refuses to deploy anything whose code hash differs (`HeXPDJmQ…`).
+- **The test set stays local.** The form hashes the sealed test set in the browser without uploading it, the way `deploy.sh` does; the hash can also be pasted.
+- **One shared copy of the contract.** Where the contract is published once as a NEAR global contract ([NEP-591](https://github.com/near/NEPs/pull/591)), by its code hash, a new challenge references that copy instead of storing its own 186 KB: about 0.06 NEAR instead of 1.9, and a small transaction every wallet accepts. Referenced by hash, the code a challenge runs can never change, even by whoever published it. Publishing burns ten times the normal storage rate once, about 18.6 NEAR for this contract; `scripts/near/publish-shared-contract.sh` does it, and `SHARED_CONTRACT` in [`web/src/lib/deploy.ts`](web/src/lib/deploy.ts) names each network's copy. A sandbox test ([`integration-tests/tests/shared_contract.rs`](integration-tests/tests/shared_contract.rs)) creates a challenge on the shared code and checks it works, has no keys and stores only its state.
+
+Then seal the test cases and model key on your machine: save the deployment record the form hands you as `.deploy/<network>.env` and run `scripts/near/store-secrets.sh`. Fund and open the challenge from its page. Browser-extension wallets take the 182 KB contract; wallets that open in a new page may refuse it.
+
+### From the command line
 
 Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
 
@@ -311,7 +345,7 @@ A result can only come from the enclave: `on_evaluation_result` is private and r
 - **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
 - **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave. Each result page checks the run's Intel TDX quote in your browser, which shows a genuine, approved machine ran the pinned evaluator and produced the recorded verdict; it does not show that OutLayer's approved image is itself trustworthy, or that the result was delivered on-chain from inside the enclave. The page lists what the check leaves out.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
-- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. Rewards, results and payments are read from the contract.
+- **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. A baseline can be checked: when the listing names the baseline config's hash, the board finds the owner's trial runs of that config, scored in the enclave on the hidden tickets, and shows them beside the published figures. Rewards, results and payments are read from the contract.
 
 ## How it would pay for itself
 

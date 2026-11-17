@@ -35,6 +35,8 @@ export interface Draft {
   options: string[];
   /** The baseline's median metrics: accuracy in %, cost in µ$ a ticket, p95 in seconds. */
   baseline: { accuracy: string; cost: string; p95: string };
+  /** SHA-256 of the baseline agent's config, from calibrate.py's report; the board finds its trial runs by it. */
+  baselineConfig: string;
   goal: Goal;
   /** Cheaper: the cut in cost, in %. */
   cut: string;
@@ -92,6 +94,7 @@ export function emptyDraft(network: Network, account: string | null, now = new D
     models: NEAR_AI_MODELS.map((m) => ({ ...m })),
     options: [...REQUEST_OPTIONS],
     baseline: { accuracy: "", cost: "", p95: "" },
+    baselineConfig: "",
     goal: "cheaper",
     cut: "25",
     fastP95: "3",
@@ -210,6 +213,7 @@ export function issuesOf(draft: Draft): Issue[] {
   }
 
   const base = baselineOf(draft);
+  if ((draft.baselineConfig ?? "").trim() && !/^[0-9a-f]{64}$/.test(draft.baselineConfig.trim().toLowerCase())) add("goal", "The baseline config's hash is 64 hex characters, as calibration's report gives it.");
   // The listing publishes the baseline whatever the goal, so builders see what they are measured against.
   if (!base) add("goal", "Enter your baseline's accuracy, cost and p95, or paste calibration's report.");
   if (base) {
@@ -277,6 +281,8 @@ export function listingOf(draft: Draft): Record<string, unknown> {
     baseline: base ?? { accuracy_bp: null, cost_per_ticket_uusd: null, p95_latency_ms: null },
   };
   if (draft.problem.trim()) entry.problem = draft.problem.trim();
+  const config = (draft.baselineConfig ?? "").trim().toLowerCase();
+  if (/^[0-9a-f]{64}$/.test(config)) entry.baseline_config_sha256 = config;
   for (const [key, url] of [["practice_set", draft.practiceSet], ["labeling_guide", draft.labelingGuide]] as const) {
     if (/^https:\/\/\S+$/.test((url ?? "").trim())) entry[key] = url.trim();
   }
@@ -312,7 +318,8 @@ export function commandsOf(draft: Draft): string {
     "  --out calibrated-rules.json \\",
     "  --report report.json",
     "",
-    "# 2. Deploy, with the form's rules.json.",
+    "# 2. Deploy, with the form's rules.json, or from your",
+    "#    wallet in the form's last step instead.",
     `${network}${confirm} BAKEOFF_ACCOUNT=${account} \\`,
     `CHALLENGE_NAME=${draft.name.trim() || "challenge-name"} \\`,
     "RULES_FILE=rules.json \\",
@@ -322,7 +329,8 @@ export function commandsOf(draft: Draft): string {
     "# 3. Seal the test cases and key with OutLayer.",
     `${network} scripts/near/store-secrets.sh`,
     "",
-    "# 4. A trial run. The owner's runs never win.",
+    "# 4. A trial run of your current agent. It never wins, and",
+    "#    the board shows it as your baseline measured in the enclave.",
     `${network}${confirm} scripts/near/submit.sh ${BASELINE_PATH}`,
   ].join("\n");
 }
@@ -363,6 +371,16 @@ export function lockCommand(draft: Draft): string {
   const account = draft.account.trim() || `you${suffix(draft.network)}`;
   const confirm = draft.network === "mainnet" ? ` MAINNET_CONFIRM=${account}` : "";
   return `NETWORK=${draft.network}${confirm} scripts/near/lock.sh`;
+}
+
+/** The baseline agent's config hash from calibrate.py's report.json, or null. */
+export function baselineConfigFromReport(text: string): string | null {
+  try {
+    const hash = (JSON.parse(text) as { baseline_config_sha256?: unknown }).baseline_config_sha256;
+    return typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash) ? hash : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Reads the baseline from calibrate.py's report.json, in the form's units. */

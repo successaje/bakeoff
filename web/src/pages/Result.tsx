@@ -14,9 +14,11 @@ import { RetryPayment } from "../components/Manage.tsx";
 import { Account, CodeBlock, CopyButton, DemoBadge, SelfListedBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
+import { enclaveBaseline } from "../lib/baseline.ts";
 import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
+import { rewardText } from "../lib/payout.ts";
 import { NotFound } from "./NotFound.tsx";
 
 const TICKET_PLACEHOLDER = "<the customer's message>";
@@ -54,14 +56,8 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
       {won && award ? (
         <>
           <strong className="bounty-amount amber">{formatNear(award.amount)}</strong>
-          {award.paid ? (
-            <p className="reward-state ok"><Check /> Paid by the contract with this result</p>
-          ) : (
-            <>
-              <p className="reward-state pending"><Timer /> {award.in_flight ? "Won; the payment is on its way" : "Won; the payment has not completed"}</p>
-              <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
-            </>
-          )}
+          <RewardState award={award} />
+          <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
         </>
       ) : (
         <p className="reward-state">
@@ -73,6 +69,16 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
         </p>
       )}
     </aside>
+  );
+}
+
+function RewardState({ award }: { award: NonNullable<ChallengeDetail["view"]["award"]> }) {
+  const { done, text, note } = rewardText(award);
+  return (
+    <>
+      <p className={`reward-state ${done ? "ok" : "pending"}`}>{done ? <Check /> : <Timer />} {text}</p>
+      {note && <p className="muted small">{note}</p>}
+    </>
   );
 }
 
@@ -97,13 +103,25 @@ function Solution({ submission, error, loading, configSha }: { submission: Submi
         {facts.options.length > 0 && <div><dt>Model options</dt><dd className="mono">{facts.options.join(", ")}</dd></div>}
         {facts.escalation && <div><dt>Second opinion</dt><dd className="mono">{facts.escalation}</dd></div>}
       </dl>
-      <pre className="code config-code">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
+      <pre className="code config-code" tabIndex={0} aria-label="Solution config">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
       <div className="row">
         <CopyButton text={submission.config} label="Copy the config" />
         <button type="button" className="btn btn-sm" onClick={() => download("bakeoff-config.json", submission.config)}><Download /> Download the config</button>
         <span className="outcome ok"><Check /> Hashes to this result's record</span>
       </div>
     </>
+  );
+}
+
+/** Says which baseline the comparison uses, and what the enclave measured for the same agent. */
+function MeasuredBaseline({ id, detail }: { id: string; detail: { listing: Parameters<typeof enclaveBaseline>[0]; view: { owner: string }; evaluations: EvaluationView[] } }) {
+  const { listing } = detail;
+  const measured = enclaveBaseline(listing, detail.view, detail.evaluations);
+  if (!measured) return <p className="muted small">Against {listing.sponsor}'s published figures for its current agent.</p>;
+  return (
+    <p className="muted small">
+      Against {listing.sponsor}'s published figures, the median of three calibration runs. The same agent scored {percent(measured.metrics.accuracy_bp)}, {microDollars(measured.metrics.cost_per_ticket_uusd)} a ticket and {seconds(measured.metrics.p95_latency_ms)} p95 in the enclave on these hidden tickets{measured.runs.length > 1 ? `, the median of ${measured.runs.length} runs` : ""}, in {measured.runs.map((r, i) => <span key={r.id}>{i ? ", " : ""}<Link to={`/challenges/${id}/results/${r.id}`}>result #{r.id}</Link></span>)}.
+    </p>
   );
 }
 
@@ -236,6 +254,7 @@ export function Result() {
                 </div>
               ))}
             </div>
+            <MeasuredBaseline id={id} detail={data} />
           </Reveal>
         )}
 

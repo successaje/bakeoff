@@ -8,8 +8,22 @@ export interface FunctionCall {
   params: { methodName: string; args: object; gas: string; deposit: string };
 }
 
+/** The actions that create a challenge account: create it, fund its storage, deploy the contract. */
+export interface CreateAccount { type: "CreateAccount" }
+export interface Transfer { type: "Transfer"; params: { deposit: string } }
+export interface DeployContract { type: "DeployContract"; params: { code: Uint8Array } }
+/** Runs code published once as a NEAR global contract (NEP-591), by its base58 code hash. */
+export interface UseGlobalContract { type: "UseGlobalContract"; params: { contractIdentifier: { codeHash: string } } }
+
+export type Action = FunctionCall | CreateAccount | Transfer | DeployContract | UseGlobalContract;
+
 export interface Transaction {
   receiverId: string;
+  actions: Action[];
+}
+
+/** A transaction of function calls only: every helper below except the challenge deploy. */
+export interface CallTransaction extends Transaction {
   actions: FunctionCall[];
 }
 
@@ -17,7 +31,7 @@ const TGAS = 1_000_000_000_000n;
 /** wrap.near and wrap.testnet ask for this much to register an account. */
 export const WNEAR_STORAGE_DEPOSIT = 1_250_000_000_000_000_000_000n;
 
-function call(receiverId: string, methodName: string, args: object, tgas: bigint, deposit: bigint): Transaction {
+function call(receiverId: string, methodName: string, args: object, tgas: bigint, deposit: bigint): CallTransaction {
   return {
     receiverId,
     actions: [{ type: "FunctionCall", params: { methodName, args, gas: String(tgas * TGAS), deposit: String(deposit) } }],
@@ -32,7 +46,8 @@ export const open = (challenge: string, closesAt: number) =>
 
 export const withdrawBounty = (challenge: string) => call(challenge, "withdraw_bounty", {}, 50n, 0n);
 
-export const claimAward = (challenge: string) => call(challenge, "claim_award", {}, 50n, 0n);
+/** `tgas` from `claimTgas`: sending into NEAR Intents takes more than a NEAR transfer. */
+export const claimAward = (challenge: string, tgas = 50n) => call(challenge, "claim_award", {}, tgas, 0n);
 
 /** Registers `accountId` with the wNEAR contract so it can receive wNEAR. */
 export const registerWnear = (wrap: string, accountId: string) =>
@@ -42,7 +57,7 @@ export const registerWnear = (wrap: string, accountId: string) =>
  * Turns wNEAR the sponsor holds, such as a 1Click delivery, into bounty:
  * unwrap it to NEAR, then fund the challenge with it. One wallet approval.
  */
-export const unwrapAndFund = (wrap: string, challenge: string, yocto: bigint): Transaction[] => [
+export const unwrapAndFund = (wrap: string, challenge: string, yocto: bigint): CallTransaction[] => [
   call(wrap, "near_withdraw", { amount: String(yocto) }, 10n, 1n),
   fund(challenge, yocto),
 ];

@@ -3,6 +3,22 @@
   "version": "0.1.0",
   "description": "MCP server for Bakeoff: find sealed AI-agent challenges on NEAR, score candidates on the practice set with the challenge's pinned evaluator, and submit them for sealed evaluation and the bounty.",
   "license": "MIT OR Apache-2.0",
+  "homepage": "https://github.com/successaje/bakeoff/tree/main/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/successaje/bakeoff.git",
+    "directory": "mcp"
+  },
+  "bugs": "https://github.com/successaje/bakeoff/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "near",
+    "ai-agents",
+    "tee",
+    "outlayer",
+    "bakeoff"
+  ],
   "type": "module",
   "bin": {
     "bakeoff-mcp": "dist/index.js"
@@ -18,7 +34,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "walkthrough": "node --disable-warning=ExperimentalWarning scripts/walkthrough.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

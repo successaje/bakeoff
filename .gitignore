@@ -4,6 +4,8 @@
 !examples/**/*.wasm
 # The board's TDX quote verifier, built from web/quote-verifier and served to visitors.
 !web/src/vendor/quote-verifier/*.wasm
+# The challenge contract the setup form deploys from the owner's wallet.
+!web/public/contract/*.wasm
 
 # Local credentials and deployment state
 .env

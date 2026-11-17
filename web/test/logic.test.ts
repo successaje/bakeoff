@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { acceptingSubmissions, type ChallengeView, formatNear, isMissingAccount, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
 import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
+import { awardStage, claimTgas, rewardText } from "../src/lib/payout.ts";
 import * as tx from "../src/lib/transactions.ts";
 
 test("NEAR amounts parse exactly and refuse anything else", () => {
@@ -159,6 +160,48 @@ test("an account that does not exist is reported at once, as missing", async () 
   assert.equal(isMissingAccount(failure), true);
 });
 
+test("a refused call moves to the fallback endpoint at once, without waiting", async () => {
+  const hosts: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    hosts.push(url);
+    if (url === "https://primary.example") throw new TypeError("Failed to fetch");
+    return viewReply();
+  }) as typeof fetch;
+  // A minute's wait before any retry: the call only finishes quickly if it does not wait.
+  const rpc = new NearRpc(["https://primary.example", "https://fallback.example"], fetchImpl, { retryDelaysMs: [60_000, 60_000] });
+  const started = Date.now();
+  assert.equal(await rpc.view("c.near", "get_challenge"), "ok");
+  assert.ok(Date.now() - started < 1000);
+  assert.deepEqual(hosts, ["https://primary.example", "https://fallback.example"]);
+});
+
+test("an endpoint that refused is rested, then used again", async () => {
+  const hosts: string[] = [];
+  let primaryDown = true;
+  const fetchImpl = (async (url: string) => {
+    hosts.push(url);
+    if (url === "https://primary.example" && primaryDown) return new Response("", { status: 429 });
+    return viewReply();
+  }) as typeof fetch;
+  const rpc = new NearRpc(["https://primary.example", "https://fallback.example"], fetchImpl, { retryDelaysMs: [0, 0], restMs: 40 });
+  await rpc.view("c.near", "get_challenge");
+  await rpc.view("c.near", "get_challenge");
+  primaryDown = false;
+  await new Promise((r) => setTimeout(r, 60));
+  await rpc.view("c.near", "get_challenge");
+  // Refused once, skipped while resting, preferred again after.
+  assert.deepEqual(hosts, ["https://primary.example", "https://fallback.example", "https://fallback.example", "https://primary.example"]);
+});
+
+test("when every endpoint refuses, they take turns until the call gives up", async () => {
+  const hosts: string[] = [];
+  const fetchImpl = (async (url: string) => { hosts.push(url); throw new TypeError("Failed to fetch"); }) as typeof fetch;
+  const failure = await new NearRpc(["https://a.example", "https://b.example"], fetchImpl, noWait).view("c.near", "get_challenge").catch((e: Error) => e);
+  assert.match(String(failure), /could not be reached/);
+  assert.equal(hosts.length, 5);
+  assert.ok(hosts.includes("https://a.example") && hosts.includes("https://b.example"));
+});
+
 test("no more than four RPC calls run at once", async () => {
   let running = 0, most = 0;
   const fetchImpl = (async () => {
@@ -172,4 +215,35 @@ test("no more than four RPC calls run at once", async () => {
   const results = await Promise.all(Array.from({ length: 12 }, () => rpc.view("c.near", "get_challenge")));
   assert.equal(results.length, 12);
   assert.equal(most, 4);
+});
+
+test("a won reward's stage follows the contract's Intents payout fields", () => {
+  const NEAR = 10n ** 24n;
+  const fee = 1_250_000_000_000_000_000_000n;
+  const base = { evaluation: 3, winner: "w.near", amount: String(5n * NEAR), paid: false, in_flight: false };
+
+  // Challenges deployed before Intents payouts have none of the new fields.
+  assert.deepEqual(awardStage({ ...base, paid: true }), { stage: "paid", intents: 0n, near: 5n * NEAR, fee: 0n });
+  assert.deepEqual(awardStage(base), { stage: "owed", amount: 5n * NEAR, refused: false });
+  assert.equal(rewardText({ ...base, paid: true }).text, "Paid by the contract with this result");
+
+  const intents = { ...base, payout: "Intents" as const, to_intents: "0", fee: "0", wrapped: "0" };
+  assert.deepEqual(awardStage(intents), { stage: "to-intents", amount: 5n * NEAR });
+  assert.equal(claimTgas(intents), 200n);
+  assert.deepEqual(awardStage({ ...intents, in_flight: true }), { stage: "sending", intents: true });
+
+  const deposited = { ...intents, paid: true, to_intents: String(5n * NEAR - fee), fee: String(fee) };
+  assert.deepEqual(awardStage(deposited), { stage: "paid", intents: 5n * NEAR - fee, near: 0n, fee });
+  assert.match(rewardText(deposited).text, /NEAR Intents balance/);
+  assert.match(rewardText(deposited).note ?? "", /^0\.00125 NEAR went to registering/);
+
+  // Refused: the wNEAR came back, is owed as NEAR, and the claim unwraps it.
+  const refused = { ...intents, payout: "Near" as const, fee: String(fee), wrapped: String(5n * NEAR - fee) };
+  assert.deepEqual(awardStage(refused), { stage: "owed", amount: 5n * NEAR - fee, refused: true });
+  assert.equal(claimTgas(refused), 100n);
+  assert.equal(claimTgas(base), 50n);
+  const split = { ...refused, paid: true, wrapped: "0", to_intents: String(NEAR) };
+  assert.equal(rewardText(split).text, "Paid: 1 NEAR into NEAR Intents and 3.99875 NEAR as NEAR");
+
+  assert.equal(tx.claimAward("c.near", 200n).actions[0]!.params.gas, String(200n * 10n ** 12n));
 });

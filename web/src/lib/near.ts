@@ -2,12 +2,15 @@
 
 export type Network = "testnet" | "mainnet";
 
-export const NETWORKS: Record<Network, { rpc: string; explorer: string; wrap: string }> = {
-  // FastNEAR answers view calls about four times faster than NEAR's own
-  // public endpoints, with open CORS.
-  testnet: { rpc: "https://test.rpc.fastnear.com", explorer: "https://testnet.nearblocks.io", wrap: "wrap.testnet" },
-  mainnet: { rpc: "https://free.rpc.fastnear.com", explorer: "https://nearblocks.io", wrap: "wrap.near" },
+export const NETWORKS: Record<Network, { rpc: string; rpcFallback: string; explorer: string; wrap: string }> = {
+  // FastNEAR answers view calls about four times faster than NEAR's own public endpoints, with
+  // open CORS, but refuses bursts; NEAR's endpoints take over while it rests.
+  testnet: { rpc: "https://test.rpc.fastnear.com", rpcFallback: "https://rpc.testnet.near.org", explorer: "https://testnet.nearblocks.io", wrap: "wrap.testnet" },
+  mainnet: { rpc: "https://free.rpc.fastnear.com", rpcFallback: "https://rpc.mainnet.near.org", explorer: "https://nearblocks.io", wrap: "wrap.near" },
 };
+
+/** How a winner is paid: NEAR, or wNEAR into their NEAR Intents balance. */
+export type Payout = "Near" | "Intents";
 
 export interface Award {
   evaluation: number;
@@ -15,6 +18,14 @@ export interface Award {
   amount: string;
   paid: boolean;
   in_flight: boolean;
+  /** The rest are absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
+  /** yoctoNEAR deposited into the winner's NEAR Intents balance. */
+  to_intents?: string;
+  /** yoctoNEAR spent registering the contract with the wNEAR token. */
+  fee?: string;
+  /** yoctoNEAR of wNEAR the verifier refused, owed to the winner as NEAR. */
+  wrapped?: string;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -34,6 +45,8 @@ export interface ChallengeView {
   bounty?: string;
   closes_at?: string | null;
   award?: Award | null;
+  /** Where a winner may be paid into NEAR Intents; absent or null where they cannot. */
+  intents?: { wrap: string; verifier: string } | null;
 }
 
 export interface EvaluationView {
@@ -45,6 +58,8 @@ export interface EvaluationView {
   status: "Pending" | "Passed" | "Failed" | "Rejected";
   reasons: string[];
   verdict: string | null;
+  /** Absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
   requested_at: string;
   settled_at: string | null;
 }
@@ -65,20 +80,42 @@ export function isMissingAccount(error: unknown): boolean {
 const MAX_IN_FLIGHT = 4;
 /** Waits before each retry of a refused call, in ms; each is spread by ±25% so retries do not land together. */
 const RETRY_DELAYS_MS = [400, 1000, 2200, 4500];
+/** How long an endpoint that refused a call is left alone while the others take the calls. */
+const REST_MS = 8_000;
 
 type RpcBody<T> = { error?: { cause?: { name?: string }; message?: string }; result?: T & { error?: string } };
 
 export class NearRpc {
+  /** The preferred endpoint; the others are used while it rests. */
   readonly url: string;
+  readonly urls: string[];
   private readonly fetchImpl: typeof fetch;
   private readonly retryDelaysMs: number[];
+  private readonly restMs: number;
+  private readonly resting = new Map<string, number>();
   private active = 0;
   private readonly waiting: (() => void)[] = [];
 
-  constructor(url: string, fetchImpl: typeof fetch = fetch.bind(globalThis), options: { retryDelaysMs?: number[] } = {}) {
-    this.url = url;
+  constructor(urls: string | string[], fetchImpl: typeof fetch = fetch.bind(globalThis), options: { retryDelaysMs?: number[]; restMs?: number } = {}) {
+    this.urls = typeof urls === "string" ? [urls] : urls;
+    this.url = this.urls[0]!;
     this.fetchImpl = fetchImpl;
     this.retryDelaysMs = options.retryDelaysMs ?? RETRY_DELAYS_MS;
+    this.restMs = options.restMs ?? REST_MS;
+  }
+
+  /** The first endpoint not resting; when all are, they take turns. */
+  private endpoint(attempt: number): { url: string; others: boolean } {
+    const now = Date.now();
+    const awake = this.urls.filter((u) => (this.resting.get(u) ?? 0) <= now);
+    return { url: awake[0] ?? this.urls[attempt % this.urls.length]!, others: awake.length > 1 };
+  }
+
+  /** Rests an endpoint that refused a call. Returns true when another can take the retry now. */
+  private refused(url: string): boolean {
+    this.resting.set(url, Date.now() + this.restMs);
+    const now = Date.now();
+    return this.urls.some((u) => (this.resting.get(u) ?? 0) <= now);
   }
 
   /** Runs one call once fewer than MAX_IN_FLIGHT are running, so a page's reads queue instead of bursting. */
@@ -102,27 +139,30 @@ export class NearRpc {
     const request = JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-web", method: "query", params: { finality: "final", ...params } });
     for (let attempt = 0; ; attempt++) {
       const retryable = attempt < this.retryDelaysMs.length;
+      const { url } = this.endpoint(attempt);
+      // A refused call goes straight to an endpoint that is not resting, or waits if none is.
+      const retry = async () => { if (!this.refused(url)) await this.pause(attempt); };
       let reply: { status: number; body: RpcBody<T> | null };
       try {
         reply = await this.slot(async () => {
-          const response = await this.fetchImpl(this.url, { method: "POST", headers: { "content-type": "application/json" }, body: request });
+          const response = await this.fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: request });
           return { status: response.status, body: response.ok ? ((await response.json()) as RpcBody<T>) : null };
         });
       } catch (error) {
         // A rate limit answered without CORS headers reaches the page as a network error, so a
         // failed request is retried like a 429.
-        if (retryable) { await this.pause(attempt); continue; }
+        if (retryable) { await retry(); continue; }
         throw new Error(`NEAR RPC could not be reached (${(error as Error).message})`);
       }
       if (reply.status === 429 || reply.status >= 500) {
-        if (retryable) { await this.pause(attempt); continue; }
+        if (retryable) { await retry(); continue; }
         throw new Error(`NEAR RPC answered ${reply.status}`);
       }
       if (!reply.body) throw new Error(`NEAR RPC answered ${reply.status}`);
       const { error, result } = reply.body;
       if (error) {
         const name = error.cause?.name ?? error.message ?? "";
-        if (retryable && /TIMEOUT|TOO_MANY_REQUESTS|NO_SYNCED_BLOCKS/.test(name)) { await this.pause(attempt); continue; }
+        if (retryable && /TIMEOUT|TOO_MANY_REQUESTS|NO_SYNCED_BLOCKS/.test(name)) { await retry(); continue; }
         throw new Error(`${label}: ${name}`);
       }
       if (result?.error) throw new Error(`${label}: ${result.error}`);

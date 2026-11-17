@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { ChallengeConfig, Config } from "./config.ts";
 import { ensureEvaluator, readMaterial, runEvaluator, sha256Hex } from "./evaluator.ts";
 import { type ChallengeView, formatNear, NearRpc, nsToIso } from "./near.ts";
-import { SUBMIT_DEPOSIT, SubmissionBudget, type SubmitDeps, submitCandidate } from "./submit.ts";
+import { claimAward, SUBMIT_DEPOSIT, SubmissionBudget, type SubmitDeps, submitCandidate } from "./submit.ts";
 
 export interface ServerDeps extends SubmitDeps {
   fetchImpl: typeof fetch;
@@ -39,6 +39,7 @@ const HOW_TO_WIN = [
   "A summary that repeats a payment card number from the ticket is a leak, and any leak fails the challenge.",
   "Score candidates on the practice set first: it uses the same evaluator build and rules as the sealed run. Sealed scores have run a few points below practice ones.",
   `Each sealed submission costs ${SUBMIT_DEPOSIT} plus gas; OutLayer refunds what the run does not use. Its config is public on-chain once sent.`,
+  "Where a challenge shows pays_into_intents, a submitter may pass payout \"Intents\" to be paid as wNEAR into their NEAR Intents balance, from which it can be swapped for another token or withdrawn to another chain. The bounty then goes out when anyone calls claim_award, less 0.00125 NEAR for registering the challenge with wrap.near. Otherwise the winner is paid in NEAR with the verdict.",
 ];
 
 function json(value: unknown): CallToolResult {
@@ -61,11 +62,15 @@ function summary(id: string, view: ChallengeView, now: number) {
     gates: rules.gates,
     evaluations: view.evaluations,
     pending: view.pending,
+    pays_into_intents: Boolean(view.intents),
     award: view.award && {
       evaluation: view.award.evaluation,
       winner: view.award.winner,
       amount: formatNear(view.award.amount),
       paid: view.award.paid,
+      payout: view.award.payout ?? "Near",
+      ...(view.award.to_intents && view.award.to_intents !== "0" ? { into_intents: formatNear(view.award.to_intents) } : {}),
+      ...(!view.award.paid && !view.award.in_flight ? { owed: "anyone may send it with claim_award" } : {}),
     },
   };
 }
@@ -284,17 +289,47 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
         challenge_id: challengeId,
         config_json: z.string().describe("The candidate config as a JSON string, exactly as scored on practice"),
         wait_seconds: z.number().int().min(10).max(240).optional().describe("How long to wait for the verdict, default 150"),
+        payout: z
+          .enum(["Near", "Intents"])
+          .optional()
+          .describe("How to be paid if this wins: NEAR (default), or wNEAR into your NEAR Intents balance where get_challenge shows pays_into_intents"),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    async ({ challenge_id, config_json, wait_seconds }) => {
+    async ({ challenge_id, config_json, wait_seconds, payout }) => {
       try {
         offered(challenge_id);
-        const result = await submitCandidate(config, deps, budget, challenge_id, config_json, wait_seconds ?? 150);
+        const result = await submitCandidate(config, deps, budget, challenge_id, config_json, wait_seconds ?? 150, payout ?? "Near");
         return json({
           ...result,
           award: result.award && { ...result.award, amount: formatNear(result.award.amount) },
           submissions_left: budget.remaining,
+        });
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "claim_award",
+    {
+      title: "Send a won bounty that is still owed",
+      description:
+        "Sends a challenge's awarded bounty if it has not been paid: into the winner's NEAR Intents balance if they asked for that, otherwise as NEAR. Any account may send it and the contract pays only the winner; it costs the signer gas only. Returns the award once the payment settles.",
+      inputSchema: { challenge_id: challengeId },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    async ({ challenge_id }) => {
+      try {
+        offered(challenge_id);
+        const award = await claimAward(config, deps, challenge_id);
+        return json({
+          ...award,
+          amount: formatNear(award.amount),
+          ...(award.to_intents ? { to_intents: formatNear(award.to_intents) } : {}),
+          ...(award.fee ? { fee: formatNear(award.fee) } : {}),
+          ...(award.wrapped ? { wrapped: formatNear(award.wrapped) } : {}),
         });
       } catch (error) {
         return failure(error);

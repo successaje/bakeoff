@@ -62,6 +62,30 @@ fn transfers() -> Vec<(AccountId, NearToken)> {
         .collect()
 }
 
+/// Function calls the last call created, as (receiver, method, deposit, arguments).
+fn function_calls() -> Vec<(AccountId, String, NearToken, serde_json::Value)> {
+    get_created_receipts()
+        .into_iter()
+        .flat_map(|r| {
+            let receiver = r.receiver_id.clone();
+            r.actions.into_iter().filter_map(move |a| match a {
+                MockAction::FunctionCallWeight {
+                    method_name,
+                    args,
+                    attached_deposit,
+                    ..
+                } => Some((
+                    receiver.clone(),
+                    String::from_utf8(method_name).unwrap(),
+                    attached_deposit,
+                    serde_json::from_slice(&args).unwrap_or(serde_json::Value::Null),
+                )),
+                _ => None,
+            })
+        })
+        .collect()
+}
+
 fn near(amount: u128) -> NearToken {
     NearToken::from_near(amount)
 }
@@ -80,7 +104,7 @@ fn open_challenge(bounty: u128) -> Contract {
 
 fn submit_at(contract: &mut Contract, submitter: &str, time: u64) -> u32 {
     call_at(submitter, time, NearToken::from_millinear(35));
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     contract.get_challenge().evaluations - 1
 }
 
@@ -110,6 +134,10 @@ fn settle_at(contract: &mut Contract, id: u32, time: u64, verdict: &str) -> Eval
 }
 
 fn new_contract() -> Contract {
+    new_contract_with(None)
+}
+
+fn new_contract_with(intents: Option<IntentsRoute>) -> Contract {
     testing_env!(context("owner.testnet").build());
     Contract::new(
         account("owner.testnet"),
@@ -124,6 +152,7 @@ fn new_contract() -> Contract {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        intents,
     )
 }
 
@@ -168,6 +197,7 @@ fn owner_is_the_named_sponsor_even_when_the_contract_initialises_itself() {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
     );
     assert_eq!(contract.get_challenge().owner, account("owner.testnet"));
 }
@@ -208,6 +238,7 @@ fn rejects_malformed_commitments() {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
     );
 }
 
@@ -215,7 +246,7 @@ fn rejects_malformed_commitments() {
 fn owner_can_trial_a_draft_and_the_request_is_recorded() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let evaluation = contract.get_evaluation(0).unwrap().evaluation;
     assert_eq!(evaluation.status, EvaluationStatus::Pending);
@@ -231,7 +262,7 @@ fn owner_can_trial_a_draft_and_the_request_is_recorded() {
 fn others_cannot_submit_to_a_draft() {
     let mut contract = new_contract();
     testing_env!(context("contributor.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -240,7 +271,7 @@ fn anyone_can_submit_once_open() {
     testing_env!(context("owner.testnet").build());
     contract.open(U64(CLOSES_AT));
     testing_env!(context("contributor.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     assert_eq!(
         contract.get_evaluation(0).unwrap().evaluation.submitter,
         account("contributor.testnet")
@@ -255,7 +286,7 @@ fn submission_requires_the_execution_deposit_and_record_fee() {
     // Enough for OutLayer alone, not for the record as well.
     ctx.attached_deposit(NearToken::from_millinear(30));
     testing_env!(ctx.build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -265,7 +296,7 @@ fn submission_requires_enough_gas() {
     let mut ctx = context("owner.testnet");
     ctx.prepaid_gas(Gas::from_tgas(210));
     testing_env!(ctx.build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -273,14 +304,14 @@ fn submission_requires_enough_gas() {
 fn submission_size_is_bounded() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit("x".repeat(MAX_CONFIG_BYTES + 1));
+    let _ = contract.submit("x".repeat(MAX_CONFIG_BYTES + 1), None);
 }
 
 #[test]
 fn matching_passing_verdict_is_recorded_as_passed() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let raw = verdict(
         true,
@@ -308,7 +339,7 @@ fn matching_passing_verdict_is_recorded_as_passed() {
 fn failing_verdict_keeps_the_evaluator_reasons() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let raw = verdict(
         false,
@@ -336,7 +367,7 @@ fn failing_verdict_keeps_the_evaluator_reasons() {
 fn an_evaluation_settles_once() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     settle(&mut contract, 0, PromiseResult::Failed);
     settle(&mut contract, 0, PromiseResult::Failed);
 }
@@ -416,7 +447,7 @@ fn evaluations_are_paginated() {
     for _ in 0..5 {
         // Each submission is its own transaction with its own gas.
         testing_env!(context("owner.testnet").build());
-        let _ = contract.submit(CONFIG.into());
+        let _ = contract.submit(CONFIG.into(), None);
     }
     let page = contract.get_evaluations(Some(1), Some(2));
     assert_eq!(page.iter().map(|e| e.id).collect::<Vec<_>>(), [1, 2]);
@@ -428,7 +459,7 @@ fn evaluations_are_paginated() {
 fn submission_keeps_the_record_fee_and_forwards_the_rest() {
     let mut contract = open_challenge(0);
     call_at("contributor.testnet", NOW, NearToken::from_millinear(50));
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     let forwarded: Vec<NearToken> = get_created_receipts()
         .into_iter()
         .flat_map(|r| r.actions)
@@ -496,6 +527,10 @@ fn the_first_eligible_pass_wins_and_is_paid_the_bounty() {
             amount: near(5),
             paid: false,
             in_flight: true,
+            payout: Payout::Near,
+            to_intents: NearToken::from_yoctonear(0),
+            fee: NearToken::from_yoctonear(0),
+            wrapped: NearToken::from_yoctonear(0),
         })
     );
     assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
@@ -795,4 +830,249 @@ fn a_closed_challenge_takes_no_more_funds() {
     contract.withdraw_bounty();
     call_at("owner.testnet", CLOSES_AT + 1, near(1));
     contract.fund();
+}
+
+// Paying a winner into NEAR Intents.
+
+const REGISTRATION: NearToken = NearToken::from_micronear(1_250);
+
+fn intents_route() -> IntentsRoute {
+    IntentsRoute {
+        wrap: account("wrap.testnet"),
+        verifier: account("intents.testnet"),
+    }
+}
+
+fn submit_paid_at(contract: &mut Contract, submitter: &str, time: u64, payout: Payout) -> u32 {
+    call_at(submitter, time, NearToken::from_millinear(35));
+    let _ = contract.submit(CONFIG.into(), Some(payout));
+    contract.get_challenge().evaluations - 1
+}
+
+/// A challenge with an Intents route whose `bounty` NEAR was won by
+/// contributor.testnet, paid the way they asked.
+fn won_on_intents_challenge(bounty: u128, payout: Payout) -> Contract {
+    let mut contract = new_contract_with(Some(intents_route()));
+    call_at("owner.testnet", NOW, near(bounty));
+    contract.fund();
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    let id = submit_paid_at(&mut contract, "contributor.testnet", NOW, payout);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    contract
+}
+
+/// `claim_award` called by anyone, with `tgas` attached.
+fn claim_with(contract: &mut Contract, time: u64, tgas: u64) {
+    let mut ctx = context("anyone.testnet");
+    ctx.block_timestamp(time)
+        .attached_deposit(NearToken::from_yoctonear(0))
+        .prepaid_gas(Gas::from_tgas(tgas));
+    testing_env!(ctx.build());
+    contract.claim_award();
+}
+
+fn calls_to(receiver: &str) -> Vec<(String, NearToken, serde_json::Value)> {
+    function_calls()
+        .into_iter()
+        .filter(|(to, ..)| to == &account(receiver))
+        .map(|(_, method, deposit, args)| (method, deposit, args))
+        .collect()
+}
+
+fn award(contract: &Contract) -> Award {
+    contract.get_challenge().award.expect("an award")
+}
+
+fn yocto_json(amount: NearToken) -> Vec<u8> {
+    format!("\"{}\"", amount.as_yoctonear()).into_bytes()
+}
+
+#[test]
+#[should_panic(expected = "this challenge cannot pay into NEAR Intents")]
+fn a_challenge_without_a_route_refuses_an_intents_payout() {
+    let mut contract = open_challenge(5);
+    submit_paid_at(&mut contract, "contributor.testnet", NOW, Payout::Intents);
+}
+
+#[test]
+fn each_submission_records_how_its_submitter_wants_to_be_paid() {
+    let mut contract = new_contract_with(Some(intents_route()));
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    let by_default = submit_at(&mut contract, "first.testnet", NOW);
+    let into_intents = submit_paid_at(&mut contract, "second.testnet", NOW, Payout::Intents);
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"evaluation_requested\"")
+            && log.contains("\"payout\":\"Intents\"")));
+
+    let payout = |id| contract.get_evaluation(id).unwrap().evaluation.payout;
+    assert_eq!(payout(by_default), Payout::Near);
+    assert_eq!(payout(into_intents), Payout::Intents);
+    assert_eq!(contract.get_challenge().intents, Some(intents_route()));
+}
+
+#[test]
+fn a_near_winner_on_a_challenge_with_a_route_is_still_paid_with_the_verdict() {
+    let contract = won_on_intents_challenge(5, Payout::Near);
+    assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
+    assert!(calls_to("wrap.testnet").is_empty());
+    assert!(award(&contract).in_flight);
+}
+
+#[test]
+fn an_intents_winner_is_paid_by_a_claim_not_by_the_verdict() {
+    let contract = won_on_intents_challenge(5, Payout::Intents);
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"bounty_awarded\"")
+            && log.contains("\"payout\":\"Intents\"")));
+    let award = award(&contract);
+    assert_eq!(award.payout, Payout::Intents);
+    assert!(!award.paid && !award.in_flight);
+    assert!(transfers().is_empty());
+    assert!(calls_to("wrap.testnet").is_empty());
+}
+
+#[test]
+#[should_panic(expected = "attach at least 160 Tgas to pay into NEAR Intents")]
+fn an_intents_claim_needs_the_gas_for_the_deposit() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 150);
+}
+
+#[test]
+fn a_claim_wraps_the_award_and_deposits_it_into_the_winners_intents_balance() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 200);
+    let deposit = near(5).saturating_sub(REGISTRATION);
+    assert_eq!(
+        calls_to("wrap.testnet"),
+        [
+            (
+                "storage_deposit".to_string(),
+                REGISTRATION,
+                json!({ "account_id": "challenge.bakeoff.testnet", "registration_only": true }),
+            ),
+            ("near_deposit".to_string(), deposit, json!({})),
+            (
+                "ft_transfer_call".to_string(),
+                NearToken::from_yoctonear(1),
+                json!({
+                    "receiver_id": "intents.testnet",
+                    "amount": deposit.as_yoctonear().to_string(),
+                    "msg": "contributor.testnet",
+                }),
+            ),
+        ]
+    );
+    assert!(transfers().is_empty());
+    assert!(award(&contract).in_flight);
+
+    callback_at(NOW + 3, PromiseResult::Successful(yocto_json(deposit)));
+    contract.on_intents_deposit(U128(deposit.as_yoctonear()));
+    let award = award(&contract);
+    assert!(award.paid && !award.in_flight);
+    assert_eq!(award.to_intents, deposit);
+    assert_eq!(award.fee, REGISTRATION);
+    assert!(award.wrapped.is_zero());
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"award_paid\"") && log.contains("\"to\":\"intents\"")));
+}
+
+#[test]
+fn wnear_the_verifier_refuses_is_unwrapped_and_paid_as_near() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 200);
+    let deposit = near(5).saturating_sub(REGISTRATION);
+    let kept = near(1);
+    let refused = deposit.saturating_sub(kept);
+
+    callback_at(NOW + 3, PromiseResult::Successful(yocto_json(kept)));
+    contract.on_intents_deposit(U128(deposit.as_yoctonear()));
+    let owed = award(&contract);
+    assert!(!owed.paid && !owed.in_flight);
+    assert_eq!(owed.payout, Payout::Near);
+    assert_eq!(
+        (owed.to_intents, owed.fee, owed.wrapped),
+        (kept, REGISTRATION, refused)
+    );
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"award_payment_failed\"")
+            && log.contains("\"returned_as\":\"wNEAR\"")));
+
+    // The rest is NEAR now, so the claim needs no more than an ordinary one.
+    claim_with(&mut contract, NOW + 4, 50);
+    assert_eq!(
+        calls_to("wrap.testnet"),
+        [(
+            "near_withdraw".to_string(),
+            NearToken::from_yoctonear(1),
+            json!({ "amount": refused.as_yoctonear().to_string() }),
+        )]
+    );
+    callback_at(NOW + 5, PromiseResult::Successful(Vec::new()));
+    contract.on_award_unwrapped(U128(refused.as_yoctonear()));
+    assert_eq!(transfers(), [(account("contributor.testnet"), refused)]);
+    assert!(award(&contract).wrapped.is_zero());
+
+    callback_at(NOW + 6, PromiseResult::Successful(Vec::new()));
+    contract.on_award_paid();
+    let paid = award(&contract);
+    assert!(paid.paid && !paid.in_flight);
+    // The winner has the award less the token's registration: part in Intents, the rest in NEAR.
+    assert_eq!(
+        paid.to_intents.saturating_add(refused),
+        near(5).saturating_sub(REGISTRATION)
+    );
+}
+
+#[test]
+fn a_failed_unwrap_keeps_the_wnear_owed_for_the_next_claim() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 200);
+    let deposit = near(5).saturating_sub(REGISTRATION);
+    callback_at(
+        NOW + 3,
+        PromiseResult::Successful(yocto_json(NearToken::from_yoctonear(0))),
+    );
+    contract.on_intents_deposit(U128(deposit.as_yoctonear()));
+
+    claim_with(&mut contract, NOW + 4, 50);
+    callback_at(NOW + 5, PromiseResult::Failed);
+    contract.on_award_unwrapped(U128(deposit.as_yoctonear()));
+    let owed = award(&contract);
+    assert!(!owed.paid && !owed.in_flight);
+    assert_eq!(owed.wrapped, deposit);
+
+    claim_with(&mut contract, NOW + 6, 50);
+    assert_eq!(calls_to("wrap.testnet").len(), 1);
+}
+
+#[test]
+fn a_deposit_that_fails_as_a_whole_leaves_the_award_owed_in_near() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 200);
+    callback_at(NOW + 3, PromiseResult::Failed);
+    contract.on_intents_deposit(U128(near(5).saturating_sub(REGISTRATION).as_yoctonear()));
+    let owed = award(&contract);
+    assert!(!owed.paid && !owed.in_flight);
+    assert_eq!(owed.payout, Payout::Near);
+    // Nothing moved, so nothing was spent on registration.
+    assert!(owed.fee.is_zero() && owed.to_intents.is_zero() && owed.wrapped.is_zero());
+
+    claim_with(&mut contract, NOW + 4, 50);
+    assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
+    assert!(calls_to("wrap.testnet").is_empty());
+}
+
+#[test]
+#[should_panic(expected = "a payment is already in flight")]
+fn an_intents_deposit_cannot_be_claimed_twice_at_once() {
+    let mut contract = won_on_intents_challenge(5, Payout::Intents);
+    claim_with(&mut contract, NOW + 2, 200);
+    claim_with(&mut contract, NOW + 2, 200);
 }

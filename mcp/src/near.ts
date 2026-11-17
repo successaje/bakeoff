@@ -5,6 +5,9 @@ export interface EvaluatorBuild {
   sha256: string;
 }
 
+/** How a winner is paid: NEAR, or wNEAR into their NEAR Intents balance. */
+export type Payout = "Near" | "Intents";
+
 export interface Award {
   evaluation: number;
   winner: string;
@@ -12,6 +15,14 @@ export interface Award {
   amount: string;
   paid: boolean;
   in_flight: boolean;
+  /** Absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
+  /** yoctoNEAR deposited into the winner's NEAR Intents balance. */
+  to_intents?: string;
+  /** yoctoNEAR spent registering the challenge with the wNEAR token. */
+  fee?: string;
+  /** yoctoNEAR of wNEAR the Intents verifier refused, owed to the winner as NEAR. */
+  wrapped?: string;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -33,6 +44,8 @@ export interface ChallengeView {
   /** Nanoseconds since the Unix epoch. */
   closes_at: string | null;
   award: Award | null;
+  /** Where winners may be paid into NEAR Intents; absent or null where they cannot. */
+  intents?: { wrap: string; verifier: string } | null;
 }
 
 /** One entry of `get_evaluations` as the contract returns it. */
@@ -46,6 +59,8 @@ export interface EvaluationView {
   verdict: string | null;
   requested_at: string;
   settled_at: string | null;
+  /** Absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
 }
 
 export class NearRpc {
