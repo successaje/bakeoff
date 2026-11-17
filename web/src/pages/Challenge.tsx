@@ -77,7 +77,7 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
       <span className="check-icon"><Icon /></span>
       <div className="check-body">
         <div className="check-title">
-          <h4>{title}</h4>
+          <h3>{title}</h3>
           {state.ok && <span className="badge badge-green badge-dot">Matches</span>}
           {state.mismatch && <span className="badge badge-coral badge-dot">Mismatch</span>}
           {state.failed && <span className="badge badge-amber badge-dot">Could not verify</span>}
@@ -116,7 +116,7 @@ function LockRow({ detail }: { detail: ChallengeDetail }) {
       <span className="check-icon"><Shield /></span>
       <div className="check-body">
         <div className="check-title">
-          <h4>Contract code</h4>
+          <h3>Contract code</h3>
           {count === 0 && <span className="badge badge-green badge-dot">Locked · 0 keys</span>}
           {count !== undefined && count > 0 && <span className="badge badge-amber badge-dot">Not locked · {count} {plural}</span>}
           {keys.error && !keys.data && <span className="badge badge-amber badge-dot">Could not verify</span>}
@@ -166,7 +166,7 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   return (
     <div className="find-config">
       <hr className="divider" />
-      <h4>Find a result by its config</h4>
+      <h3>Find a result by its config</h3>
       <p className="muted small">Every result records the SHA-256 of the config it scored. Paste a config to find its results.</p>
       <textarea className="textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"version": 1, "model": "…", …}' spellCheck={false} aria-label="Solution config" />
       <div className="row">
@@ -195,9 +195,9 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
           : "This challenge is not taking submissions. Its practice tickets and leaderboard stay public, and the MCP server can still score solutions against it."}
       </p>
       <ol className="compete-steps">
-        <li><span className="mono">1</span><div><h4>Build the server</h4><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
-        <li><span className="mono">2</span><div><h4>Add it to Claude Code</h4><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
-        <li><span className="mono">3</span><div><h4>Ask your agent</h4><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
+        <li><span className="mono">1</span><div><h3>Build the server</h3><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
+        <li><span className="mono">2</span><div><h3>Add it to Claude Code</h3><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
+        <li><span className="mono">3</span><div><h3>Ask your agent</h3><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
       </ol>
       <div className="row">
         <Link to="/builders" className="btn">Full guide for builders <ArrowRight /></Link>
@@ -211,23 +211,24 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
 function DocSection({ id, title, children, intro }: { id: string; title: string; intro?: React.ReactNode; children: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   return (
-    <details className="doc-section folding" id={id} open>
-      <summary>
-        <h2>{title}</h2>
-        <button type="button" className="icon-btn doc-link" aria-label={copied ? "Link copied" : `Copy a link to ${title}`} title={copied ? "Link copied" : "Copy link"} onClick={(event) => {
-          event.preventDefault();
-          void navigator.clipboard?.writeText(`${location.href.split("#").slice(0, 2).join("#")}#${id}`).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1400);
-          });
-        }}>{copied ? <Check /> : <Copy />}</button>
-        <span className="doc-fold" aria-hidden="true" />
-      </summary>
-      <div className="doc-body">
-        {intro && <p className="text-2 doc-intro">{intro}</p>}
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </div>
-    </details>
+    <div className="doc-wrap">
+      <details className="doc-section folding" id={id} open>
+        <summary>
+          <h2>{title}</h2>
+          <span className="doc-fold" aria-hidden="true" />
+        </summary>
+        <div className="doc-body">
+          {intro && <p className="text-2 doc-intro">{intro}</p>}
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </div>
+      </details>
+      <button type="button" className="icon-btn doc-link" aria-label={copied ? "Link copied" : `Copy a link to ${title}`} title={copied ? "Link copied" : "Copy link"} onClick={() => {
+        void navigator.clipboard?.writeText(`${location.href.split("#").slice(0, 2).join("#")}#${id}`).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1400);
+        });
+      }}>{copied ? <Check /> : <Copy />}</button>
+    </div>
   );
 }
 
@@ -268,17 +269,17 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
   return (
     <aside className="cx-side">
       <div className="side-block">
-        <h4>Challenge host</h4>
+        <h2>Challenge host</h2>
         <div className="side-host"><HostMark name={listing.sponsor} size={34} /><div><strong>{listing.sponsor}</strong><Link to={`/accounts/${view.owner}`} className="muted small break">{view.owner}</Link></div></div>
       </div>
       <div className="side-block">
-        <h4>Reward</h4>
+        <h2>Reward</h2>
         <p className="side-reward"><Coins /> {formatNear(award?.amount ?? view.bounty ?? "0")}</p>
         <p className="muted small">{award ? (award.paid ? <>Paid to <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
         {status === "open" && <p className="small"><Timer /> <Countdown closesAt={view.closes_at} /></p>}
       </div>
       <div className="side-block">
-        <h4>Participation</h4>
+        <h2>Participation</h2>
         <dl className="side-stats">
           <div><dt>Builders</dt><dd>{builders}</dd></div>
           <div><dt>Results</dt><dd>{evaluations.length}</dd></div>
@@ -287,7 +288,7 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
         </dl>
       </div>
       <div className="side-block">
-        <h4>Contract</h4>
+        <h2>Contract</h2>
         <div className="hash-line"><a className="mono small break" href={explorer(network, "address", listing.id)} target="_blank" rel="noopener noreferrer">{listing.id}</a><CopyButton text={listing.id} label="Copy the contract account" /></div>
         <p className="side-chips">
           <span className="chip chip-grey">{network}</span>
@@ -296,12 +297,12 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
       </div>
       {listing.tags && listing.tags.length > 0 && (
         <div className="side-block">
-          <h4>Tags</h4>
+          <h2>Tags</h2>
           <p className="side-chips">{listing.tags.map((t) => <span key={t} className="chip chip-grey">{t}</span>)}</p>
         </div>
       )}
       <nav className="side-block side-toc" aria-label="On this page">
-        <h4>On this page</h4>
+        <h2>On this page</h2>
         {sections.map((s) => <button key={s.id} type="button" onClick={() => scrollToSection(s.id)}>{s.label}</button>)}
       </nav>
     </aside>

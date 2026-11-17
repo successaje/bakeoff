@@ -28,7 +28,7 @@ function Distribution({ title, values, counts, total, active, onPick }: { title:
   const max = Math.max(1, ...values.map((v) => counts[v] ?? 0));
   return (
     <div className="dist card card-pad">
-      <div className="dist-head"><h4>{title}</h4><span className="muted small">{values.length} values</span></div>
+      <div className="dist-head"><h3>{title}</h3><span className="muted small">{values.length} values</span></div>
       <ul>
         {values.map((v) => {
           const n = counts[v] ?? 0;

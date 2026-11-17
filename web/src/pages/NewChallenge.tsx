@@ -151,7 +151,7 @@ export function NewChallenge() {
         <Reveal className="setup-safe">
           <span className="feature-icon"><Shield /></span>
           <div>
-            <h3>Your test cases and API key never touch this page.</h3>
+            <h2>Your test cases and API key never touch this page.</h2>
             <p className="text-2 small">The form runs in your browser and sends nothing; your draft is kept in this browser only. You run the commands on your own machine, where the scripts read both and the OutLayer CLI encrypts them for the evaluator. <Link to="/teams">How hosting works</Link></p>
           </div>
         </Reveal>
@@ -373,7 +373,7 @@ export function NewChallenge() {
                     <button type="button" className="btn btn-sm" onClick={() => download(file.name, file.text, file.type)}><Download /> Download</button>
                   </span>
                 </div>
-                <pre className="code setup-code" aria-label={file.name}>{file.text}</pre>
+                <pre className="code setup-code" aria-label={file.name} tabIndex={0}>{file.text}</pre>
                 {tab === "listing" && <p className="muted small">Add it under <span className="mono">"{draft.network}"</span> in <span className="mono">web/public/challenges.json</span> with a pull request. Until then the challenge opens at its address with its on-chain data.</p>}
                 {tab === "rules" && <p className="muted small">Calibration ignores the requirements in this file, so download it once before calibrating and again after you enter the baseline.</p>}
               </div>

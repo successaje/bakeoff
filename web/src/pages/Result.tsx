@@ -97,7 +97,7 @@ function Solution({ submission, error, loading, configSha }: { submission: Submi
         {facts.options.length > 0 && <div><dt>Model options</dt><dd className="mono">{facts.options.join(", ")}</dd></div>}
         {facts.escalation && <div><dt>Second opinion</dt><dd className="mono">{facts.escalation}</dd></div>}
       </dl>
-      <pre className="code config-code">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
+      <pre className="code config-code" tabIndex={0} aria-label="Solution config">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
       <div className="row">
         <CopyButton text={submission.config} label="Copy the config" />
         <button type="button" className="btn btn-sm" onClick={() => download("bakeoff-config.json", submission.config)}><Download /> Download the config</button>
