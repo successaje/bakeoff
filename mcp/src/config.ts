@@ -29,7 +29,12 @@ export interface Config {
   maxSubmissions: number;
   /** Where verified evaluator builds are kept, by SHA-256. */
   cacheDir: string;
+  /** The Bakeoff board whose list of challenges is used when no config file is given. */
+  boardUrl: string;
 }
+
+/** The public board: its /challenges.json lists every challenge with its practice set and labeling guide. */
+export const BOARD_URL = "https://bakeoff-near.vercel.app";
 
 /** FastNEAR's free endpoints, as the web app uses; near.org's rate-limit bursts. */
 const RPC_URLS: Record<Network, string> = {
@@ -92,5 +97,46 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     wasmtime: env.WASMTIME ?? "wasmtime",
     maxSubmissions,
     cacheDir: env.BAKEOFF_CACHE_DIR ?? join(homedir(), ".cache", "bakeoff-mcp"),
+    boardUrl: (env.BAKEOFF_BOARD_URL ?? BOARD_URL).replace(/\/+$/, ""),
   };
+}
+
+interface BoardListing {
+  id: string;
+  practice_set?: string;
+  labeling_guide?: string;
+}
+
+/**
+ * The challenges the board lists for a network, with their practice set and labeling guide as
+ * https URLs on the board. The list is the board's, so a challenge it lists appears here without
+ * a new release of this server, and the server still serves only listed challenges.
+ */
+export async function boardChallenges(boardUrl: string, network: Network, fetchImpl: typeof fetch = fetch): Promise<ChallengeConfig[]> {
+  const response = await fetchImpl(`${boardUrl}/challenges.json`);
+  if (!response.ok) throw new Error(`the board answered HTTP ${response.status}`);
+  const listings = ((await response.json()) as Partial<Record<Network, BoardListing[]>>)[network] ?? [];
+  const onBoard = (path: string | undefined) => (path ? new URL(path, `${boardUrl}/`).href : undefined);
+  return listings.map((l) => ({ id: l.id, practiceSet: onBoard(l.practice_set), labelingGuide: onBoard(l.labeling_guide) }));
+}
+
+/**
+ * The configuration to run with. A config file (BAKEOFF_MCP_CONFIG) is used as it is. Without
+ * one, the challenges come from the board's list for the network, narrowed to BAKEOFF_CHALLENGES
+ * when that is set; if the board cannot be read, BAKEOFF_CHALLENGES alone still works, without
+ * practice sets.
+ */
+export async function resolveConfig(env: NodeJS.ProcessEnv = process.env, fetchImpl: typeof fetch = fetch): Promise<Config & { source: string }> {
+  const config = loadConfig(env);
+  if (env.BAKEOFF_MCP_CONFIG) return { ...config, source: env.BAKEOFF_MCP_CONFIG };
+  const wanted = config.challenges.map((c) => c.id);
+  let listed: ChallengeConfig[];
+  try {
+    listed = await boardChallenges(config.boardUrl, config.network, fetchImpl);
+  } catch (error) {
+    if (wanted.length) return { ...config, source: `BAKEOFF_CHALLENGES (the board's list could not be read: ${(error as Error).message})` };
+    throw new Error(`could not read the board's list of challenges at ${config.boardUrl}/challenges.json (${(error as Error).message}); set BAKEOFF_MCP_CONFIG or BAKEOFF_CHALLENGES`);
+  }
+  const challenges = wanted.length ? wanted.map((id) => listed.find((c) => c.id === id) ?? { id }) : listed;
+  return { ...config, challenges, source: `${config.boardUrl}/challenges.json` };
 }

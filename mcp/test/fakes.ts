@@ -109,6 +109,7 @@ export function config(overrides: Partial<Config> = {}): Config {
     wasmtime: "wasmtime",
     maxSubmissions: 3,
     cacheDir: "/nonexistent",
+    boardUrl: "https://board.example",
     ...overrides,
   };
 }
