@@ -46,7 +46,8 @@ export const open = (challenge: string, closesAt: number) =>
 
 export const withdrawBounty = (challenge: string) => call(challenge, "withdraw_bounty", {}, 50n, 0n);
 
-export const claimAward = (challenge: string) => call(challenge, "claim_award", {}, 50n, 0n);
+/** `tgas` from `claimTgas`: sending into NEAR Intents takes more than a NEAR transfer. */
+export const claimAward = (challenge: string, tgas = 50n) => call(challenge, "claim_award", {}, tgas, 0n);
 
 /** Registers `accountId` with the wNEAR contract so it can receive wNEAR. */
 export const registerWnear = (wrap: string, accountId: string) =>

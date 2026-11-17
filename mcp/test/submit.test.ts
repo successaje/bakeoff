@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sha256Hex } from "../src/evaluator.ts";
-import { SubmissionBudget, submitCandidate } from "../src/submit.ts";
+import { claimAward, SubmissionBudget, submitCandidate } from "../src/submit.ts";
 import { CHALLENGE, challengeView, config, evaluation, FakeChain, FakeCli, FakeClock, NOW } from "./fakes.ts";
 
 const CANDIDATE = '{"version":1,"model":"z-ai/glm-5.3-flash","system_prompt":"Triage."}';
@@ -136,4 +136,75 @@ test("a submission needs an account and valid JSON", async () => {
   const { deps } = setup();
   await assert.rejects(submitCandidate(config({ account: undefined }), deps, new SubmissionBudget(3), CHALLENGE, CANDIDATE, 150), /BAKEOFF_ACCOUNT/);
   await assert.rejects(submitCandidate(config(), deps, new SubmissionBudget(3), CHALLENGE, "{not json", 150), /not valid JSON/);
+});
+
+const ONE_NEAR = "1000000000000000000000000";
+const ROUTE = { wrap: "wrap.testnet", verifier: "intents.testnet" };
+
+test("an Intents payout is asked for in the submit call", async () => {
+  const { chain, cli, deps } = setup();
+  chain.challenges = [challengeView({ intents: ROUTE })];
+  chain.evaluationPages = [[evaluation({ config_sha256: SHA, status: "Failed", reasons: ["gate_cost"] })]];
+  const result = await submitCandidate(config(), deps, new SubmissionBudget(3), CHALLENGE, CANDIDATE, 150, "Intents");
+
+  assert.equal(result.payout, "Intents");
+  assert.equal(cli.invocations[0]?.args[6], JSON.stringify({ config_json: CANDIDATE, payout: "Intents" }));
+});
+
+test("a challenge without an Intents route refuses an Intents payout before anything is sent", async () => {
+  const { cli, deps } = setup();
+  const budget = new SubmissionBudget(3);
+  await assert.rejects(
+    submitCandidate(config(), deps, budget, CHALLENGE, CANDIDATE, 150, "Intents"),
+    /cannot pay into NEAR Intents/,
+  );
+  assert.equal(cli.invocations.length, 0);
+  assert.equal(budget.remaining, 3);
+});
+
+test("a win into NEAR Intents says how the bounty is sent, without waiting for it", async () => {
+  const { chain, clock, deps } = setup();
+  const award = { evaluation: 3, winner: "agent.testnet", amount: ONE_NEAR, paid: false, in_flight: false, payout: "Intents" as const };
+  chain.challenges = [challengeView({ evaluations: 3, intents: ROUTE }), challengeView({ status: "Awarded", award, intents: ROUTE })];
+  chain.evaluationPages = [[evaluation({ id: 3, config_sha256: SHA, status: "Passed", verdict: VERDICT })]];
+  const started = clock.ms;
+  const result = await submitCandidate(config(), deps, new SubmissionBudget(3), CHALLENGE, CANDIDATE, 150, "Intents");
+
+  assert.equal(result.award?.won_by_this_submission, true);
+  assert.match(result.note ?? "", /claim_award/);
+  assert.equal(clock.ms, started);
+});
+
+test("claim_award signs a claim with the gas an Intents deposit needs and waits for it to settle", async () => {
+  const { chain, cli, deps } = setup();
+  const owed = { evaluation: 3, winner: "agent.testnet", amount: ONE_NEAR, paid: false, in_flight: false, payout: "Intents" as const };
+  chain.challenges = [
+    challengeView({ status: "Awarded", award: owed }),
+    challengeView({ status: "Awarded", award: { ...owed, in_flight: true } }),
+    challengeView({ status: "Awarded", award: { ...owed, paid: true, to_intents: "998750000000000000000000", fee: "1250000000000000000000" } }),
+  ];
+  const award = await claimAward(config({ account: "anyone.testnet" }), deps, CHALLENGE);
+
+  assert.equal(award.paid, true);
+  assert.equal(award.to_intents, "998750000000000000000000");
+  assert.deepEqual(cli.invocations[0]?.args, [
+    "contract", "call-function", "as-transaction", CHALLENGE, "claim_award",
+    "json-args", "{}", "prepaid-gas", "200.0 Tgas", "attached-deposit", "0 NEAR",
+    "sign-as", "anyone.testnet", "network-config", "testnet", "sign-with-keychain", "send",
+  ]);
+});
+
+test("claim_award refuses when nothing is owed", async () => {
+  const award = { evaluation: 3, winner: "agent.testnet", amount: ONE_NEAR, paid: false, in_flight: false };
+  const cases: [Parameters<typeof challengeView>[0], RegExp][] = [
+    [{}, /has not awarded its bounty/],
+    [{ status: "Awarded", award: { ...award, paid: true } }, /has been paid/],
+    [{ status: "Awarded", award: { ...award, in_flight: true } }, /already on its way/],
+  ];
+  for (const [view, message] of cases) {
+    const { chain, cli, deps } = setup();
+    chain.challenges = [challengeView(view)];
+    await assert.rejects(claimAward(config(), deps, CHALLENGE), message);
+    assert.equal(cli.invocations.length, 0);
+  }
 });

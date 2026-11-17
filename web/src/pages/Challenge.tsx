@@ -22,6 +22,7 @@ import { CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus,
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
+import { awardStage } from "../lib/payout.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
 import { enclaveBaseline } from "../lib/baseline.ts";
 import type { Baseline, ListedChallenge } from "../lib/registry.ts";
@@ -186,6 +187,15 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   );
 }
 
+/** The award callout's sentence for a reward that is won but not yet paid. */
+function pendingAwardText(award: NonNullable<ChallengeDetail["view"]["award"]>): string {
+  const stage = awardStage(award);
+  if (stage.stage === "sending") return stage.intents ? "The deposit into NEAR Intents is on its way." : "The payment is on its way.";
+  if (stage.stage === "to-intents") return "The winner asked to be paid into NEAR Intents. Any connected wallet can send it; the contract pays only the winner.";
+  if (stage.stage === "owed" && stage.refused) return "NEAR Intents refused the deposit, so the reward is owed as NEAR. Any connected wallet can send it; the contract pays only the winner.";
+  return "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner.";
+}
+
 function TakePart({ detail }: { detail: ChallengeDetail }) {
   const open = displayStatus(detail.view) === "open";
   return (
@@ -204,6 +214,9 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
         <Link to="/builders" className="btn">Full guide for builders <ArrowRight /></Link>
         <span className="muted small">A submission costs 0.035 NEAR plus gas, most of it refunded. Its config becomes public on-chain.</span>
       </div>
+      {detail.view.intents && (
+        <p className="muted small">This challenge can pay a win into NEAR Intents, to take as another token or on another chain: ask your agent to submit with the Intents payout.</p>
+      )}
     </div>
   );
 }
@@ -309,7 +322,7 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
       <div className="side-block">
         <h2>Reward</h2>
         <p className="side-reward"><Coins /> {formatNear(award?.amount ?? view.bounty ?? "0")}</p>
-        <p className="muted small">{award ? (award.paid ? <>Paid to <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
+        <p className="muted small">{award ? (award.paid ? <>Paid {BigInt(award.to_intents ?? "0") > 0n ? "into the NEAR Intents balance of" : "to"} <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
         {status === "open" && <p className="small"><Timer /> <Countdown closesAt={view.closes_at} /></p>}
       </div>
       <div className="side-block">
@@ -382,6 +395,9 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
           <li>The owner's own submissions are trial runs: recorded, never paid.</li>
           <li>A submission made before the deadline can still win after it.</li>
           <li>If nobody wins by the deadline, the owner can take the reward back.</li>
+          {detail.view.intents && (
+            <li>The winner can ask to be paid as wNEAR into their NEAR Intents balance, to swap for another token or withdraw to another chain. Any account can then send it; wrap.near keeps 0.00125 NEAR to register the contract.</li>
+          )}
         </ul>
       </DocSection>
       {rules && (
@@ -591,7 +607,7 @@ export function Challenge() {
                   <div>
                     <p>
                       <strong>{award.winner}</strong> won the {formatNear(award.amount)} reward with result #{award.evaluation}.{" "}
-                      {award.in_flight ? "The payment is on its way." : "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner."}
+                      {pendingAwardText(award)}
                     </p>
                     <RetryPayment id={id} award={award} onChanged={refresh} />
                   </div>

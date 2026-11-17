@@ -41,6 +41,20 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - cargo-near 0.11 fails with "Failed to validate wasm" on Rust 1.98 output. cargo-near 0.23 builds the contract (168 KB), and the result deploys and runs in a near-workspaces 0.24 sandbox. `scripts/build-contract.sh` refuses versions below 0.13.
 - In the sandbox, a 300 Tgas submission covers the contract call, the 150 Tgas forwarded to `request_execution`, the yield, and the 20 Tgas result callback.
 
+## Paying a winner into NEAR Intents (sandbox, 2026-11-17)
+
+How the contract talks to the two mainnet contracts, from NEAR Intents' deposit guide and wrap.near's interface:
+- **wrap.near** registers an account for 0.00125 NEAR (`storage_deposit` with `registration_only`), wraps attached NEAR with `near_deposit`, and unwraps with `near_withdraw`, which needs 1 yoctoNEAR attached. An account already registered gets its deposit back.
+- **intents.near** takes a NEP-141 deposit through the token's `ft_transfer_call`, with the account to credit as `msg`, and holds it under the token id `nep141:wrap.near`. The guide budgets about 100 Tgas for the call; the contract attaches 100 Tgas to it and asks `claim_award` for 160 Tgas in all.
+- The contract sends registration, wrap and deposit as one batch of three function calls to wrap.near, so a failure in any of them reverts all three and refunds the attached NEAR. The callback reads `ft_transfer_call`'s result, the amount the verifier kept, and owes the rest as NEAR.
+
+Measured with mocks of both contracts in a near-workspaces sandbox (`a_winner_can_take_the_bounty_into_near_intents`, `a_refused_intents_deposit_comes_back_and_is_paid_as_near`):
+- A 5 NEAR award, claimed with 200 Tgas, leaves 4.99875 NEAR in the winner's Intents balance and 0.00125 NEAR with the token.
+- With the verifier refusing, the 4.99875 wNEAR comes back to the contract; a second claim with 100 Tgas unwraps it, and the winner's balance rises by exactly 4.99875 NEAR.
+- The contract's wasm grew from 186,518 to 204,062 bytes, so a new challenge locks about 0.18 NEAR more storage.
+
+Not yet run on mainnet. A first mainnet test needs a challenge deployed from this build with a small bounty, won by a submission with `payout: "Intents"`.
+
 ## Measured locally (wasmtime 50, mock API)
 
 | Measure | Value |
