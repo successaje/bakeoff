@@ -80,7 +80,7 @@ fn open_challenge(bounty: u128) -> Contract {
 
 fn submit_at(contract: &mut Contract, submitter: &str, time: u64) -> u32 {
     call_at(submitter, time, NearToken::from_millinear(35));
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     contract.get_challenge().evaluations - 1
 }
 
@@ -124,6 +124,7 @@ fn new_contract() -> Contract {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
     )
 }
 
@@ -168,6 +169,7 @@ fn owner_is_the_named_sponsor_even_when_the_contract_initialises_itself() {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
     );
     assert_eq!(contract.get_challenge().owner, account("owner.testnet"));
 }
@@ -208,6 +210,7 @@ fn rejects_malformed_commitments() {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
     );
 }
 
@@ -215,7 +218,7 @@ fn rejects_malformed_commitments() {
 fn owner_can_trial_a_draft_and_the_request_is_recorded() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let evaluation = contract.get_evaluation(0).unwrap().evaluation;
     assert_eq!(evaluation.status, EvaluationStatus::Pending);
@@ -231,7 +234,7 @@ fn owner_can_trial_a_draft_and_the_request_is_recorded() {
 fn others_cannot_submit_to_a_draft() {
     let mut contract = new_contract();
     testing_env!(context("contributor.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -240,7 +243,7 @@ fn anyone_can_submit_once_open() {
     testing_env!(context("owner.testnet").build());
     contract.open(U64(CLOSES_AT));
     testing_env!(context("contributor.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     assert_eq!(
         contract.get_evaluation(0).unwrap().evaluation.submitter,
         account("contributor.testnet")
@@ -255,7 +258,7 @@ fn submission_requires_the_execution_deposit_and_record_fee() {
     // Enough for OutLayer alone, not for the record as well.
     ctx.attached_deposit(NearToken::from_millinear(30));
     testing_env!(ctx.build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -265,7 +268,7 @@ fn submission_requires_enough_gas() {
     let mut ctx = context("owner.testnet");
     ctx.prepaid_gas(Gas::from_tgas(210));
     testing_env!(ctx.build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 }
 
 #[test]
@@ -273,14 +276,14 @@ fn submission_requires_enough_gas() {
 fn submission_size_is_bounded() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit("x".repeat(MAX_CONFIG_BYTES + 1));
+    let _ = contract.submit("x".repeat(MAX_CONFIG_BYTES + 1), None);
 }
 
 #[test]
 fn matching_passing_verdict_is_recorded_as_passed() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let raw = verdict(
         true,
@@ -308,7 +311,7 @@ fn matching_passing_verdict_is_recorded_as_passed() {
 fn failing_verdict_keeps_the_evaluator_reasons() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
 
     let raw = verdict(
         false,
@@ -336,7 +339,7 @@ fn failing_verdict_keeps_the_evaluator_reasons() {
 fn an_evaluation_settles_once() {
     let mut contract = new_contract();
     testing_env!(context("owner.testnet").build());
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     settle(&mut contract, 0, PromiseResult::Failed);
     settle(&mut contract, 0, PromiseResult::Failed);
 }
@@ -416,7 +419,7 @@ fn evaluations_are_paginated() {
     for _ in 0..5 {
         // Each submission is its own transaction with its own gas.
         testing_env!(context("owner.testnet").build());
-        let _ = contract.submit(CONFIG.into());
+        let _ = contract.submit(CONFIG.into(), None);
     }
     let page = contract.get_evaluations(Some(1), Some(2));
     assert_eq!(page.iter().map(|e| e.id).collect::<Vec<_>>(), [1, 2]);
@@ -428,7 +431,7 @@ fn evaluations_are_paginated() {
 fn submission_keeps_the_record_fee_and_forwards_the_rest() {
     let mut contract = open_challenge(0);
     call_at("contributor.testnet", NOW, NearToken::from_millinear(50));
-    let _ = contract.submit(CONFIG.into());
+    let _ = contract.submit(CONFIG.into(), None);
     let forwarded: Vec<NearToken> = get_created_receipts()
         .into_iter()
         .flat_map(|r| r.actions)
@@ -496,6 +499,10 @@ fn the_first_eligible_pass_wins_and_is_paid_the_bounty() {
             amount: near(5),
             paid: false,
             in_flight: true,
+            payout: Payout::Near,
+            to_intents: NearToken::from_yoctonear(0),
+            fee: NearToken::from_yoctonear(0),
+            wrapped: NearToken::from_yoctonear(0),
         })
     );
     assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
