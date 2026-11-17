@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Submits a candidate to the deployed challenge and waits for its verdict.
 #
-# Usage: [NETWORK=mainnet] scripts/near/submit.sh <candidate.json> [signer-account]
+# Usage: [NETWORK=mainnet] [PAYOUT=Intents] scripts/near/submit.sh <candidate.json> [signer-account]
 #
 # The signer defaults to BAKEOFF_ACCOUNT, which may submit while the
-# challenge is a draft.
+# challenge is a draft. PAYOUT=Intents asks for a win to be paid as wNEAR into
+# the signer's NEAR Intents balance, on a challenge deployed with a route.
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
 load_deployment
@@ -13,9 +14,17 @@ CANDIDATE="${1:?usage: scripts/near/submit.sh <candidate.json> [signer-account]}
 SIGNER="${2:-${BAKEOFF_ACCOUNT:?set BAKEOFF_ACCOUNT in .env}}"
 require_mainnet_confirmation "$SIGNER"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-300}"
+PAYOUT="${PAYOUT:-Near}"
+case "$PAYOUT" in Near|Intents) ;; *) echo "PAYOUT must be Near or Intents" >&2; exit 1 ;; esac
 
 id=$(tools/near_view.py "$NETWORK" "$CHALLENGE" get_challenge | python3 -c 'import json,sys; print(json.load(sys.stdin)["evaluations"])')
-args=$(python3 -I -c 'import json,sys; print(json.dumps({"config_json": open(sys.argv[1], encoding="utf-8").read()}))' "$CANDIDATE")
+args=$(python3 -I -c '
+import json, sys
+args = {"config_json": open(sys.argv[1], encoding="utf-8").read()}
+# Contracts deployed before Intents payouts take config_json alone.
+if sys.argv[2] == "Intents":
+    args["payout"] = "Intents"
+print(json.dumps(args))' "$CANDIDATE" "$PAYOUT")
 
 echo "==> Submitting $CANDIDATE as evaluation $id"
 started=$(date +%s)
@@ -79,7 +88,14 @@ import json, sys
 c, id = json.load(sys.stdin), int(sys.argv[1])
 a = c.get("award")
 if a and a["evaluation"] == id:
-    state = "paid" if a["paid"] else ("in flight" if a["in_flight"] else "owed; anyone may call claim_award")
+    if a["paid"]:
+        state = "paid into NEAR Intents" if int(a.get("to_intents", "0")) > 0 else "paid"
+    elif a["in_flight"]:
+        state = "in flight"
+    elif a.get("payout") == "Intents":
+        state = "owed into NEAR Intents; anyone may send it with claim_award and 200 Tgas"
+    else:
+        state = "owed; anyone may call claim_award"
     amount, winner = int(a["amount"]) / 1e24, a["winner"]
     print("award:".ljust(22) + f"{amount:g} NEAR to {winner}, {state}")
 ' "$id")
