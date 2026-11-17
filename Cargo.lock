@@ -1806,7 +1806,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-intents"
+version = "0.1.0"
+dependencies = [
+ "near-sdk",
+]
+
+[[package]]
 name = "mock-outlayer"
+version = "0.1.0"
+dependencies = [
+ "near-sdk",
+]
+
+[[package]]
+name = "mock-wnear"
 version = "0.1.0"
 dependencies = [
  "near-sdk",
