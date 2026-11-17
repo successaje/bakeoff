@@ -660,3 +660,5 @@ a.live-pill:hover svg { transform: translateX(3px); }
   .setup-panel { padding: var(--space-4); }
   .setup-lock { margin-left: 0; }
 }
+.setup-onchain { display: grid; gap: var(--space-3); justify-items: start; }
+.setup-onchain .code { justify-self: stretch; }

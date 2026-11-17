@@ -14,10 +14,11 @@ import { CodeBlock, CopyButton, Reveal } from "../components/ui.tsx";
 import { ArrowRight, Check, Download, Lock, Plus, Shield } from "../components/Icons.tsx";
 import { microDollars, percent, seconds } from "../lib/format.ts";
 import type { Gates, Network } from "../lib/near.ts";
+import { LISTING_REGISTRY } from "../lib/registry.ts";
 import { useSession } from "../lib/session.tsx";
 import {
   baselineFromReport, baselineOf, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, type Goal, issuesOf,
-  json, LIMITS, listingOf, lockCommand, num, REQUEST_OPTIONS, rulesOf, suffix, TEST_SET_PATH,
+  json, LIMITS, listCommand, listingOf, lockCommand, registryArgs, num, REQUEST_OPTIONS, rulesOf, suffix, TEST_SET_PATH,
 } from "../lib/setup.ts";
 
 const KEY = "bakeoff:new-challenge";
@@ -203,6 +204,12 @@ export function NewChallenge() {
                 <Field label="Priorities" wide hint="Comma-separated, lowest first.">
                   <input className="input" value={draft.priorities} onChange={(e) => up({ priorities: e.target.value })} spellCheck={false} />
                 </Field>
+                <Field label="Practice tickets (optional)" wide hint="An https link to the public tickets builders tune on, in the format of data/tickets/practice.json.">
+                  <input className="input" value={draft.practiceSet ?? ""} onChange={(e) => up({ practiceSet: e.target.value.trim() })} placeholder="https://…/practice.json" spellCheck={false} />
+                </Field>
+                <Field label="Labeling guide (optional)" wide hint="An https link to the guide both ticket sets were labelled by.">
+                  <input className="input" value={draft.labelingGuide ?? ""} onChange={(e) => up({ labelingGuide: e.target.value.trim() })} placeholder="https://…/labeling-guide.md" spellCheck={false} />
+                </Field>
                 <Field label="Hidden test cases" hint={<>About 100 works well. Keep the file at <span className="mono">{TEST_SET_PATH}</span>: that folder stays out of git.</>}>
                   <input className="input" inputMode="numeric" value={draft.tickets} onChange={(e) => up({ tickets: e.target.value })} />
                 </Field>
@@ -374,7 +381,14 @@ export function NewChallenge() {
                   </span>
                 </div>
                 <pre className="code setup-code" aria-label={file.name}>{file.text}</pre>
-                {tab === "listing" && <p className="muted small">Add it under <span className="mono">"{draft.network}"</span> in <span className="mono">web/public/challenges.json</span> with a pull request. Until then the challenge opens at its address with its on-chain data.</p>}
+                {tab === "listing" && (LISTING_REGISTRY[draft.network]
+                  ? <div className="setup-onchain">
+                      <p className="small text-2">List it on-chain, without a pull request: only the account the challenge was created under can. Save the arguments as <span className="mono">list-args.json</span>, then run:</p>
+                      <CodeBlock code={listCommand(draft, LISTING_REGISTRY[draft.network]!)} />
+                      <button type="button" className="btn btn-sm" onClick={() => download("list-args.json", json(registryArgs(draft)), "application/json")}><Download /> list-args.json</button>
+                      <p className="muted small">It appears on the board as Self-listed once the challenge is deployed. Or add the listing above to <span className="mono">web/public/challenges.json</span> with a pull request.</p>
+                    </div>
+                  : <p className="muted small">Add it under <span className="mono">"{draft.network}"</span> in <span className="mono">web/public/challenges.json</span> with a pull request. Until then the challenge opens at its address with its on-chain data.</p>)}
                 {tab === "rules" && <p className="muted small">Calibration ignores the requirements in this file, so download it once before calibrating and again after you enter the baseline.</p>}
               </div>
               {tab === "commands" && (

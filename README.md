@@ -71,6 +71,7 @@ Bakeoff is entered in three tracks. What each brief asks for, and where Bakeoff 
 | Piece | What Bakeoff uses it for | Code |
 |---|---|---|
 | NEAR smart contract (near-sdk 5) | Escrows the reward, freezes the hashes of the rules, test set and evaluator build when the challenge opens, records every result, pays the winner and emits NEP-297 events | [`contract/`](contract/) |
+| NEAR listing registry (near-sdk 5) | Lets a challenge's owner list it on the board, signed by the account it was created under; each listing pays for its own storage and logs NEP-297 events | [`registry/`](registry/) |
 | OutLayer (`outlayer.near`) | Runs the evaluator in a TEE through a NEAR yield and resume. The hidden test set and the model API key are OutLayer secrets, bound to one evaluator build and readable only through the challenge contract | [`contract/src/lib.rs`](contract/src/lib.rs), [`evaluator/`](evaluator/) |
 | NEAR AI Cloud | Serves the models every solution calls; each result's cost comes from the token usage it reports | [`evaluator/src/openai.rs`](evaluator/src/openai.rs) |
 | FastFS | Hosts the evaluator's WebAssembly build, which the contract pins by SHA-256 | [`scripts/near/deploy.sh`](scripts/near/deploy.sh) |
@@ -131,6 +132,7 @@ Each attempt below is refused by the contract or the evaluator, and a test shows
 |---|---|
 | `evaluator/` | Rust evaluator: policy checks, grading, cost accounting, verdicts, and a `wasi:http` client |
 | `contract/` | NEAR challenge contract (near-sdk 5) |
+| `registry/` | NEAR listing registry: owners list their challenges on the board themselves, without a pull request ([README](registry/README.md)) |
 | `tools/` | Mock OpenAI-compatible model API, mock OutLayer contract, request builder, JSON-RPC view and access-key helpers |
 | `integration-tests/` | Sandbox end-to-end tests of the contract |
 | `web/` | Static web board: challenges told as problem, goal and results; a page for every result with its config and how to try it; in-browser checks of the commitments; the owner's funding from a NEAR wallet or any chain through 1Click |
