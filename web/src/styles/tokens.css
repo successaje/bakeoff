@@ -63,14 +63,15 @@
   --ink: #202124;
   --ink-text: #ffffff;
   --ink-hover: #3c4043;
-  --accent: #00995f;
-  --accent-strong: #007a4c;
+  /* Deep enough for small text: at least 4.5:1 on white, cream and the soft tints. */
+  --accent: #007a4c;
+  --accent-strong: #006b42;
   --accent-text: #ffffff;
   --accent-soft: rgba(0, 153, 95, 0.1);
   --accent-glow: rgba(0, 153, 95, 0.25);
-  --amber: #b86b00;
+  --amber: #945600;
   --amber-soft: rgba(184, 107, 0, 0.1);
-  --coral: #c8372d;
+  --coral: #b8312a;
   --coral-soft: rgba(200, 55, 45, 0.08);
   --sky: #2463c7;
   --sky-soft: rgba(36, 99, 199, 0.08);
@@ -111,7 +112,7 @@
   --border-strong: rgba(255, 255, 255, 0.16);
   --text: #eef2f0;
   --text-2: #b4bdb9;
-  --muted: #7d8884;
+  --muted: #8a9591;
   --ink: #eef2f0;
   --ink-text: #060807;
   --ink-hover: #ffffff;
@@ -162,7 +163,7 @@
     --border-strong: rgba(255, 255, 255, 0.16);
     --text: #eef2f0;
     --text-2: #b4bdb9;
-    --muted: #7d8884;
+    --muted: #8a9591;
     --ink: #eef2f0;
     --ink-text: #060807;
     --ink-hover: #ffffff;
