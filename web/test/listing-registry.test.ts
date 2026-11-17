@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { NearRpc } from "../src/lib/near.ts";
 import { CHALLENGE_CODE_HASHES, type ListedChallenge, mergeListings, selfListedChallenges } from "../src/lib/registry.ts";
 import { emptyDraft, listCommand, registryArgs } from "../src/lib/setup.ts";
 
@@ -64,4 +65,14 @@ test("the setup form's list arguments have exactly the registry contract's field
   assert.equal(args.listing.labeling_guide, null);
   assert.deepEqual(args.listing.baseline, { accuracy_bp: 8700, cost_per_ticket_uusd: 128, p95_latency_ms: 18159 });
   assert.match(listCommand(draft, "registry.testnet"), /near contract call-function as-transaction registry\.testnet list[\s\S]*file-args list-args\.json[\s\S]*sign-as kettle\.testnet network-config testnet/);
+});
+
+test("a challenge on the shared contract is recognised by the shared code's hash", async () => {
+  const account = (fields: object) => (async () => Response.json({ result: { amount: "1", storage_usage: 5000, ...fields } })) as typeof fetch;
+  const shared = new NearRpc("https://rpc.example", account({ code_hash: "11111111111111111111111111111111", global_contract_hash: CHALLENGE_CODE_HASHES[1] }));
+  assert.equal(await shared.codeHash("c.owner.testnet"), CHALLENGE_CODE_HASHES[1]);
+  const own = new NearRpc("https://rpc.example", account({ code_hash: CHALLENGE_CODE_HASHES[0], global_contract_hash: null }));
+  assert.equal(await own.codeHash("c.owner.testnet"), CHALLENGE_CODE_HASHES[0]);
+  const none = new NearRpc("https://rpc.example", account({ code_hash: "11111111111111111111111111111111" }));
+  assert.equal(await none.codeHash("plain.testnet"), "11111111111111111111111111111111");
 });

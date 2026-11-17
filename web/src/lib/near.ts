@@ -138,10 +138,15 @@ export class NearRpc {
     return JSON.parse(new TextDecoder().decode(Uint8Array.from(result.result ?? []))) as T;
   }
 
-  /** NEAR's hash of the code an account runs: base58 of its SHA-256, or 1111…1111 for none. */
+  /**
+   * NEAR's hash of the code an account runs: base58 of its SHA-256. An account that uses a global
+   * contract (NEP-591) by hash reports its own code as none (1111…1111) and the shared code's hash
+   * separately, so that one is returned instead.
+   */
   async codeHash(accountId: string): Promise<string> {
-    const result = await this.query<{ code_hash?: string }>({ request_type: "view_account", account_id: accountId }, `${accountId} account`);
-    return result.code_hash ?? "";
+    const result = await this.query<{ code_hash?: string; global_contract_hash?: string | null }>({ request_type: "view_account", account_id: accountId }, `${accountId} account`);
+    const own = result.code_hash ?? "";
+    return /^1+$/.test(own) && result.global_contract_hash ? result.global_contract_hash : own;
   }
 
   /**
