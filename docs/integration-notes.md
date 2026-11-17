@@ -217,3 +217,9 @@ FastFS uploads call a method that does not exist, so explorers list the upload a
 - **Operational notes.**
   - near.org's public mainnet RPC answered HTTP 429 during the deploy. The scripts, the MCP server and near-cli now use FastNEAR, and a deploy that stops after creating its account resumes into it.
   - Ad blockers' cosmetic filters hid the web board's funding controls, because of class names such as `sponsor-block`. Those classes are renamed.
+
+## Shared contract on testnet (2026-11-17)
+
+The challenge contract the board serves (`web/public/contract/bakeoff_contract.wasm`, 186,518 bytes, code hash `HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU`) is published on testnet as a NEAR global contract by hash, from `finishr.testnet`, with `scripts/near/publish-shared-contract.sh` and near-cli-rs 0.31.1: transaction `EKgccR1AwGWt7UVJDRBWV8P52R4gBq9krUxzGDZc2vTm`. It burned 18.653 testnet NEAR, ten times the normal storage rate for its size, as NEP-591 sets. The 16 testnet NEAR it needed beyond `finishr.testnet`'s balance came from two faucet accounts, `bakeoff-faucet-1-20261117.testnet` and `bakeoff-faucet-2-20261117.testnet`.
+
+Testnet challenges deployed from the setup form now reference it, and need about 0.06 NEAR of storage instead of 1.9. Nothing is published on mainnet, where the same step would burn about 18.6 NEAR.

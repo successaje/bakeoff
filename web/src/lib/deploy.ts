@@ -52,7 +52,10 @@ export const OUTLAYER_CONTRACT: Record<Network, string> = { testnet: "outlayer.t
  * costs only its own state, and since it is referenced by hash, what it runs can never change.
  * scripts/near/publish-shared-contract.sh publishes it.
  */
-export const SHARED_CONTRACT: Partial<Record<Network, string>> = {};
+export const SHARED_CONTRACT: Partial<Record<Network, string>> = {
+  // Published by finishr.testnet on 2026-11-17, tx EKgccR1AwGWt7UVJDRBWV8P52R4gBq9krUxzGDZc2vTm.
+  testnet: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU",
+};
 /** The OutLayer secrets profile scripts/near/store-secrets.sh writes to. */
 export const SECRETS_PROFILE = "bakeoff";
 

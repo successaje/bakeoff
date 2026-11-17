@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { codeHash, CONTRACT, deploymentRecord, deploySharedTransaction, deployTransaction, EVALUATOR, initArgs, loadContract, sharedStorageDeposit, storageDeposit, testSetSha256 } from "../src/lib/deploy.ts";
+import { codeHash, CONTRACT, deploymentRecord, deploySharedTransaction, deployTransaction, EVALUATOR, initArgs, loadContract, SHARED_CONTRACT, sharedStorageDeposit, storageDeposit, testSetSha256 } from "../src/lib/deploy.ts";
 import { emptyDraft, json, rulesOf } from "../src/lib/setup.ts";
 
 const repo = (path: string) => new URL(`../../${path}`, import.meta.url);
@@ -95,4 +95,9 @@ test("a challenge on the shared contract is sent what the sandbox proved enough,
   const near = Number(sharedStorageDeposit(rulesJson)) / 1e24;
   assert.ok(near > 0.04 && near < 0.08, `got ${near}`);
   assert.ok(sharedStorageDeposit(rulesJson) * 30n < storageDeposit(CONTRACT.bytes, rulesJson));
+});
+
+test("the shared contract published on testnet is the build the board serves", () => {
+  assert.equal(SHARED_CONTRACT.testnet, CONTRACT.codeHash);
+  assert.equal(SHARED_CONTRACT.mainnet, undefined);
 });
