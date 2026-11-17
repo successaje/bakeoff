@@ -165,3 +165,6 @@ p { margin: 0; text-wrap: pretty; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Links inside running text are underlined, so they are not told apart by colour alone. */
+p a:not(.btn), .story-note a, .link-accent { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }

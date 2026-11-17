@@ -42,6 +42,7 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
   - **Results that settle** while a challenge page is open glow once, and a result still scoring shimmers its label.
 - **Restraint.** Headings are set light, at weight 450. Entrances rise 10 px over half a second, and interface transitions take 140–200 ms. Everything respects `prefers-reduced-motion`: the steps stop advancing on their own and the replay shows the finished run.
 - **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
+- **Accessibility.** Checked with axe-core on every page type in light and dark, with no violations: small text reaches at least 4.5:1 contrast on every background it sits on (the light theme's green is `#007a4c` for that reason), headings never skip a level, no control sits inside another (a section's copy-link button sits beside its summary), scrollable code panels take keyboard focus, and links inside sentences are underlined. Nothing scrolls sideways at 375 px.
 
 ## Trust and status
 
