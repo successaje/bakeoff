@@ -27,6 +27,10 @@ export interface Draft {
   categories: string;
   priorities: string;
   tickets: string;
+  /** https URL of the public practice tickets, for listings that host their own. */
+  practiceSet: string;
+  /** https URL of the labeling guide both ticket sets follow. */
+  labelingGuide: string;
   models: ModelRow[];
   options: string[];
   /** The baseline's median metrics: accuracy in %, cost in µ$ a ticket, p95 in seconds. */
@@ -85,6 +89,8 @@ export function emptyDraft(network: Network, account: string | null, now = new D
     categories: "billing, shipping, returns, account, technical, other",
     priorities: "low, normal, high, urgent",
     tickets: "100",
+    practiceSet: "",
+    labelingGuide: "",
     models: NEAR_AI_MODELS.map((m) => ({ ...m })),
     options: [...REQUEST_OPTIONS],
     baseline: { accuracy: "", cost: "", p95: "" },
@@ -188,6 +194,9 @@ export function issuesOf(draft: Draft): Issue[] {
   if (new Set(priorities).size !== priorities.length) add("task", "Each priority must be different.");
   const tickets = num(draft.tickets);
   if (tickets === null || !Number.isInteger(tickets) || tickets < 1) add("task", "Enter how many hidden test cases there are.");
+  for (const [label, url] of [["practice tickets", draft.practiceSet], ["labeling guide", draft.labelingGuide]] as const) {
+    if ((url ?? "").trim() && !/^https:\/\/\S+$/.test(url.trim())) add("task", `The ${label} link must be an https URL.`);
+  }
 
   const models = draft.models.filter((m) => m.on);
   if (!models.length) add("models", "Allow at least one model.");
@@ -274,6 +283,9 @@ export function listingOf(draft: Draft): Record<string, unknown> {
   if (draft.problem.trim()) entry.problem = draft.problem.trim();
   const config = (draft.baselineConfig ?? "").trim().toLowerCase();
   if (/^[0-9a-f]{64}$/.test(config)) entry.baseline_config_sha256 = config;
+  for (const [key, url] of [["practice_set", draft.practiceSet], ["labeling_guide", draft.labelingGuide]] as const) {
+    if (/^https:\/\/\S+$/.test((url ?? "").trim())) entry[key] = url.trim();
+  }
   const tags = list(draft.tags);
   if (tags.length) entry.tags = tags;
   return entry;
@@ -320,6 +332,38 @@ export function commandsOf(draft: Draft): string {
     "# 4. A trial run of your current agent. It never wins, and",
     "#    the board shows it as your baseline measured in the enclave.",
     `${network}${confirm} scripts/near/submit.sh ${BASELINE_PATH}`,
+  ].join("\n");
+}
+
+/** The arguments of the listing registry's `list`, every field present as the contract expects. */
+export function registryArgs(draft: Draft): object {
+  const entry = listingOf(draft) as Record<string, unknown>;
+  return {
+    challenge: entry.id,
+    listing: {
+      title: entry.title,
+      sponsor: entry.sponsor,
+      summary: entry.summary,
+      problem: entry.problem ?? null,
+      tags: entry.tags ?? [],
+      tickets: entry.tickets,
+      baseline: entry.baseline,
+      baseline_config_sha256: entry.baseline_config_sha256 ?? null,
+      practice_set: entry.practice_set ?? null,
+      labeling_guide: entry.labeling_guide ?? null,
+    },
+  };
+}
+
+/** Lists the challenge in the on-chain registry, from list-args.json; unused deposit is refunded. */
+export function listCommand(draft: Draft, registry: string): string {
+  const account = draft.account.trim() || `you${suffix(draft.network)}`;
+  return [
+    `near contract call-function as-transaction ${registry} list \\`,
+    "  file-args list-args.json \\",
+    "  prepaid-gas '30.0 Tgas' attached-deposit '0.05 NEAR' \\",
+    `  sign-as ${account} network-config ${draft.network} \\`,
+    "  sign-with-keychain send",
   ].join("\n");
 }
 

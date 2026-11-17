@@ -18,7 +18,7 @@ import { DataExplorer } from "../components/DataExplorer.tsx";
 import { ErrorBoundary, ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Copy, Cube, External, Hash, Lock, More, Replay, Shield, Timer } from "../components/Icons.tsx";
 import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
-import { CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
+import { CodeBlock, CopyButton, Countdown, DemoBadge, SelfListedBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
@@ -564,6 +564,7 @@ export function Challenge() {
           <span className="cx-hostline-text">{listing.sponsor} · AI workflow challenge · {network}</span>
           <StatusChip view={view} />
           {listing.demo && <DemoBadge />}
+          {listing.self_listed && <SelfListedBadge by={listing.listed_by} />}
           <span className="cx-actions"><PrimaryAction detail={data} /><MoreMenu detail={data} isOwner={isOwner} onRefresh={refresh} /></span>
         </div>
         <motion.div className="cx-title" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>

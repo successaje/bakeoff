@@ -11,7 +11,7 @@ import { Check, Close, Coins, Download, External, Timer } from "../components/Ic
 import { EnclaveProof } from "../components/EnclaveProof.tsx";
 import { ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { RetryPayment } from "../components/Manage.tsx";
-import { Account, CodeBlock, CopyButton, DemoBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
+import { Account, CodeBlock, CopyButton, DemoBadge, SelfListedBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
 import { enclaveBaseline } from "../lib/baseline.ts";
@@ -196,6 +196,7 @@ export function Result() {
                 <span className={`badge badge-dot ${outcome.badge.tone}`}>{e.status === "Pending" ? <span className="shimmer-text on-color">{outcome.badge.label}</span> : outcome.badge.label}</span>
                 {e.eligible === false && <span className="badge trial">Owner's trial</span>}
                 {listing.demo && <DemoBadge />}
+          {listing.self_listed && <SelfListedBadge by={listing.listed_by} />}
               </div>
               <h1 className="page-title result-title">{outcome.headline}</h1>
               <p className="page-lede">

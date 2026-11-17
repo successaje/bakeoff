@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["evaluator", "contract", "tools/mock-outlayer", "tools/mock-wnear", "tools/mock-intents", "integration-tests"]
+members = ["evaluator", "contract", "registry", "tools/mock-outlayer", "tools/mock-wnear", "tools/mock-intents", "integration-tests"]
 
 [workspace.package]
 version = "0.1.0"

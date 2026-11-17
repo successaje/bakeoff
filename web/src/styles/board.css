@@ -680,6 +680,8 @@ a.live-pill:hover svg { transform: translateX(3px); }
   .setup-panel { padding: var(--space-4); }
   .setup-lock { margin-left: 0; }
 }
+.setup-onchain { display: grid; gap: var(--space-3); justify-items: start; }
+.setup-onchain .code { justify-self: stretch; }
 
 /* The baseline as the enclave measured it, under the owner's published figure. */
 .today-enclave { display: block; margin-top: 4px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); }
