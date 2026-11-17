@@ -9,7 +9,7 @@ import { challengeGates, type ChallengeView, formatNear, nsToDate } from "../lib
 import { useNow } from "../lib/hooks.ts";
 import { Avatar, Cover, HostMark } from "./art.tsx";
 import { ArrowRight, Coins, Trophy, Users } from "./Icons.tsx";
-import { DemoBadge, displayStatus, type DisplayStatus } from "./ui.tsx";
+import { DemoBadge, SelfListedBadge, displayStatus, type DisplayStatus } from "./ui.tsx";
 
 export function SectionHead({ eyebrow, title, lede, action }: { eyebrow?: string; title: ReactNode; lede?: ReactNode; action?: ReactNode }) {
   return (
@@ -99,6 +99,7 @@ export function ChallengeCard({ summary }: { summary: ChallengeSummary }) {
         <div className="ccard-kind">
           <span><Trophy /> Challenge</span>
           {listing.demo && <DemoBadge />}
+          {listing.self_listed && <SelfListedBadge by={listing.listed_by} />}
           {view && <StatusChip view={view} />}
         </div>
         <h3>{listing.title}</h3>

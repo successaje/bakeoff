@@ -188,6 +188,11 @@ export function DemoBadge() {
   return <span className="badge badge-amber" title="A demonstration round run by the Bakeoff team">Demo</span>;
 }
 
+/** Marks a challenge its owner listed on-chain, which Bakeoff has not reviewed. */
+export function SelfListedBadge({ by }: { by?: string }) {
+  return <span className="badge" title={`Listed on-chain${by ? ` by ${by}` : ""}, through the listing registry. Bakeoff has not reviewed it; the rules, results and reward are the contract's.`}>Self-listed</span>;
+}
+
 /** What a demonstration round is, and which parts of it are real. */
 export function DemoNotice({ sponsor, network }: { sponsor: string; network: Network }) {
   return (

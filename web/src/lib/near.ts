@@ -138,6 +138,12 @@ export class NearRpc {
     return JSON.parse(new TextDecoder().decode(Uint8Array.from(result.result ?? []))) as T;
   }
 
+  /** NEAR's hash of the code an account runs: base58 of its SHA-256, or 1111…1111 for none. */
+  async codeHash(accountId: string): Promise<string> {
+    const result = await this.query<{ code_hash?: string }>({ request_type: "view_account", account_id: accountId }, `${accountId} account`);
+    return result.code_hash ?? "";
+  }
+
   /**
    * The account's access keys. A contract account with none is locked: nobody
    * can deploy other code to it or sign as it.
