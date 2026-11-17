@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { rpcFor } from "../lib/data.ts";
-import { CONTRACT, deploymentRecord, deployTransaction, type DeployInput, loadContract, storageDeposit, testSetSha256 } from "../lib/deploy.ts";
+import { CONTRACT, deploymentRecord, deploySharedTransaction, deployTransaction, type DeployInput, loadContract, SHARED_CONTRACT, sharedStorageDeposit, storageDeposit, testSetSha256 } from "../lib/deploy.ts";
 import { formatNear, type Network } from "../lib/near.ts";
 import { useSession } from "../lib/session.tsx";
 import { suffix, TEST_SET_PATH } from "../lib/setup.ts";
@@ -33,7 +33,9 @@ export function WalletDeploy({ network, owner, challenge, rulesJson, ready, onOw
   const [hashSource, setHashSource] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [deployed, setDeployed] = useState<{ input: DeployInput; locked: boolean } | null>(null);
-  const deposit = storageDeposit(CONTRACT.bytes, rulesJson);
+  // Where the contract is published once as a global contract, a challenge stores only its state.
+  const shared = SHARED_CONTRACT[network];
+  const deposit = shared ? sharedStorageDeposit(rulesJson) : storageDeposit(CONTRACT.bytes, rulesJson);
   const hashOk = HEX64.test(hash);
 
   const checks = [
@@ -64,8 +66,7 @@ export function WalletDeploy({ network, owner, challenge, rulesJson, ready, onOw
 
   const deploy = async () => {
     const input: DeployInput = { network, owner, challenge, rulesJson, testSetSha256: hash };
-    const code = await loadContract();
-    await session.send([deployTransaction(input, code)]);
+    await session.send([shared ? deploySharedTransaction(input, shared) : deployTransaction(input, await loadContract())]);
     // Read the challenge back once the deployment is final, and confirm it has no keys.
     const rpc = rpcFor(network);
     let view = null;
@@ -117,7 +118,9 @@ export function WalletDeploy({ network, owner, challenge, rulesJson, ready, onOw
         ))}
       </ul>
 
-      <p className="small text-2 deploy-terms"><Lock /> The account gets no keys, so it is locked from the start: nobody, you included, can change or delete it, and the {formatNear(deposit)} it stores stays with it. A wallet that opens in a new page may refuse a 182 KB contract; browser-extension wallets take it.</p>
+      <p className="small text-2 deploy-terms"><Lock /> The account gets no keys, so it is locked from the start: nobody, you included, can change or delete it, and the {formatNear(deposit)} it stores stays with it. {shared
+        ? <>It runs the shared Bakeoff contract published on {network}, referenced by its code hash ({shared.slice(0, 8)}…), so it stores only its own state.</>
+        : <>A wallet that opens in a new page may refuse a 182 KB contract; browser-extension wallets take it.</>}</p>
       {network === "mainnet" && (
         <label className="setup-check deploy-consent">
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />

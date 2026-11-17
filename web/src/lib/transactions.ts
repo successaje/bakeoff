@@ -12,8 +12,10 @@ export interface FunctionCall {
 export interface CreateAccount { type: "CreateAccount" }
 export interface Transfer { type: "Transfer"; params: { deposit: string } }
 export interface DeployContract { type: "DeployContract"; params: { code: Uint8Array } }
+/** Runs code published once as a NEAR global contract (NEP-591), by its base58 code hash. */
+export interface UseGlobalContract { type: "UseGlobalContract"; params: { contractIdentifier: { codeHash: string } } }
 
-export type Action = FunctionCall | CreateAccount | Transfer | DeployContract;
+export type Action = FunctionCall | CreateAccount | Transfer | DeployContract | UseGlobalContract;
 
 export interface Transaction {
   receiverId: string;

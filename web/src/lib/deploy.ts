@@ -45,6 +45,17 @@ export const EVALUATOR: Record<Network, { url: string; sha256: string }> = {
 };
 
 export const OUTLAYER_CONTRACT: Record<Network, string> = { testnet: "outlayer.testnet", mainnet: "outlayer.near" };
+
+/**
+ * Networks where the contract above is published once as a NEAR global contract (NEP-591), by its
+ * code hash. A challenge there references that copy instead of storing its own 186 KB, so it
+ * costs only its own state, and since it is referenced by hash, what it runs can never change.
+ * scripts/near/publish-shared-contract.sh publishes it.
+ */
+export const SHARED_CONTRACT: Partial<Record<Network, string>> = {
+  // Published by finishr.testnet on 2026-11-17, tx EKgccR1AwGWt7UVJDRBWV8P52R4gBq9krUxzGDZc2vTm.
+  testnet: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU",
+};
 /** The OutLayer secrets profile scripts/near/store-secrets.sh writes to. */
 export const SECRETS_PROFILE = "bakeoff";
 
@@ -64,6 +75,14 @@ export function storageDeposit(codeBytes: number, rulesJson: string): bigint {
   const bytes = BigInt(codeBytes) + BigInt(new TextEncoder().encode(rulesJson).length) + STATE_ALLOWANCE_BYTES;
   const yocto = bytes * YOCTO_PER_BYTE;
   return ((yocto + CENT - 1n) / CENT) * CENT;
+}
+
+/** The account record and the reference to the shared code, beside the state allowance. */
+const SHARED_REFERENCE_BYTES = 200;
+
+/** What a challenge on the shared code stores: its rules, its starting state and the account record. About 0.06 NEAR. */
+export function sharedStorageDeposit(rulesJson: string): bigint {
+  return storageDeposit(SHARED_REFERENCE_BYTES, rulesJson);
 }
 
 export interface DeployInput {
@@ -94,6 +113,22 @@ export function deployTransaction(input: DeployInput, code: Uint8Array): Transac
       { type: "CreateAccount" },
       { type: "Transfer", params: { deposit: String(storageDeposit(code.length, input.rulesJson)) } },
       { type: "DeployContract", params: { code } },
+      { type: "FunctionCall", params: { methodName: "new", args: initArgs(input), gas: String(100n * TGAS), deposit: "0" } },
+    ],
+  };
+}
+
+/**
+ * The same challenge on the shared code: one transaction that creates the account, sends what its
+ * state needs, points it at the published code by hash and calls `new`.
+ */
+export function deploySharedTransaction(input: DeployInput, codeHash: string): Transaction {
+  return {
+    receiverId: input.challenge,
+    actions: [
+      { type: "CreateAccount" },
+      { type: "Transfer", params: { deposit: String(sharedStorageDeposit(input.rulesJson)) } },
+      { type: "UseGlobalContract", params: { contractIdentifier: { codeHash } } },
       { type: "FunctionCall", params: { methodName: "new", args: initArgs(input), gas: String(100n * TGAS), deposit: "0" } },
     ],
   };

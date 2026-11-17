@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { codeHash, CONTRACT, deploymentRecord, deployTransaction, EVALUATOR, initArgs, loadContract, storageDeposit, testSetSha256 } from "../src/lib/deploy.ts";
+import { codeHash, CONTRACT, deploymentRecord, deploySharedTransaction, deployTransaction, EVALUATOR, initArgs, loadContract, SHARED_CONTRACT, sharedStorageDeposit, storageDeposit, testSetSha256 } from "../src/lib/deploy.ts";
 import { emptyDraft, json, rulesOf } from "../src/lib/setup.ts";
 
 const repo = (path: string) => new URL(`../../${path}`, import.meta.url);
@@ -73,4 +73,31 @@ test("the deployment record has every key the scripts load", () => {
   for (const key of written) assert.ok(keys.includes(key!), `missing ${key}`);
   assert.match(record, /^CHALLENGE=challenge-triage\.kettle\.testnet$/m);
   assert.match(record, /^TEST_SET_SHA256=1b1730710c/m);
+});
+
+test("on the shared contract, one transaction uses the published code by hash and adds no key", () => {
+  const tx = deploySharedTransaction(input, CONTRACT.codeHash);
+  assert.deepEqual(tx.actions.map((a) => a.type), ["CreateAccount", "Transfer", "UseGlobalContract", "FunctionCall"]);
+  const use = tx.actions[2]!;
+  assert.deepEqual(use.type === "UseGlobalContract" && use.params, { contractIdentifier: { codeHash: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU" } });
+  const call = tx.actions[3]!;
+  assert.deepEqual(call.type === "FunctionCall" && call.params.args, initArgs(input));
+  assert.ok(!tx.actions.some((a) => (a.type as string) === "AddKey" || a.type === "DeployContract"));
+});
+
+test("a challenge on the shared contract is sent what the sandbox proved enough, about 0.06 NEAR", () => {
+  // The same formula as shared_storage_deposit in integration-tests/tests/shared_contract.rs,
+  // which creates a challenge on the shared code with it on a local node.
+  const rules = readFileSync(repo("examples/rules/local.json"), "utf8");
+  const bytes = BigInt(new TextEncoder().encode(rules).length) + 4_000n + 200n;
+  const cent = 10n ** 22n;
+  assert.equal(sharedStorageDeposit(rules), ((bytes * 10n ** 19n + cent - 1n) / cent) * cent);
+  const near = Number(sharedStorageDeposit(rulesJson)) / 1e24;
+  assert.ok(near > 0.04 && near < 0.08, `got ${near}`);
+  assert.ok(sharedStorageDeposit(rulesJson) * 30n < storageDeposit(CONTRACT.bytes, rulesJson));
+});
+
+test("the shared contract published on testnet is the build the board serves", () => {
+  assert.equal(SHARED_CONTRACT.testnet, CONTRACT.codeHash);
+  assert.equal(SHARED_CONTRACT.mainnet, undefined);
 });
