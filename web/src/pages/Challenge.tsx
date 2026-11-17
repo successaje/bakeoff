@@ -195,9 +195,9 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
           : "This challenge is not taking submissions. Its practice tickets and leaderboard stay public, and the MCP server can still score solutions against it."}
       </p>
       <ol className="compete-steps">
-        <li><span className="mono">1</span><div><h3>Build the server</h3><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
-        <li><span className="mono">2</span><div><h3>Add it to Claude Code</h3><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
-        <li><span className="mono">3</span><div><h3>Ask your agent</h3><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
+        <li><span className="mono">1</span><div><h4>Build the server</h4><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
+        <li><span className="mono">2</span><div><h4>Add it to Claude Code</h4><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
+        <li><span className="mono">3</span><div><h4>Ask your agent</h4><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
       </ol>
       <div className="row">
         <Link to="/builders" className="btn">Full guide for builders <ArrowRight /></Link>

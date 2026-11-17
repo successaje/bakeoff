@@ -575,7 +575,7 @@ a.live-pill:hover svg { transform: translateX(3px); }
 /* ---------- Challenge setup form ---------- */
 /* The form on the left; on the right, the files it writes, kept in view while the form scrolls. */
 .setup-safe { display: flex; gap: var(--space-4); align-items: flex-start; padding: var(--space-5); margin-bottom: var(--space-6); border-radius: var(--radius-lg); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
-.setup-safe h2 { font-size: var(--text-base); font-weight: 560; margin-bottom: 4px; }
+.setup-safe h3 { font-size: var(--text-base); margin-bottom: 4px; }
 .setup-safe .feature-icon { flex: none; background: var(--surface); }
 .setup-safe a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .setup { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: var(--space-6); align-items: start; }

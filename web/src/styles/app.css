@@ -355,7 +355,7 @@
 .compete-steps { list-style: none; padding: 0; margin: 0 0 var(--space-5); display: grid; gap: var(--space-5); }
 .compete-steps li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-4); }
 .compete-steps li > span { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: var(--text-sm); }
-.compete-steps h3 { font-size: var(--text-base); margin: 4px 0 var(--space-3); }
+.compete-steps h4 { margin: 4px 0 var(--space-3); }
 .compete .code { white-space: pre-wrap; word-break: break-word; }
 
 /* Class names avoid words such as sponsor, ad, promo and banner: ad blockers'

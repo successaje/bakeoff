@@ -151,7 +151,7 @@ export function NewChallenge() {
         <Reveal className="setup-safe">
           <span className="feature-icon"><Shield /></span>
           <div>
-            <h2>Your test cases and API key never touch this page.</h2>
+            <h3>Your test cases and API key never touch this page.</h3>
             <p className="text-2 small">The form runs in your browser and sends nothing; your draft is kept in this browser only. You run the commands on your own machine, where the scripts read both and the OutLayer CLI encrypts them for the evaluator. <Link to="/teams">How hosting works</Link></p>
           </div>
         </Reveal>
