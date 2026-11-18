@@ -4,6 +4,8 @@
 # board themselves. The board reads it once the account is added to
 # LISTING_REGISTRY in web/src/lib/registry.ts.
 #
+# The registry is built reproducibly from the committed source (see scripts/build-contract.sh),
+# so it needs Docker and a clean working tree, and scripts/near/verify-contract.sh can check it.
 # Needs cargo-near 0.13+ (set CARGO_NEAR to use a specific binary).
 # Environment overrides: REGISTRY_NAME (default registry), REGISTRY_BALANCE.
 set -euo pipefail
@@ -11,11 +13,10 @@ set -euo pipefail
 
 : "${BAKEOFF_ACCOUNT:?set BAKEOFF_ACCOUNT in .env}"
 require_mainnet_confirmation "$BAKEOFF_ACCOUNT"
-CARGO_NEAR="${CARGO_NEAR:-cargo-near}"
 REGISTRY="${REGISTRY_NAME:-registry}.$BAKEOFF_ACCOUNT"
 
 echo "==> Building the registry"
-"$CARGO_NEAR" near build non-reproducible-wasm --manifest-path registry/Cargo.toml --out-dir target/near
+scripts/build-contract.sh registry
 WASM=target/near/bakeoff_registry.wasm
 # The code's storage at 0.00001 NEAR a byte, plus 0.2 NEAR to spare; listings pay for their own.
 bytes=$(wc -c < "$WASM" | tr -d ' ')

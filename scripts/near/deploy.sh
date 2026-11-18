@@ -10,6 +10,9 @@
 # Prerequisites (see README):
 #   - BAKEOFF_ACCOUNT in .env, with its key in the system keychain (near-cli-rs)
 #   - `outlayer login <network>` completed for the same account
+#   - Docker, and no uncommitted changes: the contract is built reproducibly
+#     from the committed source (scripts/build-contract.sh), so anyone can
+#     check what the challenge runs with scripts/near/verify-contract.sh
 #
 # Environment overrides: RULES_FILE, TEST_SET_FILE, CHALLENGE_NAME, CHALLENGE_BALANCE,
 # INTENTS (see below)
