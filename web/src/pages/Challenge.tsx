@@ -22,7 +22,7 @@ import { CodeBlock, CopyButton, Countdown, DemoBadge, SelfListedBadge, DemoNotic
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
-import { awardStage } from "../lib/payout.ts";
+import { awardStage, feePercent, splitReward } from "../lib/payout.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
 import { enclaveBaseline } from "../lib/baseline.ts";
 import type { Baseline, ListedChallenge } from "../lib/registry.ts";
@@ -357,6 +357,7 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
       <div className="side-block">
         <h2>Reward</h2>
         <p className="side-reward"><Coins /> {formatNear(award?.amount ?? view.bounty ?? "0")}</p>
+        {view.service_fee && <p className="muted small">The winner receives {formatNear(splitReward(BigInt(award?.amount ?? view.bounty ?? "0"), view.service_fee).winner)}, after a {feePercent(view.service_fee.bps)} service fee</p>}
         <p className="muted small">{award ? (award.paid ? <>Paid {BigInt(award.to_intents ?? "0") > 0n ? "into the NEAR Intents balance of" : "to"} <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
         {status === "open" && <p className="small"><Timer /> <Countdown closesAt={view.closes_at} /></p>}
       </div>
@@ -430,6 +431,9 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
           <li>The owner's own submissions are trial runs: recorded, never paid.</li>
           <li>A submission made before the deadline can still win after it.</li>
           <li>If nobody wins by the deadline, the owner can take the reward back.</li>
+          {detail.view.service_fee && (
+            <li>A {feePercent(detail.view.service_fee.bps)} service fee goes to <span className="mono break">{detail.view.service_fee.account}</span> when the reward is won, and the winner receives the rest. It was fixed when the challenge was deployed and cannot change; nothing is taken if nobody wins.</li>
+          )}
           {detail.view.intents && (
             <li>The winner can ask to be paid as wNEAR into their NEAR Intents balance, to swap for another token or withdraw to another chain. Any account can then send it; wrap.near keeps 0.00125 NEAR to register the contract.</li>
           )}

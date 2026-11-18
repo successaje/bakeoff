@@ -104,11 +104,13 @@ Challenges deployed before this rule, including the mainnet round below, award t
 | Win | contract | from a result callback | earliest passing submission made while open, not by the owner, once every eligible submission before it has settled |
 | Continue the award check | anyone | `advance_award()` | when more than 50 results settled while an earlier one was pending |
 | Send an Intents payout, or retry a failed one | anyone | `claim_award()`, with 160 Tgas for Intents | when an award is owed and no payment is in flight |
+| Resend a service fee whose transfer failed | anyone | `claim_service_fee()` | when the award's fee was not delivered |
 | Refund | owner | `withdraw_bounty()` | any time in draft; after the deadline with no winner, no pending evaluation and every result checked for the award |
 
 - A submission made before the deadline can still win after it. OutLayer answers within the yield window, about two minutes, and the refund waits until it does.
 - The owner's own submissions, in draft or open, are trial runs. Their verdicts are recorded but never win the bounty.
-- Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.2.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `challenge_closed`, `bounty_withdrawn`. Since 1.2.0, `evaluation_requested` and `bounty_awarded` carry the `payout`, and the payment events carry `"to": "intents"` for a deposit into NEAR Intents.
+- A challenge may take a service fee from the bounty when someone wins it ([How it would pay for itself](#how-it-would-pay-for-itself)).
+- Every change of state emits a NEP-297 event (standard `bakeoff`, version 1.3.0): `bounty_funded`, `challenge_opened`, `evaluation_requested`, `evaluation_settled`, `bounty_awarded`, `award_paid`, `award_payment_failed`, `service_fee_paid`, `service_fee_payment_failed`, `challenge_closed`, `bounty_withdrawn`. Since 1.2.0, `evaluation_requested` and `bounty_awarded` carry the `payout`, and the payment events carry `"to": "intents"` for a deposit into NEAR Intents. Since 1.3.0, `bounty_awarded` carries the `service_fee` taken.
 
 ### Paid into NEAR Intents
 
@@ -138,6 +140,7 @@ Each attempt below is refused by the contract or the evaluator, and a test shows
 | As the owner, win your own bounty | The owner's submissions are trial runs and never win | `owner_passes_never_win_the_bounty` |
 | As the owner, change the rules or test cases once builders compete | Opening freezes the commitments | `opening_freezes_commitments` |
 | As the owner, take the bounty back mid-contest | No withdrawal before the deadline, while a run is pending, or before every result is checked for the award | `an_open_bounty_cannot_be_withdrawn_before_the_deadline`, `the_bounty_waits_for_pending_evaluations`, `the_bounty_waits_until_every_settled_evaluation_is_checked` |
+| As whoever runs the board, raise the fee once builders compete, or take more than 10% | The fee is set when the challenge is deployed, can't change after, and is refused above 1,000 basis points | `the_service_fee_is_fixed_at_deployment_and_shown`, `the_service_fee_is_at_most_ten_percent` |
 | Flood the challenge so the award runs out of gas | Each callback checks at most 50 results, and anyone can call `advance_award()` to continue | `advance_award_continues_past_a_long_settled_queue`; sandbox gas measurement |
 
 ## Repository layout
@@ -364,7 +367,15 @@ A result can only come from the enclave: `on_evaluation_result` is private and r
 
 ## How it would pay for itself
 
-Not built yet. The plan is a fee on each awarded reward, taken by the contract at payout, so a team pays nothing when no result passes. The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
+A challenge can take a service fee from its reward, paid by the contract when someone wins, so a team pays nothing when no result passes:
+
+- **Set once, at deployment.** The fee is an account and a share of the bounty, from 0.01% to 10% (1 to 1,000 basis points). `new` takes it as `service_fee`; `SERVICE_FEE=board.near:250 scripts/near/deploy.sh` deploys with 2.5%. Once deployed it can't change, so builders see it before they submit: the challenge view returns it, the board's sidebar gives the winner's share after it, and the MCP server reports it with `winner_receives`.
+- **Paid with the award.** When a result wins, the contract sends the fee to its account and pays the winner the rest, in NEAR or into NEAR Intents. The award records `service_fee`, the amount taken, and `service_fee_sent`. If the fee's transfer fails, for example because its account doesn't exist yet, it stays owed, and anyone can resend it with `claim_service_fee()`; the winner's payment doesn't wait for it.
+- **Nothing without a winner.** An unwon bounty returns to the owner whole.
+
+The unit tests cover the cap, the rounding (down, to the yoctoNEAR), the NEAR and Intents payouts and a resend. Two sandbox tests deliver it on a local NEAR node: the fee account receives exactly its share, and a fee to an account that doesn't exist yet is sent once the account exists, only once. With a fee, the costliest award callback still burns 7 Tgas of its 30. No fee is set on the board's deployments yet (`SERVICE_FEE` in [`web/src/lib/deploy.ts`](web/src/lib/deploy.ts)), and challenges deployed before this change take none.
+
+The first customers are teams already running an agent on NEAR AI Cloud: they have a bill to cut and a baseline to beat. Compared with hiring a consultant, a team pays only for a result that cleared its own hidden tests, and gets the winning config with the evidence behind it.
 
 ## Hackathon disclosure
 

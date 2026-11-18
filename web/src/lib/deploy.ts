@@ -16,7 +16,7 @@
  * here is what that script and scripts/near/submit.sh read.
  */
 
-import type { Network } from "./near.ts";
+import type { Network, ServiceFee } from "./near.ts";
 import { sha256Hex } from "./near.ts";
 import type { Transaction } from "./transactions.ts";
 
@@ -58,6 +58,13 @@ export const SHARED_CONTRACT: Partial<Record<Network, string>> = {
 };
 /** The OutLayer secrets profile scripts/near/store-secrets.sh writes to. */
 export const SECRETS_PROFILE = "bakeoff";
+
+/**
+ * The service fee challenges deployed from this board take from a won reward, by network: an
+ * account and a share in basis points, at most 1,000 (10%). None is set. The contract the board
+ * serves must take a fee before one is set here, and builders see it on every challenge page.
+ */
+export const SERVICE_FEE: Partial<Record<Network, ServiceFee>> = {};
 
 const TGAS = 1_000_000_000_000n;
 /** NEAR's storage price: 10^19 yoctoNEAR a byte, 0.01 NEAR a kilobyte. */
@@ -102,6 +109,7 @@ export function initArgs({ network, owner, rulesJson, testSetSha256 }: DeployInp
     secrets: { profile: SECRETS_PROFILE, owner },
     rules_json: rulesJson,
     test_set_sha256: testSetSha256,
+    ...(SERVICE_FEE[network] ? { service_fee: SERVICE_FEE[network] } : {}),
   };
 }
 

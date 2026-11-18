@@ -72,6 +72,16 @@ test("challenges are summarised with the bounty and deadline people read", async
   assert.equal(challenges[0].gates.min_accuracy_bp, 8500);
 });
 
+test("a challenge with a service fee says what the winner receives after it", async () => {
+  const { call, chain } = await connect();
+  chain.challenges = [challengeView({ bounty: "5000000000000000000000000", service_fee: { account: "board.testnet", bps: 250 } })];
+  const { challenges } = (await call("list_challenges")).json();
+  assert.deepEqual(challenges[0].service_fee, { account: "board.testnet", percent: 2.5, winner_receives: "4.875 NEAR" });
+  chain.challenges = [challengeView()];
+  const plain = (await call("list_challenges")).json();
+  assert.equal(plain.challenges[0].service_fee, undefined);
+});
+
 test("get_challenge fills in the evaluator's defaults for limits the rules leave out", async () => {
   const { call } = await connect();
   const challenge = (await call("get_challenge", { challenge_id: CHALLENGE })).json();

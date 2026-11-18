@@ -15,6 +15,11 @@
 //! before it has settled. Verdicts arrive in any order, so this keeps a copy
 //! of a public config from winning just because its run finished first. If
 //! none passes by the deadline, the owner withdraws the bounty.
+//!
+//! A challenge may be deployed with a service fee: a share of the bounty, at
+//! most 10%, paid to a named account when the bounty is awarded. It is fixed
+//! at deployment, so builders see it before they submit, and nothing is taken
+//! when nobody wins.
 
 use near_sdk::json_types::{U128, U64};
 use near_sdk::serde::Deserialize;
@@ -55,7 +60,10 @@ const MAX_VERDICT_BYTES: usize = 1024;
 /// `advance_award` continues from where a call stopped.
 const AWARD_CHECKS_PER_CALL: u32 = 50;
 const EVENT_STANDARD: &str = "bakeoff";
-const EVENT_VERSION: &str = "1.2.0";
+const EVENT_VERSION: &str = "1.3.0";
+
+/// The largest service fee a challenge can be deployed with: 10% of the bounty.
+const MAX_SERVICE_FEE_BPS: u16 = 1_000;
 
 /// wrap.near's storage registration, paid once from a reward sent into NEAR Intents.
 const WNEAR_REGISTRATION: NearToken = NearToken::from_micronear(1_250);
@@ -78,6 +86,23 @@ const MIN_INTENTS_CLAIM_GAS: Gas = Gas::from_tgas(160);
 pub struct IntentsRoute {
     pub wrap: AccountId,
     pub verifier: AccountId,
+}
+
+/// A share of an awarded bounty paid to whoever runs the board the challenge is listed on. Fixed
+/// when the challenge is deployed; taken only from a bounty that is won.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct ServiceFee {
+    pub account: AccountId,
+    /// Basis points of the bounty: 250 is 2.5%. Between 1 and 1,000.
+    pub bps: u16,
+}
+
+impl ServiceFee {
+    /// The fee on `amount`, rounded down.
+    fn of(&self, amount: NearToken) -> NearToken {
+        NearToken::from_yoctonear(amount.as_yoctonear() * u128::from(self.bps) / 10_000)
+    }
 }
 
 /// How a submitter wants to be paid if they win.
@@ -173,6 +198,11 @@ pub struct Award {
     /// wNEAR this contract holds for the winner: a deposit the verifier refused. The next claim
     /// unwraps it and pays it as NEAR.
     pub wrapped: NearToken,
+    /// The service fee taken from `amount`; the winner is paid the rest.
+    pub service_fee: NearToken,
+    /// The fee has been sent to its account. Back to false if that transfer failed, for
+    /// `claim_service_fee` to send again.
+    pub service_fee_sent: bool,
 }
 
 #[near(serializers = [json])]
@@ -198,6 +228,8 @@ pub struct ChallengeView {
     pub next_award_check: u32,
     /// Where a winner may choose to be paid into NEAR Intents, if anywhere.
     pub intents: Option<IntentsRoute>,
+    /// The share of an awarded bounty that goes to the board's operator, if any.
+    pub service_fee: Option<ServiceFee>,
 }
 
 #[near(serializers = [json])]
@@ -238,6 +270,7 @@ pub struct Contract {
     award: Option<Award>,
     next_award_check: u32,
     intents: Option<IntentsRoute>,
+    service_fee: Option<ServiceFee>,
 }
 
 #[near]
@@ -246,6 +279,7 @@ impl Contract {
     #[allow(clippy::too_many_arguments)]
     /// `owner` is explicit because deploy-and-initialise transactions are
     /// signed by the contract account itself, so the caller is not the sponsor.
+    /// `service_fee` is fixed here and never changes.
     pub fn new(
         owner: AccountId,
         outlayer: AccountId,
@@ -254,9 +288,20 @@ impl Contract {
         rules_json: String,
         test_set_sha256: String,
         intents: Option<IntentsRoute>,
+        service_fee: Option<ServiceFee>,
     ) -> Self {
         assert_sha256_hex(&evaluator.sha256, "evaluator.sha256");
         assert_sha256_hex(&test_set_sha256, "test_set_sha256");
+        if let Some(fee) = &service_fee {
+            require!(
+                fee.bps >= 1 && fee.bps <= MAX_SERVICE_FEE_BPS,
+                "the service fee is between 1 and 1000 basis points (10%)"
+            );
+            require!(
+                fee.account != env::current_account_id(),
+                "the service fee must go to another account"
+            );
+        }
         Self {
             owner,
             status: ChallengeStatus::Draft,
@@ -273,6 +318,7 @@ impl Contract {
             award: None,
             next_award_check: 0,
             intents,
+            service_fee,
         }
     }
 
@@ -457,6 +503,34 @@ impl Contract {
             );
         }
         self.pay_award();
+    }
+
+    /// Sends a service fee whose transfer failed again. Anyone may call it; the fee only ever goes
+    /// to the account the challenge was deployed with.
+    pub fn claim_service_fee(&mut self) {
+        let award = self.award.as_ref().expect("no bounty has been awarded");
+        require!(
+            !award.service_fee.is_zero(),
+            "this award has no service fee"
+        );
+        require!(!award.service_fee_sent, "the service fee has been sent");
+        self.pay_service_fee();
+    }
+
+    #[private]
+    pub fn on_service_fee_paid(&mut self) {
+        let paid = env::promise_result_checked(0, 0).is_ok();
+        let account = self.service_fee.as_ref().map(|fee| fee.account.clone());
+        let award = self.award.as_mut().expect("no bounty has been awarded");
+        award.service_fee_sent = paid;
+        emit(
+            if paid {
+                "service_fee_paid"
+            } else {
+                "service_fee_payment_failed"
+            },
+            json!({ "id": award.evaluation, "account": account, "amount": award.service_fee }),
+        );
     }
 
     /// The end of a deposit into NEAR Intents. `ft_transfer_call` returns the amount the verifier
@@ -669,6 +743,7 @@ impl Contract {
             award: self.award.clone(),
             next_award_check: self.next_award_check,
             intents: self.intents.clone(),
+            service_fee: self.service_fee.clone(),
         }
     }
 
@@ -722,6 +797,10 @@ impl Contract {
     fn award_to(&mut self, id: u32, winner: AccountId) {
         self.status = ChallengeStatus::Awarded;
         let payout = self.evaluations[id].payout;
+        let service_fee = self
+            .service_fee
+            .as_ref()
+            .map_or(NearToken::from_yoctonear(0), |fee| fee.of(self.bounty));
         let award = Award {
             evaluation: id,
             winner,
@@ -732,13 +811,18 @@ impl Contract {
             to_intents: NearToken::from_yoctonear(0),
             fee: NearToken::from_yoctonear(0),
             wrapped: NearToken::from_yoctonear(0),
+            service_fee,
+            service_fee_sent: false,
         };
         emit(
             "bounty_awarded",
-            json!({ "id": id, "winner": award.winner, "amount": award.amount, "payout": payout }),
+            json!({ "id": id, "winner": award.winner, "amount": award.amount, "payout": payout, "service_fee": service_fee }),
         );
         self.award = Some(award);
         self.bounty = NearToken::from_yoctonear(0);
+        if !service_fee.is_zero() {
+            self.pay_service_fee();
+        }
         // A payment into NEAR Intents takes more gas than this verdict's callback holds, so it is
         // sent by `claim_award`, which anyone may call; a NEAR payment goes now.
         if payout == Payout::Near {
@@ -755,6 +839,7 @@ impl Contract {
         let award = self.award.as_mut().expect("no bounty has been awarded");
         let owed = award
             .amount
+            .saturating_sub(award.service_fee)
             .saturating_sub(award.to_intents)
             .saturating_sub(award.fee);
         if owed.is_zero() {
@@ -809,6 +894,27 @@ impl Contract {
                     .detach();
             }
         }
+    }
+
+    /// Sends the award's service fee to its account. The flag is set before the transfer lands so
+    /// a second call cannot send it twice; the callback clears it if the transfer failed.
+    fn pay_service_fee(&mut self) {
+        let account = self
+            .service_fee
+            .as_ref()
+            .expect("a service fee is set")
+            .account
+            .clone();
+        let award = self.award.as_mut().expect("no bounty has been awarded");
+        award.service_fee_sent = true;
+        Promise::new(account)
+            .transfer(award.service_fee)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(TRANSFER_CALLBACK_GAS)
+                    .on_service_fee_paid(),
+            )
+            .detach();
     }
 
     fn deadline_passed(&self) -> bool {
