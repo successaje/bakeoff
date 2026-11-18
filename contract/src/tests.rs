@@ -138,6 +138,10 @@ fn new_contract() -> Contract {
 }
 
 fn new_contract_with(intents: Option<IntentsRoute>) -> Contract {
+    new_contract_full(intents, None)
+}
+
+fn new_contract_full(intents: Option<IntentsRoute>, service_fee: Option<ServiceFee>) -> Contract {
     testing_env!(context("owner.testnet").build());
     Contract::new(
         account("owner.testnet"),
@@ -153,6 +157,7 @@ fn new_contract_with(intents: Option<IntentsRoute>) -> Contract {
         RULES.into(),
         TEST_SET_SHA.into(),
         intents,
+        service_fee,
     )
 }
 
@@ -198,6 +203,7 @@ fn owner_is_the_named_sponsor_even_when_the_contract_initialises_itself() {
         RULES.into(),
         TEST_SET_SHA.into(),
         None,
+        None,
     );
     assert_eq!(contract.get_challenge().owner, account("owner.testnet"));
 }
@@ -238,6 +244,7 @@ fn rejects_malformed_commitments() {
         },
         RULES.into(),
         TEST_SET_SHA.into(),
+        None,
         None,
     );
 }
@@ -531,6 +538,8 @@ fn the_first_eligible_pass_wins_and_is_paid_the_bounty() {
             to_intents: NearToken::from_yoctonear(0),
             fee: NearToken::from_yoctonear(0),
             wrapped: NearToken::from_yoctonear(0),
+            service_fee: NearToken::from_yoctonear(0),
+            service_fee_sent: false,
         })
     );
     assert_eq!(transfers(), [(account("contributor.testnet"), near(5))]);
@@ -1075,4 +1084,194 @@ fn an_intents_deposit_cannot_be_claimed_twice_at_once() {
     let mut contract = won_on_intents_challenge(5, Payout::Intents);
     claim_with(&mut contract, NOW + 2, 200);
     claim_with(&mut contract, NOW + 2, 200);
+}
+
+fn fee(bps: u16) -> ServiceFee {
+    ServiceFee {
+        account: account("board.testnet"),
+        bps,
+    }
+}
+
+/// A challenge deployed with a service fee of `bps`, funded with `bounty` NEAR and opened.
+fn open_challenge_with_fee(bounty: u128, bps: u16, intents: Option<IntentsRoute>) -> Contract {
+    let mut contract = new_contract_full(intents, Some(fee(bps)));
+    call_at("owner.testnet", NOW, near(bounty));
+    contract.fund();
+    call_at("owner.testnet", NOW, NearToken::from_yoctonear(0));
+    contract.open(U64(CLOSES_AT));
+    contract
+}
+
+fn milli(amount: u128) -> NearToken {
+    NearToken::from_millinear(amount)
+}
+
+#[test]
+fn the_service_fee_is_fixed_at_deployment_and_shown() {
+    let contract = new_contract_full(None, Some(fee(250)));
+    assert_eq!(contract.get_challenge().service_fee, Some(fee(250)));
+    assert_eq!(new_contract().get_challenge().service_fee, None);
+}
+
+#[test]
+#[should_panic(expected = "the service fee is between 1 and 1000 basis points (10%)")]
+fn the_service_fee_is_at_most_ten_percent() {
+    new_contract_full(None, Some(fee(1_001)));
+}
+
+#[test]
+#[should_panic(expected = "the service fee is between 1 and 1000 basis points (10%)")]
+fn a_zero_service_fee_is_refused() {
+    new_contract_full(None, Some(fee(0)));
+}
+
+#[test]
+#[should_panic(expected = "the service fee must go to another account")]
+fn the_service_fee_cannot_go_to_the_challenge_itself() {
+    testing_env!(context("owner.testnet").build());
+    new_contract_full(
+        None,
+        Some(ServiceFee {
+            account: account("challenge.bakeoff.testnet"),
+            bps: 250,
+        }),
+    );
+}
+
+#[test]
+fn the_fee_is_a_share_of_the_bounty_rounded_down() {
+    assert_eq!(fee(250).of(near(5)), milli(125));
+    assert_eq!(fee(1_000).of(near(1)), milli(100));
+    assert_eq!(
+        fee(250).of(NearToken::from_yoctonear(10_039)),
+        NearToken::from_yoctonear(250)
+    );
+    assert_eq!(
+        fee(1).of(NearToken::from_yoctonear(9_999)),
+        NearToken::from_yoctonear(0)
+    );
+}
+
+#[test]
+fn a_won_bounty_pays_the_fee_and_the_rest_to_the_winner() {
+    let mut contract = open_challenge_with_fee(5, 250, None);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    assert_eq!(
+        transfers(),
+        [
+            (account("board.testnet"), milli(125)),
+            (account("contributor.testnet"), milli(4_875)),
+        ]
+    );
+    let won = award(&contract);
+    assert_eq!(won.amount, near(5));
+    assert_eq!(won.service_fee, milli(125));
+    assert!(won.service_fee_sent);
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"bounty_awarded\"")
+            && log.contains(&format!(
+                "\"service_fee\":\"{}\"",
+                milli(125).as_yoctonear()
+            ))));
+
+    callback_at(NOW + 2, PromiseResult::Successful(Vec::new()));
+    contract.on_service_fee_paid();
+    assert!(award(&contract).service_fee_sent);
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"service_fee_paid\"")));
+    callback_at(NOW + 2, PromiseResult::Successful(Vec::new()));
+    contract.on_award_paid();
+    assert!(award(&contract).paid);
+}
+
+#[test]
+fn a_failed_fee_transfer_can_be_sent_again_by_anyone() {
+    let mut contract = open_challenge_with_fee(5, 250, None);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    callback_at(NOW + 2, PromiseResult::Failed);
+    contract.on_service_fee_paid();
+    assert!(!award(&contract).service_fee_sent);
+    assert!(get_logs()
+        .iter()
+        .any(|log| log.contains("\"event\":\"service_fee_payment_failed\"")));
+
+    call_at("anyone.testnet", NOW + 3, NearToken::from_yoctonear(0));
+    contract.claim_service_fee();
+    assert_eq!(transfers(), [(account("board.testnet"), milli(125))]);
+    assert!(award(&contract).service_fee_sent);
+}
+
+#[test]
+#[should_panic(expected = "the service fee has been sent")]
+fn a_fee_is_not_sent_twice() {
+    let mut contract = open_challenge_with_fee(5, 250, None);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    call_at("anyone.testnet", NOW + 2, NearToken::from_yoctonear(0));
+    contract.claim_service_fee();
+}
+
+#[test]
+#[should_panic(expected = "this award has no service fee")]
+fn there_is_no_fee_to_claim_without_one() {
+    let mut contract = open_challenge(5);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    call_at("anyone.testnet", NOW + 2, NearToken::from_yoctonear(0));
+    contract.claim_service_fee();
+}
+
+#[test]
+fn a_retried_award_payment_still_leaves_out_the_fee() {
+    let mut contract = open_challenge_with_fee(5, 250, None);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    callback_at(NOW + 2, PromiseResult::Failed);
+    contract.on_award_paid();
+    call_at("anyone.testnet", NOW + 3, NearToken::from_yoctonear(0));
+    contract.claim_award();
+    assert_eq!(
+        transfers(),
+        [(account("contributor.testnet"), milli(4_875))]
+    );
+}
+
+#[test]
+fn no_fee_is_taken_when_nobody_wins() {
+    let mut contract = open_challenge_with_fee(5, 250, None);
+    let id = submit_at(&mut contract, "contributor.testnet", NOW);
+    settle_at(&mut contract, id, NOW + 1, &failing_verdict());
+    call_at("owner.testnet", CLOSES_AT, NearToken::from_yoctonear(0));
+    contract.withdraw_bounty();
+    assert_eq!(transfers(), [(account("owner.testnet"), near(5))]);
+}
+
+#[test]
+fn an_intents_payout_deposits_the_bounty_less_the_fee() {
+    let mut contract = open_challenge_with_fee(5, 250, Some(intents_route()));
+    let id = submit_paid_at(&mut contract, "contributor.testnet", NOW, Payout::Intents);
+    settle_at(&mut contract, id, NOW + 1, &passing_verdict());
+    // The verdict's callback sends the fee; the reward waits for a claim.
+    assert_eq!(transfers(), [(account("board.testnet"), milli(125))]);
+
+    claim_with(&mut contract, NOW + 2, 200);
+    let deposit = milli(4_875).saturating_sub(REGISTRATION);
+    assert!(calls_to("wrap.testnet")
+        .iter()
+        .any(|(method, amount, _)| method == "near_deposit" && *amount == deposit));
+    callback_at(NOW + 3, PromiseResult::Successful(yocto_json(deposit)));
+    contract.on_intents_deposit(U128(deposit.as_yoctonear()));
+    let won = award(&contract);
+    assert!(won.paid);
+    assert_eq!(
+        won.to_intents
+            .saturating_add(won.fee)
+            .saturating_add(won.service_fee),
+        near(5)
+    );
 }
