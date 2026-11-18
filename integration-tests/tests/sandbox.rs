@@ -146,6 +146,15 @@ async fn setup() -> Result<Setup> {
 
 /// A challenge on `worker`, initialised with the Intents route `intents` if one is given.
 async fn setup_on(worker: Worker<Sandbox>, intents: Option<Value>) -> Result<Setup> {
+    setup_with(worker, intents, None).await
+}
+
+/// `setup_on`, with a service fee (`{"account", "bps"}`) if one is given.
+async fn setup_with(
+    worker: Worker<Sandbox>,
+    intents: Option<Value>,
+    service_fee: Option<Value>,
+) -> Result<Setup> {
     let owner = worker.dev_create_account().await?;
     let outlayer = worker.dev_deploy(&wasm("mock_outlayer")?).await?;
     outlayer.call("new").transact().await?.into_result()?;
@@ -168,6 +177,7 @@ async fn setup_on(worker: Worker<Sandbox>, intents: Option<Value>) -> Result<Set
             "rules_json": read(RULES)?,
             "test_set_sha256": sha256_hex(test_set.as_bytes()),
             "intents": intents,
+            "service_fee": service_fee,
         }))
         .transact()
         .await?
@@ -537,7 +547,11 @@ async fn the_first_passing_contributor_is_paid_the_bounty() -> Result<()> {
 #[tokio::test]
 #[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
 async fn a_pass_waits_for_earlier_submissions_then_wins() -> Result<()> {
-    let setup = setup().await?;
+    // With a service fee, so the award callback also sends the fee: the costliest it can be.
+    let worker = near_workspaces::sandbox().await?;
+    let board = worker.dev_create_account().await?;
+    let fee = json!({"account": board.id(), "bps": 250});
+    let setup = setup_with(worker, None, Some(fee)).await?;
     let bounty = NearToken::from_near(5);
     let closes_at = block_time_ns(&setup.worker).await? + 3_600_000_000_000;
     fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
@@ -648,7 +662,7 @@ async fn a_pass_waits_for_earlier_submissions_then_wins() -> Result<()> {
                 && o.logs.iter().any(|l| l.contains("\"bounty_awarded\""))
         })
         .context("the award callback")?;
-    // The callback has 30 Tgas, 5 of which go to the payment's own callback.
+    // The callback has 30 Tgas, 10 of which go to the callbacks of the fee and of the payment.
     let burnt = settled.gas_burnt.as_tgas();
     println!("award check over 50 evaluations burnt {burnt} Tgas");
     ensure!(burnt < 20, "the award check burnt {burnt} Tgas");
@@ -666,6 +680,7 @@ async fn a_pass_waits_for_earlier_submissions_then_wins() -> Result<()> {
     );
     ensure!(view["award"]["evaluation"] == json!(49));
     ensure!(view["award"]["winner"] == json!(winner.id()));
+    ensure!(view["award"]["service_fee_sent"] == json!(true));
     ensure!(
         view["award"]["paid"] == json!(true),
         "award not paid: {view}"
@@ -912,5 +927,140 @@ async fn a_refused_intents_deposit_comes_back_and_is_paid_as_near() -> Result<()
         gained == deposit,
         "contributor gained {gained} yoctoNEAR, expected {deposit}"
     );
+    Ok(())
+}
+
+/// Waits until the award's payment and its service fee have both settled.
+async fn settled_with_fee(challenge: &Contract) -> Result<Value> {
+    let mut view = challenge_view(challenge).await?;
+    for _ in 0..40 {
+        let award = &view["award"];
+        if award["paid"] == json!(true) && award["in_flight"] == json!(false) {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            return challenge_view(challenge).await;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        view = challenge_view(challenge).await?;
+    }
+    anyhow::bail!("the award was not paid: {view}")
+}
+
+#[tokio::test]
+#[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
+async fn a_won_bounty_pays_the_service_fee_and_the_rest_to_the_winner() -> Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let board = worker.dev_create_account().await?;
+    let setup = setup_with(
+        worker,
+        None,
+        Some(json!({"account": board.id(), "bps": 250})),
+    )
+    .await?;
+    let bounty = NearToken::from_near(5);
+    let fee = NearToken::from_millinear(125);
+    let closes_at = block_time_ns(&setup.worker).await? + 3_600_000_000_000;
+    fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
+    ensure!(
+        challenge_view(&setup.challenge).await?["service_fee"]
+            == json!({"account": board.id(), "bps": 250})
+    );
+    let board_before = board.view_account().await?.balance;
+    let contributor = setup.worker.dev_create_account().await?;
+    let before = contributor.view_account().await?.balance;
+
+    let recorded = evaluate_as(
+        &contributor,
+        &setup,
+        0,
+        &mut LabelledClient::new(&setup.test_set)?,
+    )
+    .await?;
+    ensure!(
+        recorded["status"] == json!("Passed"),
+        "unexpected evaluation: {recorded}"
+    );
+    let view = settled_with_fee(&setup.challenge).await?;
+    ensure!(view["award"]["amount"] == json!(bounty.as_yoctonear().to_string()));
+    ensure!(view["award"]["service_fee"] == json!(fee.as_yoctonear().to_string()));
+    ensure!(
+        view["award"]["service_fee_sent"] == json!(true),
+        "fee not sent: {view}"
+    );
+
+    // The fee arrives whole; the winner gets the rest, less their own submission's costs.
+    let board_gained =
+        board.view_account().await?.balance.as_yoctonear() - board_before.as_yoctonear();
+    ensure!(
+        board_gained == fee.as_yoctonear(),
+        "the fee account gained {board_gained} yoctoNEAR"
+    );
+    let gained = contributor.view_account().await?.balance.as_yoctonear() as i128
+        - before.as_yoctonear() as i128;
+    let rest = (bounty.as_yoctonear() - fee.as_yoctonear()) as i128;
+    let floor = rest - NearToken::from_millinear(500).as_yoctonear() as i128;
+    ensure!(
+        gained > floor && gained < rest,
+        "contributor gained {gained} yoctoNEAR"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "needs built contract wasm; run scripts/test-sandbox.sh"]
+async fn a_fee_that_cannot_be_delivered_waits_to_be_sent_again() -> Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    // An account that does not exist yet, so the first transfer to it fails.
+    let missing = "board-fee.test.near";
+    let setup = setup_with(
+        worker,
+        None,
+        Some(json!({"account": missing, "bps": 1_000})),
+    )
+    .await?;
+    let bounty = NearToken::from_near(2);
+    let closes_at = block_time_ns(&setup.worker).await? + 3_600_000_000_000;
+    fund_and_open(&setup.owner, &setup.challenge, bounty, closes_at).await?;
+    let contributor = setup.worker.dev_create_account().await?;
+    evaluate_as(
+        &contributor,
+        &setup,
+        0,
+        &mut LabelledClient::new(&setup.test_set)?,
+    )
+    .await?;
+    let view = settled_with_fee(&setup.challenge).await?;
+    ensure!(
+        view["award"]["service_fee_sent"] == json!(false),
+        "fee marked sent: {view}"
+    );
+
+    // Once the account exists, anyone can send the fee again, and only once.
+    let board = setup
+        .worker
+        .root_account()?
+        .create_subaccount("board-fee")
+        .initial_balance(NearToken::from_near(1))
+        .transact()
+        .await?
+        .into_result()?;
+    let before = board.view_account().await?.balance;
+    let claim = contributor
+        .call(setup.challenge.id(), "claim_service_fee")
+        .gas(Gas::from_tgas(30))
+        .transact()
+        .await?;
+    ensure!(claim.is_success(), "claim failed: {claim:?}");
+    ensure!(challenge_view(&setup.challenge).await?["award"]["service_fee_sent"] == json!(true));
+    let gained = board.view_account().await?.balance.as_yoctonear() - before.as_yoctonear();
+    ensure!(
+        gained == NearToken::from_millinear(200).as_yoctonear(),
+        "the fee account gained {gained} yoctoNEAR"
+    );
+    let again = contributor
+        .call(setup.challenge.id(), "claim_service_fee")
+        .gas(Gas::from_tgas(30))
+        .transact()
+        .await?;
+    ensure!(again.is_failure() && format!("{again:?}").contains("the service fee has been sent"));
     Ok(())
 }
