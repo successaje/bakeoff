@@ -21,7 +21,7 @@ esac
 CARGO_NEAR="${CARGO_NEAR:-cargo-near}"
 
 # The account's code hash (or the shared global contract it uses), and its source metadata.
-read -r ON_CHAIN REPO REV CONTRACT_PATH ENVIRONMENT < <(python3 -I - "$RPC_URL" "$ACCOUNT" <<'EOF'
+READ_SOURCE=$(cat <<'EOF'
 import base64, json, re, sys, urllib.request
 rpc, account = sys.argv[1:]
 def query(params):
@@ -46,6 +46,8 @@ if not snapshot:
 print(code_hash, snapshot[1], snapshot[2], info.get("contract_path") or ".", info["build_environment"])
 EOF
 )
+SOURCE=$(python3 -I -c "$READ_SOURCE" "$RPC_URL" "$ACCOUNT")
+read -r ON_CHAIN REPO REV CONTRACT_PATH ENVIRONMENT <<< "$SOURCE"
 
 echo "==> $ACCOUNT runs code $ON_CHAIN"
 echo "    built from $REPO at $REV ($CONTRACT_PATH)"
