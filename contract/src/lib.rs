@@ -44,7 +44,12 @@ const MIN_EXECUTION_DEPOSIT: NearToken = NearToken::from_millinear(25);
 /// storage), so submissions cannot lock up the balance that holds the bounty.
 const RECORD_FEE: NearToken = NearToken::from_millinear(10);
 
-const MAX_INSTRUCTIONS: u64 = 1_000_000_000;
+/// A plain run uses a few million instructions per ticket. Checking the model provider's TEE
+/// attestation in WebAssembly adds about 14.5 million per answer and 290 million per signing key
+/// (see `evaluator/src/attestation.rs`), so a 100-ticket attested run needs about 2 billion.
+/// OutLayer prices instructions at almost nothing: 10 billion adds under 0.000001 NEAR to its
+/// estimate, and what a run does not use is refunded.
+const MAX_INSTRUCTIONS: u64 = 10_000_000_000;
 const MAX_MEMORY_MB: u32 = 128;
 /// Below OutLayer's 180 s cap on purpose: the result is delivered by
 /// resuming a NEAR yield, which times out after 200 blocks (about 119 s on
