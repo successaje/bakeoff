@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { codeHash, CONTRACT, deploymentRecord, deploySharedTransaction, deployTransaction, EVALUATOR, initArgs, loadContract, SHARED_CONTRACT, sharedStorageDeposit, storageDeposit, testSetSha256 } from "../src/lib/deploy.ts";
 import { emptyDraft, json, rulesOf } from "../src/lib/setup.ts";
+import { commitLink, parseSnapshot, sourceOf } from "../src/lib/source.ts";
 
 const repo = (path: string) => new URL(`../../${path}`, import.meta.url);
 const code = new Uint8Array(readFileSync(new URL("../public/contract/bakeoff_contract.wasm", import.meta.url)));
@@ -100,4 +101,19 @@ test("a challenge on the shared contract is sent what the sandbox proved enough,
 test("the shared contract published on testnet is the build the board serves", () => {
   assert.equal(SHARED_CONTRACT.testnet, CONTRACT.codeHash);
   assert.equal(SHARED_CONTRACT.mainnet, undefined);
+});
+
+test("a reproducible build's metadata names its commit", () => {
+  const rev = "0123456789abcdef0123456789abcdef01234567";
+  assert.deepEqual(parseSnapshot(`git+https://github.com/successaje/bakeoff?rev=${rev}`), { repository: "https://github.com/successaje/bakeoff", commit: rev });
+  assert.equal(parseSnapshot("git+https://github.com/successaje/bakeoff?rev=main"), null);
+  const source = sourceOf("Hash111", {
+    version: "0.1.0",
+    build_info: { build_environment: "sourcescan/cargo-near:0.22.0-rust-1.99.1@sha256:c965", build_command: ["cargo", "near", "build"], source_code_snapshot: `git+https://github.com/successaje/bakeoff?rev=${rev}`, contract_path: "contract" },
+  });
+  assert.equal(source.build?.commit, rev);
+  assert.equal(commitLink(source.build!), `https://github.com/successaje/bakeoff/tree/${rev}/contract`);
+  // Contracts built before reproducible builds report no build_info.
+  assert.equal(sourceOf("Hash111", { version: "0.1.0", link: "https://github.com/successaje/bakeoff", build_info: null }).build, null);
+  assert.equal(sourceOf("Hash111", null).build, null);
 });

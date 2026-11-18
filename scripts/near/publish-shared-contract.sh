@@ -18,18 +18,7 @@ require_mainnet_confirmation "$BAKEOFF_ACCOUNT"
 NEAR_CLI="${NEAR_CLI:-near}"
 WASM="${CONTRACT_WASM:-web/public/contract/bakeoff_contract.wasm}"
 
-# NEAR's code hash: base58 of the SHA-256 of the code.
-HASH=$(python3 -I - "$WASM" <<'EOF'
-import hashlib, sys
-digest = hashlib.sha256(open(sys.argv[1], "rb").read()).digest()
-alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-n, out = int.from_bytes(digest, "big"), ""
-while n:
-    n, r = divmod(n, 58)
-    out = alphabet[r] + out
-print("1" * (len(digest) - len(digest.lstrip(b"\0"))) + out)
-EOF
-)
+HASH=$(scripts/code-hash.sh "$WASM")
 bytes=$(wc -c < "$WASM" | tr -d ' ')
 cost=$(python3 -I -c 'import sys; print(f"{int(sys.argv[1]) * 10 / 100_000:.2f}")' "$bytes")
 

@@ -9,14 +9,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CARGO_NEAR="${CARGO_NEAR:-cargo-near}"
-scripts/build-contract.sh
+# The working tree as it is, with the local toolchain: the tests need no Docker or commit.
+REPRODUCIBLE=0 scripts/build-contract.sh
+REPRODUCIBLE=0 scripts/build-contract.sh registry
 for mock in mock-outlayer mock-wnear mock-intents; do
   "$CARGO_NEAR" near build non-reproducible-wasm \
     --manifest-path "tools/$mock/Cargo.toml" \
     --out-dir target/near
 done
-"$CARGO_NEAR" near build non-reproducible-wasm \
-  --manifest-path registry/Cargo.toml \
-  --out-dir target/near
 
 cargo test -p bakeoff-integration-tests -- --ignored --test-threads 1 "$@"

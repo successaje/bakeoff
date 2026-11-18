@@ -255,7 +255,7 @@ Then seal the test cases and model key on your machine: save the deployment reco
 
 ### From the command line
 
-Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli) and [cargo-near](https://github.com/near/cargo-near) 0.13+.
+Requirements: [near-cli-rs](https://github.com/near/near-cli-rs), the [OutLayer CLI](https://github.com/out-layer/outlayer-cli), [cargo-near](https://github.com/near/cargo-near) 0.13+ and Docker, which the contract is built in ([Checking what a challenge runs](#checking-what-a-challenge-runs)).
 
 1. Create a testnet account and save its key to your keychain:
    ```bash
@@ -303,6 +303,20 @@ near-cli's default mainnet RPC is rate-limited. If the deploy stops with "exceed
 
 A mainnet challenge costs about 2.5 NEAR, most of it the contract's refundable storage. On top of that come the 0.245 NEAR secret deposit, about 0.012 NEAR of OutLayer compute per sealed run, and the bounty.
 
+### Checking what a challenge runs
+
+The contracts are built reproducibly ([NEP-330](https://github.com/near/NEPs/blob/master/neps/nep-0330.md)). `scripts/build-contract.sh` builds the committed source inside the cargo-near Docker image that [`contract/Cargo.toml`](contract/Cargo.toml) pins by digest, so a commit builds to the same code hash on any machine. The build writes the commit and the image into the contract, where its `contract_source_metadata` view returns them. To check a deployed challenge, or the listing registry:
+
+```bash
+scripts/near/verify-contract.sh <contract account>
+```
+
+It reads the account's code hash, or the hash of the shared contract the account uses. Then it fetches the commit the metadata names, rebuilds it in the same image and compares the two hashes. Nothing is signed or spent. Each challenge's Rules tab shows the same commit under Verification.
+
+Challenges deployed before this change were built without a pinned image. Their metadata names no commit, and the board says so.
+
+The build refuses uncommitted changes, since it builds the commit. `REPRODUCIBLE=0 scripts/build-contract.sh` builds the working tree with the local toolchain instead, as the sandbox tests do; that hash depends on the toolchain.
+
 ## Status
 
 Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
@@ -344,6 +358,7 @@ Kettle & Kiln is a fictional store, and its tickets are synthetic. The project's
 A result can only come from the enclave: `on_evaluation_result` is private and runs as the callback of the contract's own `request_execution` call to OutLayer. The one key that could change that is the challenge account's own, which could deploy different code. `scripts/near/open.sh` deletes it when it opens a challenge, so from then on no key, Bakeoff's or the owner's, can write a result; the challenge page shows "Locked · 0 keys" once it is gone. The contract checks every hash, but some things are beyond what it can check:
 - **The owner's test cases.** The owner writes and labels them and sets the requirements. The evaluator scores a poor test as faithfully as a good one, so a pass is only as meaningful as the cases.
 - **The enclave.** The test cases and API key stay hidden because OutLayer's TEE hardware and attestation hold. The contract cannot see inside the enclave. Each result page checks the run's Intel TDX quote in your browser, which shows a genuine, approved machine ran the pinned evaluator and produced the recorded verdict; it does not show that OutLayer's approved image is itself trustworthy, or that the result was delivered on-chain from inside the enclave. The page lists what the check leaves out.
+- **The contract's source.** "Locked · 0 keys" means the code can't change. Which source that code came from is a separate question, and a reproducible build answers it: rebuilding the commit the contract names gives the same code hash ([Checking what a challenge runs](#checking-what-a-challenge-runs)). Challenges deployed before that change name no commit.
 - **The model provider.** NEAR AI Cloud processes each hidden case to answer it, and reports the token usage each result's cost is computed from.
 - **The board's listings.** Titles, descriptions and baselines come from the owner's published listing. A baseline can be checked: when the listing names the baseline config's hash, the board finds the owner's trial runs of that config, scored in the enclave on the hidden tickets, and shows them beside the published figures. Rewards, results and payments are read from the contract.
 

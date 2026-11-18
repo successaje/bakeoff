@@ -26,6 +26,7 @@ import { awardStage } from "../lib/payout.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
 import { enclaveBaseline } from "../lib/baseline.ts";
 import type { Baseline, ListedChallenge } from "../lib/registry.ts";
+import { commitLink, type SourceMetadata, sourceOf } from "../lib/source.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
 
@@ -138,12 +139,46 @@ function LockRow({ detail }: { detail: ChallengeDetail }) {
   );
 }
 
+/** The code the challenge runs, and the commit it was built from when the build is reproducible. */
+function SourceRow({ detail }: { detail: ChallengeDetail }) {
+  const id = detail.listing.id;
+  const source = useAsync(async () => {
+    const rpc = rpcFor(detail.network);
+    const [codeHash, metadata] = await Promise.all([rpc.codeHash(id), rpc.view<SourceMetadata>(id, "contract_source_metadata").catch(() => null)]);
+    return sourceOf(codeHash, metadata);
+  }, `source:${detail.network}:${id}`);
+  const build = source.data?.build;
+  return (
+    <div className="check-row">
+      <span className="check-icon"><Cube /></span>
+      <div className="check-body">
+        <div className="check-title">
+          <h3>Source</h3>
+          {source.data && (build ? <span className="badge badge-green badge-dot">Reproducible build</span> : <span className="badge badge-amber badge-dot">No source commit</span>)}
+          {source.error && !source.data && <span className="badge badge-amber badge-dot">Could not verify</span>}
+        </div>
+        {source.data && <div className="hash-line"><code className="mono break">{source.data.codeHash}</code><CopyButton text={source.data.codeHash} label="Copy the code hash" /></div>}
+        <p className="muted small">
+          {build
+            ? <>The code hash above is built from <a href={commitLink(build)} target="_blank" rel="noopener noreferrer">commit {build.commit.slice(0, 7)}</a> in a pinned build image, as the contract's own metadata says. Building that commit gives the same hash: <code className="mono">scripts/near/verify-contract.sh {id}</code> rebuilds it and compares.</>
+            : source.data
+              ? "The code hash above was built without a pinned build environment, so the contract's metadata names no commit, and only a build with the same toolchain reproduces the hash. Challenges deployed since reproducible builds were added name the commit they were built from."
+              : source.error
+                ? `Could not read the contract's code: ${source.error.message}.`
+                : "Reading the contract's code and metadata…"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Verification({ detail }: { detail: ChallengeDetail }) {
   const { view } = detail;
   return (
     <div className="verify">
-      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain, and whether the contract's code can still change.</p>
+      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain, and whether the contract's code can still change and which source it was built from.</p>
       <LockRow detail={detail} />
+      <SourceRow detail={detail} />
       <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, requirements included." run={async () => {
         const actual = await sha256Hex(view.rules_json);
         if (actual !== view.rules_sha256) throw new Mismatch(`The served rules hash to ${actual}, not the commitment.`);
