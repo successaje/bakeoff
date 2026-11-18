@@ -41,6 +41,14 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - cargo-near 0.11 fails with "Failed to validate wasm" on Rust 1.98 output. cargo-near 0.23 builds the contract (168 KB), and the result deploys and runs in a near-workspaces 0.24 sandbox. `scripts/build-contract.sh` refuses versions below 0.13.
 - In the sandbox, a 300 Tgas submission covers the contract call, the 150 Tgas forwarded to `request_execution`, the yield, and the 20 Tgas result callback.
 
+### Reproducible build (2026-11-18)
+
+- `cargo near build reproducible-wasm` (cargo-near 0.23 on the host) builds in `sourcescan/cargo-near:0.22.0-rust-1.99.1`, the image cargo-near 0.23's own project template pins, by digest `sha256:c9655eaf…43b5bb`. The image is linux/amd64 only, 509 MB compressed. On an arm64 Mac it runs under emulation and a build takes about 5.5 minutes.
+- Commit `845b5c3` built twice, from two fresh worktrees at different paths, to the same 203,166 bytes and code hash `3gQRwG6bH2P2e4cb27JcKYEDtVeF8JBjxcR4xvcPgAWt`.
+- The build embeds its NEP-330 metadata in the contract. `contract_source_metadata` returns `link` (the repository at the commit) and `build_info`: `build_environment` (the image and digest), `build_command`, `contract_path: "contract"` and `source_code_snapshot: "git+https://github.com/successaje/bakeoff?rev=<commit>"`. Since the commit is in the code, every commit builds to a different hash, even one that changes only documentation. What stays fixed is that the same commit always gives the same hash.
+- Challenges deployed before this change return `"build_info": null`: they were built with the host's toolchain and name no commit.
+- The build refuses a working tree with uncommitted changes. A clean `git worktree` builds the committed source without disturbing a working checkout.
+
 ## Paying a winner into NEAR Intents (sandbox, 2026-11-17)
 
 How the contract talks to the two mainnet contracts, from NEAR Intents' deposit guide and wrap.near's interface:
