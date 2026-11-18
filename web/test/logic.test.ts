@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { acceptingSubmissions, type ChallengeView, formatNear, isMissingAccount, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
+import { acceptingSubmissions, type ChallengeView, formatNear, isMissingAccount, NearRpc, parseNear, requiresModelAttestation, sha256Hex, verdictMetrics, verdictModelTee } from "../src/lib/near.ts";
 import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
 import { awardStage, claimTgas, feePercent, rewardText, splitReward } from "../src/lib/payout.ts";
 import * as tx from "../src/lib/transactions.ts";
@@ -269,4 +269,15 @@ test("a service fee comes out of the reward before the winner is paid", () => {
   const intents = { ...won, payout: "Intents" as const, paid: true, to_intents: String(4_875n * 10n ** 21n - registration), fee: String(registration) };
   assert.deepEqual(awardStage(intents), { stage: "paid", intents: 4_875n * 10n ** 21n - registration, near: 0n, fee: registration });
   assert.match(rewardText(intents, fee).note ?? "", /^0\.125 NEAR of the 5 NEAR is the 2\.5% service fee, for board\.near\. 0\.00125 NEAR went to registering/);
+});
+
+test("an attested run's verdict names the TEE keys that signed its answers", () => {
+  const verdict = JSON.stringify({ version: 1, passed: true, reasons: [], model_tee: { signed: 16, answers: 16, signers: ["0x3b753b4406613c5e70ae640508632b600424fa0c"], tdx: "UpToDate" } });
+  const e = { id: 0, submitter: "a.testnet", config_sha256: "", status: "Passed" as const, reasons: [], verdict, requested_at: "1", settled_at: "2" };
+  assert.deepEqual(verdictModelTee(e)?.signers, ["0x3b753b4406613c5e70ae640508632b600424fa0c"]);
+  assert.equal(verdictModelTee({ ...e, verdict: JSON.stringify({ passed: true }) }), null);
+  assert.equal(verdictModelTee({ ...e, verdict: null }), null);
+  const view = (rules: object) => ({ rules_json: JSON.stringify(rules) }) as Parameters<typeof requiresModelAttestation>[0];
+  assert.equal(requiresModelAttestation(view({ model_attestation: "near-ai-cloud" })), true);
+  assert.equal(requiresModelAttestation(view({})), false);
 });

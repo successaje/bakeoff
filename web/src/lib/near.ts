@@ -274,6 +274,38 @@ export interface Metrics {
   tickets?: number;
 }
 
+/**
+ * Where a challenge's rules require attested model answers: which TEE keys signed this run's
+ * answers, as the evaluator checked them inside the enclave. See evaluator/src/attestation.rs.
+ */
+export interface ModelTee {
+  /** Answers whose signature recovered to an attested key. */
+  signed: number;
+  answers: number;
+  /** The attested signing addresses, 0x-prefixed. */
+  signers: string[];
+  /** Intel's TCB status for the TDX quotes checked, the least current if they differ. */
+  tdx: string;
+}
+
+export function verdictModelTee(evaluation: EvaluationView): ModelTee | null {
+  if (!evaluation.verdict) return null;
+  try {
+    return ((JSON.parse(evaluation.verdict) as { model_tee?: ModelTee | null }).model_tee ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a challenge's rules require every answer to come from the provider's attested TEEs. */
+export function requiresModelAttestation(view: ChallengeView): boolean {
+  try {
+    return (JSON.parse(view.rules_json) as { model_attestation?: string }).model_attestation === "near-ai-cloud";
+  } catch {
+    return false;
+  }
+}
+
 export function verdictMetrics(evaluation: EvaluationView): Metrics | null {
   if (!evaluation.verdict) return null;
   try {

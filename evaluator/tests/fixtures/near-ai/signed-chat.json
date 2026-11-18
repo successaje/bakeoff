@@ -1,0 +1,13 @@
+{
+ "model": "z-ai/glm-5.3-flash",
+ "chat_id": "d591b49398734730a76fea30c1929b4b",
+ "request": "{\"model\":\"z-ai/glm-5.3-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with the word ok.\"}],\"max_tokens\":5}",
+ "response": "{\"id\":\"d591b49398734730a76fea30c1929b4b\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":null,\"reasoning_content\":\"The user is asking me\"},\"finish_reason\":\"length\",\"logprobs\":null}],\"model\":\"z-ai/glm-5.3-flash\",\"created\":1794994067,\"usage\":{\"prompt_tokens\":18,\"total_tokens\":23,\"completion_tokens\":5,\"prompt_tokens_details\":{\"cached_tokens\":0},\"reasoning_tokens\":6,\"completion_tokens_details\":{\"reasoning_tokens\":6}}}",
+ "signature": {
+  "text": "z-ai/glm-5.3-flash:f65df1ddc97c2c455367d191770721d68d3b3ef8fcc27e857b7c30116ea2e736:e76f7715bc159a5c5a8178167990bce0f00bff6a0c2a5c3a92ce40ad8c778ed7",
+  "signature": "0x637ab608317d9c77341d987a1218d01bc57b78ec10be8c55c8191e407fafc32f4620b642daa2837a62fd02e5c0213329a9e759aad3ac845604cec06033a0b6631b",
+  "signing_address": "0x3b753b4406613c5e70ae640508632b600424fa0c",
+  "signing_algo": "ecdsa",
+  "signature_kind": "provider_tee"
+ }
+}

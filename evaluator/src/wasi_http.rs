@@ -37,15 +37,34 @@ impl Timeouts {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Verb {
+    Get,
+    Post,
+}
+
 pub struct HttpRequest<'a> {
+    pub verb: Verb,
     pub url: &'a str,
     pub headers: &'a [(&'a str, &'a str)],
+    /// Sent only with `Post`.
     pub body: Vec<u8>,
 }
 
 pub struct HttpResponse {
     pub status: u16,
+    pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+}
+
+impl HttpResponse {
+    /// A response header by name, ignoring case.
+    pub fn header(&self, name: &str) -> Option<String> {
+        self.headers
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.clone())
+    }
 }
 
 pub struct Timed<T> {
@@ -60,7 +79,7 @@ pub struct Timed<T> {
 /// next as soon as one completes, and returns their outcomes in request
 /// order. Nothing is started after `deadline`, and no request's timeouts
 /// reach past it.
-pub fn post_all(
+pub fn send_all(
     requests: &[HttpRequest<'_>],
     timeouts: Timeouts,
     max_in_flight: usize,
@@ -148,20 +167,21 @@ fn start(request: &HttpRequest<'_>, timeouts: Timeouts) -> Result<FutureIncoming
     // Without an explicit length the host sends the body chunked, which
     // some servers refuse.
     let content_length = request.body.len().to_string();
-    for (name, value) in request
-        .headers
-        .iter()
-        .copied()
-        .chain(std::iter::once(("content-length", content_length.as_str())))
-    {
+    let length =
+        (request.verb == Verb::Post).then_some(("content-length", content_length.as_str()));
+    for (name, value) in request.headers.iter().copied().chain(length) {
         fields
             .append(&name.to_string(), &value.as_bytes().to_vec())
             .map_err(|e| format!("invalid header {name}: {e:?}"))?;
     }
 
     let outgoing = OutgoingRequest::new(fields);
+    let method = match request.verb {
+        Verb::Get => Method::Get,
+        Verb::Post => Method::Post,
+    };
     outgoing
-        .set_method(&Method::Post)
+        .set_method(&method)
         .map_err(|()| "failed to set method")?;
     outgoing
         .set_scheme(Some(&target.scheme))
@@ -173,21 +193,11 @@ fn start(request: &HttpRequest<'_>, timeouts: Timeouts) -> Result<FutureIncoming
         .set_path_with_query(Some(&target.path))
         .map_err(|()| "failed to set path")?;
 
-    let outgoing_body = outgoing.body().map_err(|()| "request body unavailable")?;
-    {
-        // The stream is a child resource of the body and must be dropped
-        // before the body is finished.
-        let stream = outgoing_body
-            .write()
-            .map_err(|()| "request body stream unavailable")?;
-        for chunk in request.body.chunks(MAX_WRITE) {
-            stream
-                .blocking_write_and_flush(chunk)
-                .map_err(|e| format!("request write failed: {e:?}"))?;
-        }
-    }
-    OutgoingBody::finish(outgoing_body, None)
-        .map_err(|e| format!("request finish failed: {e:?}"))?;
+    // A GET goes out with no body at all; opening one would make the host send it chunked.
+    let outgoing_body = match request.verb {
+        Verb::Post => Some(outgoing.body().map_err(|()| "request body unavailable")?),
+        Verb::Get => None,
+    };
 
     let options = RequestOptions::new();
     options
@@ -200,7 +210,25 @@ fn start(request: &HttpRequest<'_>, timeouts: Timeouts) -> Result<FutureIncoming
         .set_between_bytes_timeout(Some(nanos(timeouts.between_bytes)))
         .map_err(|()| "between bytes timeout not supported")?;
 
-    outgoing_handler::handle(outgoing, Some(options)).map_err(|e| format!("request failed: {e:?}"))
+    let future = outgoing_handler::handle(outgoing, Some(options))
+        .map_err(|e| format!("request failed: {e:?}"))?;
+    if let Some(outgoing_body) = outgoing_body {
+        {
+            // The stream is a child resource of the body and must be dropped
+            // before the body is finished.
+            let stream = outgoing_body
+                .write()
+                .map_err(|()| "request body stream unavailable")?;
+            for chunk in request.body.chunks(MAX_WRITE) {
+                stream
+                    .blocking_write_and_flush(chunk)
+                    .map_err(|e| format!("request write failed: {e:?}"))?;
+            }
+        }
+        OutgoingBody::finish(outgoing_body, None)
+            .map_err(|e| format!("request finish failed: {e:?}"))?;
+    }
+    Ok(future)
 }
 
 fn finish(future: FutureIncomingResponse) -> Result<HttpResponse, String> {
@@ -216,6 +244,12 @@ fn finish(future: FutureIncomingResponse) -> Result<HttpResponse, String> {
     };
 
     let status = response.status();
+    let headers = response
+        .headers()
+        .entries()
+        .into_iter()
+        .map(|(name, value)| (name, String::from_utf8_lossy(&value).into_owned()))
+        .collect();
     let incoming_body = response
         .consume()
         .map_err(|()| "response body unavailable")?;
@@ -233,7 +267,11 @@ fn finish(future: FutureIncomingResponse) -> Result<HttpResponse, String> {
         }
     }
     let _trailers = IncomingBody::finish(incoming_body);
-    Ok(HttpResponse { status, body })
+    Ok(HttpResponse {
+        status,
+        headers,
+        body,
+    })
 }
 
 struct Target {

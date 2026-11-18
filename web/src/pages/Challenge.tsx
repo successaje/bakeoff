@@ -413,7 +413,7 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
   const gates = challengeGates(detail.view);
   const rules = useMemo(() => {
     try {
-      return JSON.parse(detail.view.rules_json) as { models?: Record<string, unknown>; allowed_tools?: string[]; allowed_request_options?: string[]; max_tokens_cap?: number; time_budget_ms?: number; max_concurrency?: number };
+      return JSON.parse(detail.view.rules_json) as { models?: Record<string, unknown>; allowed_tools?: string[]; allowed_request_options?: string[]; max_tokens_cap?: number; time_budget_ms?: number; max_concurrency?: number; model_attestation?: string };
     } catch {
       return null;
     }
@@ -448,6 +448,9 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
             <div><dt>Most output tokens</dt><dd>{rules.max_tokens_cap ?? "–"}</dd></div>
             <div><dt>Time for the whole run</dt><dd>{rules.time_budget_ms ? seconds(rules.time_budget_ms) : "–"}</dd></div>
             <div><dt>Tickets in flight</dt><dd>{rules.max_concurrency ?? 8}</dd></div>
+            {rules.model_attestation === "near-ai-cloud" && (
+              <div><dt>Model answers</dt><dd>Every one must be signed in NEAR AI Cloud's attested TEEs. The evaluator checks each signature and the TEEs' Intel TDX and NVIDIA GPU attestation inside the enclave, with a nonce made for the run.</dd></div>
+            )}
           </dl>
           <details className="raw-rules"><summary className="small">The rules as the contract stores them</summary><CodeBlock code={JSON.stringify(JSON.parse(detail.view.rules_json), null, 2)} label="Rules JSON" /></details>
         </DocSection>

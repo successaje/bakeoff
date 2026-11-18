@@ -3,9 +3,11 @@
 //! It carries aggregate metrics and the hashes of the exact rules, candidate
 //! and test set that were scored, never per-ticket results, so a verdict
 //! reveals nothing about individual sealed tickets. OutLayer returns small
-//! outputs inline to the calling contract, so the serialized form is kept
-//! well under 900 bytes.
+//! outputs inline to the calling contract, which records at most 1,024 bytes,
+//! so the serialized form is kept under 1,000: 350 to 550 bytes in practice,
+//! about 100 more where the rules require attested model answers.
 
+use crate::attestation::ModelTee;
 use serde::{Deserialize, Serialize};
 
 pub const VERDICT_VERSION: u32 = 1;
@@ -27,6 +29,9 @@ pub enum Reason {
     GateCost,
     GateLatency,
     GateLeaks,
+    /// The rules require attested model answers, and this run's could not all be shown to
+    /// come from the provider's attested TEEs.
+    ModelUnattested,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +71,10 @@ pub struct Verdict {
     pub detail: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metrics: Option<Metrics>,
+    /// Where the rules require attested model answers: which TEEs signed them. Present only
+    /// when every signer's TDX quote and GPU evidence checked out with this run's nonce.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_tee: Option<ModelTee>,
     #[serde(flatten)]
     pub digests: Digests,
 }
@@ -81,6 +90,7 @@ impl Verdict {
             reasons: vec![reason],
             detail: detail.map(|d| truncate(&d, MAX_DETAIL_CHARS)),
             metrics: None,
+            model_tee: None,
             digests,
         }
     }
@@ -92,6 +102,7 @@ impl Verdict {
             reasons,
             detail: None,
             metrics: Some(metrics),
+            model_tee: None,
             digests,
         }
     }
@@ -148,6 +159,22 @@ mod tests {
         );
         let json = verdict.to_json();
         assert!(json.len() < 900, "verdict is {} bytes", json.len());
+
+        // With attested model answers from two models with their own keys, and the longest TCB
+        // status Intel reports.
+        let mut attested = verdict.clone();
+        attested.reasons.push(Reason::ModelUnattested);
+        attested.model_tee = Some(ModelTee {
+            signed: u32::MAX,
+            answers: u32::MAX,
+            signers: vec![
+                format!("0x{}", "a".repeat(40)),
+                format!("0x{}", "b".repeat(40)),
+            ],
+            tdx: "OutOfDateConfigurationNeeded".into(),
+        });
+        let json = attested.to_json();
+        assert!(json.len() < 1_000, "verdict is {} bytes", json.len());
 
         let rejected =
             Verdict::rejected(Reason::PolicyTool, Some("x".repeat(1_000)), full_digests());

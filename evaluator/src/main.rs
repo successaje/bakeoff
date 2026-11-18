@@ -90,14 +90,18 @@ fn input_invalid(detail: &str) -> Verdict {
 
 #[cfg(target_arch = "wasm32")]
 mod transport {
-    use bakeoff_evaluator::wasi_http::{self, HttpRequest, Timeouts};
+    use bakeoff_evaluator::attestation::{self, Fetched, ModelTee, Receipt};
+    use bakeoff_evaluator::wasi_http::{self, HttpRequest, HttpResponse, Timed, Timeouts, Verb};
     use bakeoff_evaluator::{openai, ChatClient, ChatOutcome, ChatRequest};
-    use std::time::Duration;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::time::{Duration, Instant, SystemTime};
 
     pub struct WasiChatClient {
         endpoint: String,
         authorization: String,
         timeouts: Timeouts,
+        /// What the provider must have signed, one per answer returned.
+        receipts: Vec<Option<Receipt>>,
     }
 
     pub fn client(endpoint: String, api_key: String) -> WasiChatClient {
@@ -109,6 +113,59 @@ mod transport {
                 first_byte: Duration::from_secs(45),
                 between_bytes: Duration::from_secs(15),
             },
+            receipts: Vec::new(),
+        }
+    }
+
+    /// Signature and attestation lookups in flight at once. A signature takes NEAR AI about
+    /// 0.7 s, so 500 of them take about 11 s.
+    const ATTESTATION_IN_FLIGHT: usize = 32;
+
+    impl WasiChatClient {
+        /// `https://host` from `https://host/v1/chat/completions`.
+        fn origin(&self) -> &str {
+            self.endpoint.split("/v1/").next().unwrap_or(&self.endpoint)
+        }
+
+        fn get_all(
+            &self,
+            urls: &[String],
+            deadline: Instant,
+            authorized: bool,
+        ) -> Vec<Timed<Result<HttpResponse, String>>> {
+            let auth = [("authorization", self.authorization.as_str())];
+            let headers: &[(&str, &str)] = if authorized { &auth } else { &[] };
+            let requests: Vec<HttpRequest<'_>> = urls
+                .iter()
+                .map(|url| HttpRequest {
+                    verb: Verb::Get,
+                    url,
+                    headers,
+                    body: Vec::new(),
+                })
+                .collect();
+            wasi_http::send_all(
+                &requests,
+                self.timeouts,
+                ATTESTATION_IN_FLIGHT,
+                remaining(deadline),
+            )
+        }
+    }
+
+    fn remaining(deadline: Instant) -> Duration {
+        deadline.saturating_duration_since(Instant::now())
+    }
+
+    fn ok_body(
+        timed: Timed<Result<HttpResponse, String>>,
+        what: &str,
+    ) -> Result<HttpResponse, String> {
+        let response = timed.value.map_err(|e| format!("{what}: {e}"))?;
+        if (200..300).contains(&response.status) {
+            Ok(response)
+        } else {
+            Err(format!("{what}: HTTP {}", response.status))
         }
     }
 
@@ -126,18 +183,30 @@ mod transport {
             let http_requests: Vec<HttpRequest<'_>> = requests
                 .iter()
                 .map(|request| HttpRequest {
+                    verb: Verb::Post,
                     url: &self.endpoint,
                     headers: &headers,
                     body: openai::request_body(request),
                 })
                 .collect();
-            wasi_http::post_all(&http_requests, self.timeouts, max_in_flight, limit)
+            let timed_all =
+                wasi_http::send_all(&http_requests, self.timeouts, max_in_flight, limit);
+            let mut receipts = Vec::new();
+            let outcomes = timed_all
                 .into_iter()
-                .zip(requests)
-                .map(|(timed, request)| {
+                .zip(requests.iter().zip(&http_requests))
+                .map(|(timed, (request, sent))| {
                     let result = timed.value.and_then(|response| {
                         if (200..300).contains(&response.status) {
-                            openai::parse_response(&response.body)
+                            let parsed = openai::parse_response(&response.body);
+                            if parsed.is_ok() {
+                                receipts.push(Receipt::new(
+                                    &request.model,
+                                    &sent.body,
+                                    &response.body,
+                                ));
+                            }
+                            parsed
                         } else {
                             Err(format!("upstream status {}", response.status))
                         }
@@ -152,7 +221,178 @@ mod transport {
                         skipped: !timed.started,
                     }
                 })
-                .collect()
+                .collect();
+            self.receipts.extend(receipts);
+            outcomes
+        }
+
+        /// Checks every answer's signature, then attests each signer's key: its servers' TDX
+        /// quotes against Intel's collateral, bound to a nonce made here, and their GPU evidence
+        /// with NVIDIA's service. See `bakeoff_evaluator::attestation`.
+        fn attest(&mut self, binding: [u8; 32], limit: Duration) -> Result<ModelTee, String> {
+            let deadline = Instant::now() + limit;
+            let random: [u8; 32] = wasi::random::random::get_random_bytes(32)
+                .try_into()
+                .map_err(|_| "no randomness for the nonce")?;
+            let nonce = attestation::nonce(&binding, &random);
+            let origin = self.origin().to_string();
+            let answers = self.receipts.len() as u32;
+
+            // 1. Every answer's signature, from the key that signed it.
+            let signed: Vec<&Receipt> = self.receipts.iter().flatten().collect();
+            let urls: Vec<String> = signed
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{origin}/v1/signature/{}?model={}&signing_algo=ecdsa",
+                        r.chat_id, r.model
+                    )
+                })
+                .collect();
+            eprintln!("model attestation: checking {} signatures", urls.len());
+            let mut signers: BTreeMap<(String, [u8; 20]), u32> = BTreeMap::new();
+            let mut first_error = None;
+            for (receipt, timed) in signed.iter().zip(self.get_all(&urls, deadline, true)) {
+                let checked = ok_body(timed, "signature")
+                    .and_then(|r| {
+                        serde_json::from_slice(&r.body)
+                            .map_err(|_| "signature: malformed".to_string())
+                    })
+                    .and_then(|answer| attestation::check_signature(receipt, &answer));
+                match checked {
+                    Ok(signer) => *signers.entry((receipt.model.clone(), signer)).or_default() += 1,
+                    Err(e) => {
+                        first_error.get_or_insert(e);
+                    }
+                }
+            }
+            if let Some(e) = &first_error {
+                eprintln!("model attestation: an answer's signature did not check out: {e}");
+            }
+            if signers.is_empty() {
+                return Err(first_error.unwrap_or_else(|| "no answer to attest".into()));
+            }
+
+            // 2. Each signer's key, attested by its servers with this run's nonce.
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map_err(|_| "the clock is before 1970")?
+                .as_secs();
+            let mut tdx: Option<String> = None;
+            let mut collaterals: BTreeMap<String, dcap_qvl::QuoteCollateralV3> = BTreeMap::new();
+            for (model, signer) in signers.keys() {
+                let address = attestation::address_hex(signer);
+                let url = format!(
+                    "{origin}/v1/attestation/report?model={model}&nonce={}&signing_algo=ecdsa&signing_address={address}",
+                    hex::encode(nonce)
+                );
+                eprintln!("model attestation: {} of {model}'s answers signed by {address}; fetching its attestation", signers[&(model.clone(), *signer)]);
+                let response = ok_body(
+                    self.get_all(&[url], deadline, true).remove(0),
+                    "attestation report",
+                )?;
+                let report: attestation::Report = serde_json::from_slice(&response.body)
+                    .map_err(|e| format!("attestation report: {e}"))?;
+                // Every server holding the key binds it the same way; as NEAR AI's own chat
+                // verifier does, one genuine quote that binds it shows the key lives in an attested
+                // TEE. Verifying a quote in WebAssembly takes a few hundred million instructions,
+                // so checking them all would not fit OutLayer's limit of a billion per run.
+                let servers = attestation::servers_for(&report, signer);
+                eprintln!(
+                    "model attestation: {} servers hold the key ({} KB report); checking the first",
+                    servers.len(),
+                    response.body.len() / 1024
+                );
+                let servers = &servers[..servers.len().min(1)];
+                if servers.is_empty() {
+                    return Err(format!("no server attests {address} for {model}"));
+                }
+                for server in servers {
+                    let quote = server.quote()?;
+                    let urls = attestation::collateral_urls(&quote)?;
+                    let key = urls[..2].join(" ");
+                    if !collaterals.contains_key(&key) {
+                        let mut fetched = self.get_all(&urls, deadline, false).into_iter();
+                        let mut next = |what: &str| {
+                            ok_body(fetched.next().expect("one response per URL"), what)
+                        };
+                        let (pck, tcb, qe, root) = (
+                            next("PCK CRL")?,
+                            next("TCB info")?,
+                            next("QE identity")?,
+                            next("root CA CRL")?,
+                        );
+                        let collateral = attestation::collateral_from(
+                            Fetched {
+                                body: &pck.body,
+                                header: &|name: &str| pck.header(name),
+                            },
+                            Fetched {
+                                body: &tcb.body,
+                                header: &|name: &str| tcb.header(name),
+                            },
+                            Fetched {
+                                body: &qe.body,
+                                header: &|name: &str| qe.header(name),
+                            },
+                            &root.body,
+                        )?;
+                        collaterals.insert(key.clone(), collateral);
+                    }
+                    let status = attestation::check_quote(
+                        &quote,
+                        &collaterals[&key],
+                        now,
+                        signer,
+                        &nonce,
+                        server.app_compose().as_deref(),
+                    )?;
+                    tdx = Some(match tdx {
+                        Some(worst) => attestation::least_current(&worst, &status),
+                        None => status,
+                    });
+                    attestation::check_gpu_nonce(&server.nvidia_payload, &nonce)?;
+                }
+                eprintln!(
+                    "model attestation: TDX quotes verified ({}); asking NVIDIA about the GPUs",
+                    tdx.as_deref().unwrap_or("-")
+                );
+                // NVIDIA's service, for every server's GPU evidence at once.
+                let json = [("content-type", "application/json")];
+                let posts: Vec<HttpRequest<'_>> = servers
+                    .iter()
+                    .map(|server| HttpRequest {
+                        verb: Verb::Post,
+                        url: attestation::NVIDIA_NRAS,
+                        headers: &json,
+                        body: server.nvidia_payload.clone().into_bytes(),
+                    })
+                    .collect();
+                for timed in wasi_http::send_all(
+                    &posts,
+                    self.timeouts,
+                    ATTESTATION_IN_FLIGHT,
+                    remaining(deadline),
+                ) {
+                    let reply = ok_body(timed, "NVIDIA attestation")?;
+                    if !attestation::nras_verdict(&reply.body)? {
+                        return Err(format!(
+                            "NVIDIA did not accept the GPU evidence for {address}"
+                        ));
+                    }
+                }
+            }
+
+            let listed: BTreeSet<String> = signers
+                .keys()
+                .map(|(_, signer)| attestation::address_hex(signer))
+                .collect();
+            Ok(ModelTee {
+                signed: signers.values().sum(),
+                answers,
+                signers: listed.into_iter().collect(),
+                tdx: tdx.unwrap_or_default(),
+            })
         }
     }
 }
