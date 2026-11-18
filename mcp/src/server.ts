@@ -34,7 +34,7 @@ const CANDIDATE_FORMAT = {
 };
 
 const HOW_TO_WIN = [
-  "The earliest submission that passes every gate, sent while the challenge is open by anyone but its owner, wins the whole bounty, paid by the contract. Results count in the order they were submitted, so a pass whose verdict arrives early waits for earlier submissions to settle.",
+  "The earliest submission that passes every gate, sent while the challenge is open by anyone but its owner, wins the bounty, paid by the contract, less any service_fee the challenge shows. Results count in the order they were submitted, so a pass whose verdict arrives early waits for earlier submissions to settle.",
   "An answer needs category, priority and a summary of at least three words; replies without one count as wrong.",
   "A summary that repeats a payment card number from the ticket is a leak, and any leak fails the challenge.",
   "Score candidates on the practice set first: it uses the same evaluator build and rules as the sealed run. Sealed scores have run a few points below practice ones.",
@@ -50,6 +50,18 @@ function failure(error: unknown): CallToolResult {
   return { isError: true, content: [{ type: "text", text: (error as Error).message ?? String(error) }] };
 }
 
+/** The challenge's service fee, and what a winner of the current bounty would receive after it. */
+function serviceFee(view: ChallengeView) {
+  const fee = view.service_fee;
+  if (!fee) return undefined;
+  const bounty = BigInt(view.award?.amount ?? view.bounty);
+  return {
+    account: fee.account,
+    percent: Number((fee.bps / 100).toFixed(2)),
+    winner_receives: formatNear(String(bounty - (bounty * BigInt(fee.bps)) / 10_000n)),
+  };
+}
+
 function summary(id: string, view: ChallengeView, now: number) {
   const rules = JSON.parse(view.rules_json) as { gates?: unknown };
   const open = view.status === "Open" && (view.closes_at === null || BigInt(now) * 1_000_000n < BigInt(view.closes_at));
@@ -63,6 +75,7 @@ function summary(id: string, view: ChallengeView, now: number) {
     evaluations: view.evaluations,
     pending: view.pending,
     pays_into_intents: Boolean(view.intents),
+    ...(view.service_fee ? { service_fee: serviceFee(view) } : {}),
     award: view.award && {
       evaluation: view.award.evaluation,
       winner: view.award.winner,
@@ -70,6 +83,7 @@ function summary(id: string, view: ChallengeView, now: number) {
       paid: view.award.paid,
       payout: view.award.payout ?? "Near",
       ...(view.award.to_intents && view.award.to_intents !== "0" ? { into_intents: formatNear(view.award.to_intents) } : {}),
+      ...(view.award.service_fee && view.award.service_fee !== "0" ? { service_fee: formatNear(view.award.service_fee) } : {}),
       ...(!view.award.paid && !view.award.in_flight ? { owed: "anyone may send it with claim_award" } : {}),
     },
   };
@@ -330,6 +344,7 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
           ...(award.to_intents ? { to_intents: formatNear(award.to_intents) } : {}),
           ...(award.fee ? { fee: formatNear(award.fee) } : {}),
           ...(award.wrapped ? { wrapped: formatNear(award.wrapped) } : {}),
+          ...(award.service_fee ? { service_fee: formatNear(award.service_fee) } : {}),
         });
       } catch (error) {
         return failure(error);

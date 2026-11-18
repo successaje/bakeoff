@@ -23,6 +23,9 @@ export interface Award {
   fee?: string;
   /** yoctoNEAR of wNEAR the Intents verifier refused, owed to the winner as NEAR. */
   wrapped?: string;
+  /** yoctoNEAR of `amount` taken as the service fee; absent on challenges deployed before fees. */
+  service_fee?: string;
+  service_fee_sent?: boolean;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -46,6 +49,8 @@ export interface ChallengeView {
   award: Award | null;
   /** Where winners may be paid into NEAR Intents; absent or null where they cannot. */
   intents?: { wrap: string; verifier: string } | null;
+  /** A share of a won bounty, in basis points, paid to `account`; absent or null where there is none. */
+  service_fee?: { account: string; bps: number } | null;
 }
 
 /** One entry of `get_evaluations` as the contract returns it. */
