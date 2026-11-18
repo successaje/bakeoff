@@ -15,7 +15,7 @@ import { Account, CodeBlock, CopyButton, DemoBadge, SelfListedBadge, DemoNotice,
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
 import { enclaveBaseline } from "../lib/baseline.ts";
-import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
+import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, requiresModelAttestation, verdictMetrics, verdictModelTee } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
 import { rewardText } from "../lib/payout.ts";
@@ -114,6 +114,32 @@ function Solution({ submission, error, loading, configSha }: { submission: Submi
 }
 
 /** Says which baseline the comparison uses, and what the enclave measured for the same agent. */
+/**
+ * Where the rules require attested model answers: what the evaluator checked inside the enclave.
+ * Every answer's NEAR AI signature, over the exact request and response, recovered to a key that
+ * a TDX quote and GPU evidence bound to a nonce the run made.
+ */
+function ModelAnswers({ e, required }: { e: EvaluationView; required: boolean }) {
+  const tee = verdictModelTee(e);
+  if (!required && !tee) return null;
+  if (!tee) {
+    return (
+      <div><dt>Model answers</dt><dd><span className="met no"><Close /> Not shown to come from attested TEEs</span><span className="muted small">The rules require every answer to be signed in NEAR AI Cloud's attested TEEs. This run's could not be shown to be, so it cannot pass.</span></dd></div>
+    );
+  }
+  const all = tee.signed === tee.answers;
+  return (
+    <div>
+      <dt>Model answers</dt>
+      <dd>
+        {all ? <span className="met yes"><Check /> {tee.answers} of {tee.answers} signed in NEAR AI Cloud's attested TEEs</span> : <span className="met no"><Close /> {tee.signed} of {tee.answers} signed in attested TEEs</span>}
+        {tee.signers.map((signer) => <span key={signer} className="mono break small">{signer}</span>)}
+        <span className="muted small">Checked inside the enclave: each answer's signature covers the exact request and response, and recovers to this key. NEAR AI's Intel TDX quote binds the key and a nonce made for this run (Intel status: {tee.tdx}), and NVIDIA's attestation service accepted the GPU evidence for the same nonce.</span>
+      </dd>
+    </div>
+  );
+}
+
 function MeasuredBaseline({ id, detail }: { id: string; detail: { listing: Parameters<typeof enclaveBaseline>[0]; view: { owner: string }; evaluations: EvaluationView[] } }) {
   const { listing } = detail;
   const measured = enclaveBaseline(listing, detail.view, detail.evaluations);
@@ -312,6 +338,7 @@ export function Result() {
               <div><dt>Hidden test set</dt><dd><span className="mono break small">{verdict.test_set_sha256}</span>{verdict.test_set_sha256 === view.test_set_sha256 ? <span className="met yes"><Check /> The challenge's commitment</span> : <span className="met no"><Close /> Not the challenge's commitment</span>}</dd></div>
             )}
             <div><dt>Evaluator build</dt><dd><span className="mono break small">{view.evaluator.sha256}</span><span className="muted small">Pinned by the challenge; check it on the challenge page.</span></dd></div>
+            <ModelAnswers e={e} required={requiresModelAttestation(view)} />
             <div><dt>Requested</dt><dd>{utc(requested)}</dd></div>
             <div><dt>Recorded</dt><dd>{settled ? utc(settled) : "Not yet"}</dd></div>
           </dl>
