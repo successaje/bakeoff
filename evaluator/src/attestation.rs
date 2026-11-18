@@ -36,7 +36,7 @@ pub const NVIDIA_NRAS: &str = "https://nras.attestation.nvidia.com/v3/attest/gpu
 
 /// What the verdict says about the TEEs that answered. Kept small: the verdict's whole budget is
 /// under a kilobyte.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ModelTee {
     /// Answers whose signature checked out against an attested key.
     pub signed: u32,
@@ -44,10 +44,9 @@ pub struct ModelTee {
     pub answers: u32,
     /// The attested signing addresses, `0x` and 40 hex digits.
     pub signers: Vec<String>,
-    /// Intel's TCB status for the TDX quotes, the least current one if they differ.
+    /// Intel's TCB status for the TDX quotes, the least current one if they differ. Every
+    /// signer's servers also passed the GPU check; a run where any check fails has no summary.
     pub tdx: String,
-    /// Every attested server's GPU evidence carried the nonce and passed NVIDIA's service.
-    pub gpu: bool,
 }
 
 /// One scored answer: what the provider must have signed.

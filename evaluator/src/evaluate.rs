@@ -1,5 +1,6 @@
 //! Runs a candidate over a ticket set and judges the result against the gates.
 
+use crate::attestation::ModelTee;
 use crate::digest::sha256_hex;
 use crate::grading::{contains_card_number, parse_answer, Answer};
 use crate::model::{CandidateConfig, Rules, Ticket};
@@ -77,6 +78,14 @@ pub trait ChatClient {
         limit: Duration,
         max_in_flight: usize,
     ) -> Vec<ChatOutcome>;
+
+    /// Shows that every answer `complete_all` returned came from the provider's attested TEEs,
+    /// within `limit`. `binding` ties the attestation nonce to this evaluation. An error means
+    /// the run cannot show it; its text goes to the worker's log, never the verdict.
+    fn attest(&mut self, binding: [u8; 32], limit: Duration) -> Result<ModelTee, String> {
+        let _ = (binding, limit);
+        Err("this transport cannot check model attestation".into())
+    }
 }
 
 pub trait Clock {
@@ -152,8 +161,43 @@ pub fn evaluate_request(
     }
 
     let run = run_tickets(&rules, &config, &tickets, client, clock);
-    let reasons = judge(&rules, &run);
-    Verdict::scored(reasons, run.metrics, digests)
+    let mut reasons = judge(&rules, &run);
+    let mut model_tee = None;
+    if rules.model_attestation.is_some() && !run.timed_out && run.metrics.completed > 0 {
+        let binding = sha256_bytes(
+            format!(
+                "{}{}{}",
+                digests.rules_sha256, digests.config_sha256, digests.test_set_sha256
+            )
+            .as_bytes(),
+        );
+        match client.attest(
+            binding,
+            Duration::from_millis(policy::ATTESTATION_BUDGET_MS),
+        ) {
+            Ok(tee) if tee.answers > 0 && tee.signed == tee.answers => model_tee = Some(tee),
+            Ok(tee) => {
+                eprintln!(
+                    "model attestation: {} of {} answers signed by an attested key",
+                    tee.signed, tee.answers
+                );
+                reasons.push(Reason::ModelUnattested);
+                model_tee = Some(tee);
+            }
+            Err(e) => {
+                eprintln!("model attestation failed: {e}");
+                reasons.push(Reason::ModelUnattested);
+            }
+        }
+    }
+    let mut verdict = Verdict::scored(reasons, run.metrics, digests);
+    verdict.model_tee = model_tee;
+    verdict
+}
+
+fn sha256_bytes(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).into()
 }
 
 struct Run {
@@ -503,6 +547,9 @@ mod tests {
         leak_card: bool,
         omit_summary: bool,
         fail_model: Option<&'static str>,
+        /// What `attest` answers, and what it was asked.
+        attestation: Result<ModelTee, String>,
+        attested: Vec<([u8; 32], Duration)>,
     }
 
     impl ScriptedClient {
@@ -515,6 +562,8 @@ mod tests {
                 leak_card: false,
                 omit_summary: false,
                 fail_model: None,
+                attestation: Err("not scripted".into()),
+                attested: Vec::new(),
             }
         }
 
@@ -598,6 +647,130 @@ mod tests {
             self.now.set(self.now.get() + finished);
             outcomes
         }
+
+        fn attest(&mut self, binding: [u8; 32], limit: Duration) -> Result<ModelTee, String> {
+            self.attested.push((binding, limit));
+            self.attestation.clone()
+        }
+    }
+
+    fn tee(signed: u32, answers: u32) -> ModelTee {
+        ModelTee {
+            signed,
+            answers,
+            signers: vec![format!("0x{}", "3b".repeat(20))],
+            tdx: "UpToDate".into(),
+        }
+    }
+
+    fn attested_rules() -> String {
+        RULES.replace(
+            "\"time_budget_ms\": 60000",
+            "\"time_budget_ms\": 60000, \"model_attestation\": \"near-ai-cloud\"",
+        )
+    }
+
+    #[test]
+    fn a_pass_with_every_answer_attested_carries_the_tees_that_signed_it() {
+        let (mut client, clock) = setup();
+        client.attestation = Ok(tee(5, 5));
+        let v = evaluate_request(
+            &attested_rules(),
+            ROUTED,
+            Some(TICKETS),
+            &mut client,
+            &clock,
+        );
+        assert!(v.passed, "{v:?}");
+        assert_eq!(v.model_tee, Some(tee(5, 5)));
+        let (binding, limit) = client.attested[0];
+        assert_eq!(limit, Duration::from_millis(policy::ATTESTATION_BUDGET_MS));
+        // The nonce is tied to exactly what was scored.
+        let other = evaluate_request(
+            &attested_rules(),
+            r#"{"version":1,"model":"large","system_prompt":"Triage."}"#,
+            Some(TICKETS),
+            &mut client,
+            &clock,
+        );
+        assert_ne!(client.attested[1].0, binding);
+        assert!(other.reasons.contains(&Reason::GateCost));
+    }
+
+    #[test]
+    fn an_answer_without_an_attested_signature_fails_the_run() {
+        let (mut client, clock) = setup();
+        client.attestation = Ok(tee(4, 5));
+        let v = evaluate_request(
+            &attested_rules(),
+            ROUTED,
+            Some(TICKETS),
+            &mut client,
+            &clock,
+        );
+        assert_eq!(v.reasons, vec![Reason::ModelUnattested]);
+        assert_eq!(v.model_tee, Some(tee(4, 5)));
+    }
+
+    #[test]
+    fn an_attestation_that_does_not_check_out_fails_the_run_without_detail() {
+        let (mut client, clock) = setup();
+        client.attestation = Err("the quote's report data does not hold this run's nonce".into());
+        let v = evaluate_request(
+            &attested_rules(),
+            ROUTED,
+            Some(TICKETS),
+            &mut client,
+            &clock,
+        );
+        assert_eq!(v.reasons, vec![Reason::ModelUnattested]);
+        assert_eq!(v.model_tee, None);
+        assert!(!v.to_json().contains("nonce"));
+    }
+
+    #[test]
+    fn rules_without_attestation_never_ask_for_it() {
+        let (mut client, clock) = setup();
+        let v = evaluate(ROUTED, &mut client, &clock);
+        assert!(v.passed && v.model_tee.is_none());
+        assert!(client.attested.is_empty());
+        assert!(!v.to_json().contains("model_tee"));
+    }
+
+    #[test]
+    fn attested_test_sets_are_bounded_by_the_instructions_their_checks_take() {
+        let (mut client, clock) = setup();
+        client.attestation = Ok(tee(251, 251));
+        let tickets: Vec<serde_json::Value> = (0..251)
+            .map(|i| serde_json::json!({"id": i.to_string(), "text": "Parcel is late", "label": {"category": "shipping", "priority": "high"}}))
+            .collect();
+        let tickets = serde_json::to_string(&tickets).unwrap();
+        let v = evaluate_request(
+            &attested_rules(),
+            ROUTED,
+            Some(&tickets),
+            &mut client,
+            &clock,
+        );
+        assert_eq!(v.reasons, vec![Reason::TestSetInvalid]);
+        let v = evaluate_request(RULES, ROUTED, Some(&tickets), &mut client, &clock);
+        assert_ne!(v.reasons, vec![Reason::TestSetInvalid]);
+    }
+
+    #[test]
+    fn attestation_must_fit_beside_the_runs_own_budget() {
+        let (mut client, clock) = setup();
+        let rules =
+            attested_rules().replace("\"time_budget_ms\": 60000", "\"time_budget_ms\": 90000");
+        let v = evaluate_request(&rules, ROUTED, Some(TICKETS), &mut client, &clock);
+        assert_eq!(v.reasons, vec![Reason::RulesInvalid]);
+        assert!(v.detail.unwrap().contains("attestation"));
+        let plain = attested_rules().replace(
+            "https://cloud-api.near.ai/v1/chat/completions",
+            "http://127.0.0.1:8080/chat",
+        );
+        let v = evaluate_request(&plain, ROUTED, Some(TICKETS), &mut client, &clock);
+        assert_eq!(v.reasons, vec![Reason::RulesInvalid]);
     }
 
     fn setup() -> (ScriptedClient, FakeClock) {

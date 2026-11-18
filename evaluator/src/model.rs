@@ -45,6 +45,19 @@ pub struct Rules {
     /// because some models reject the parameter.
     #[serde(default)]
     pub temperature: Option<f64>,
+    /// Requires every answer to come from an attested TEE of this provider, checked after the
+    /// run (see `attestation`). A result that cannot show it fails with `model_unattested`.
+    #[serde(default)]
+    pub model_attestation: Option<ModelAttestation>,
+}
+
+/// Whose TEE attestation the evaluator checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub enum ModelAttestation {
+    /// NEAR AI Cloud: per-answer ECDSA signatures from keys its Intel TDX and NVIDIA GPU
+    /// attestation binds.
+    #[serde(rename = "near-ai-cloud")]
+    NearAiCloud,
 }
 
 /// Model price in US dollars per million tokens.
