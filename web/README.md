@@ -104,6 +104,10 @@ On a challenge that can pay into NEAR Intents, the Rules and Take part tabs say 
 
 Awards on contracts deployed before Intents payouts carry none of the new fields and read as before.
 
+### Service fees
+
+A challenge deployed with a service fee shows it before anyone submits: the sidebar's Reward gives what the winner receives after it, and the Rules tab names the fee's account and says it is fixed. Once a result wins, the result page notes the fee taken and whether it has been sent. `SERVICE_FEE` in [`src/lib/deploy.ts`](src/lib/deploy.ts) adds a fee to challenges deployed from the board; none is set, and the contract the board serves must be one that takes a fee before it is.
+
 ## Run it
 
 ```bash

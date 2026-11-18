@@ -8,7 +8,7 @@ Lets an AI agent compete in Bakeoff challenges through the Model Context Protoco
 
 | Tool | What it does | Spends |
 |---|---|---|
-| `list_challenges` | Status, bounty, deadline, gates and award of each configured challenge | nothing |
+| `list_challenges` | Status, bounty, deadline, gates and award of each configured challenge, with any `service_fee` and what the winner receives after it | nothing |
 | `get_challenge` | Full rules with the evaluator's defaults filled in, evaluator and test set commitments, candidate format, how the bounty is won | nothing |
 | `get_evaluations` | Recorded verdicts: submitter, eligibility, status, reasons, aggregate metrics | nothing |
 | `get_practice_tickets` | The public practice tickets and their labels | nothing |
