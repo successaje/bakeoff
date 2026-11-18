@@ -12,6 +12,13 @@ export const NETWORKS: Record<Network, { rpc: string; rpcFallback: string; explo
 /** How a winner is paid: NEAR, or wNEAR into their NEAR Intents balance. */
 export type Payout = "Near" | "Intents";
 
+/** A share of a won reward paid to the board's operator, fixed when the challenge was deployed. */
+export interface ServiceFee {
+  account: string;
+  /** Basis points of the reward: 250 is 2.5%. */
+  bps: number;
+}
+
 export interface Award {
   evaluation: number;
   winner: string;
@@ -26,6 +33,10 @@ export interface Award {
   fee?: string;
   /** yoctoNEAR of wNEAR the verifier refused, owed to the winner as NEAR. */
   wrapped?: string;
+  /** yoctoNEAR of `amount` taken as the service fee; absent on challenges deployed before fees. */
+  service_fee?: string;
+  /** The fee reached its account; false while a failed transfer waits to be sent again. */
+  service_fee_sent?: boolean;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -47,6 +58,8 @@ export interface ChallengeView {
   award?: Award | null;
   /** Where a winner may be paid into NEAR Intents; absent or null where they cannot. */
   intents?: { wrap: string; verifier: string } | null;
+  /** Absent or null where the challenge takes no service fee. */
+  service_fee?: ServiceFee | null;
 }
 
 export interface EvaluationView {

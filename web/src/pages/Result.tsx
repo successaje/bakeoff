@@ -56,7 +56,7 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
       {won && award ? (
         <>
           <strong className="bounty-amount amber">{formatNear(award.amount)}</strong>
-          <RewardState award={award} />
+          <RewardState award={award} serviceFee={detail.view.service_fee} />
           <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
         </>
       ) : (
@@ -72,8 +72,8 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
   );
 }
 
-function RewardState({ award }: { award: NonNullable<ChallengeDetail["view"]["award"]> }) {
-  const { done, text, note } = rewardText(award);
+function RewardState({ award, serviceFee }: { award: NonNullable<ChallengeDetail["view"]["award"]>; serviceFee?: ChallengeDetail["view"]["service_fee"] }) {
+  const { done, text, note } = rewardText(award, serviceFee);
   return (
     <>
       <p className={`reward-state ${done ? "ok" : "pending"}`}>{done ? <Check /> : <Timer />} {text}</p>

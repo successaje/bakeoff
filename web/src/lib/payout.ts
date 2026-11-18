@@ -5,7 +5,7 @@
  * Intents verifier refuses comes back to the contract and is paid as NEAR.
  */
 
-import { type Award, formatNear } from "./near.ts";
+import { type Award, formatNear, type ServiceFee } from "./near.ts";
 
 export type AwardStage =
   /** `intents` went into NEAR Intents, `near` as NEAR, and `fee` to registering with wrap.near. */
@@ -18,10 +18,19 @@ export type AwardStage =
 
 const yocto = (value?: string) => BigInt(value ?? "0");
 
+/** 250 basis points as "2.5%". */
+export const feePercent = (bps: number) => `${Number((bps / 100).toFixed(2))}%`;
+
+/** How a reward of `amount` yoctoNEAR splits between the service fee and the winner, rounded as the contract rounds. */
+export function splitReward(amount: bigint, fee: ServiceFee | null | undefined): { fee: bigint; winner: bigint } {
+  const cut = fee ? (amount * BigInt(fee.bps)) / 10_000n : 0n;
+  return { fee: cut, winner: amount - cut };
+}
+
 export function awardStage(award: Award): AwardStage {
   const intents = yocto(award.to_intents);
   const fee = yocto(award.fee);
-  const rest = yocto(award.amount) - intents - fee;
+  const rest = yocto(award.amount) - yocto(award.service_fee) - intents - fee;
   if (award.paid) return { stage: "paid", intents, near: rest, fee };
   if (award.in_flight) return { stage: "sending", intents: award.payout === "Intents" };
   if (award.payout === "Intents") return { stage: "to-intents", amount: rest };
@@ -38,8 +47,17 @@ export function claimTgas(award: Award): bigint {
   return yocto(award.wrapped) > 0n ? 100n : 50n;
 }
 
-/** What the result page says about a won reward. */
-export function rewardText(award: Award): { done: boolean; text: string; note?: string } {
+/** What the result page says about a won reward. `serviceFee` is the challenge's, to name its account. */
+export function rewardText(award: Award, serviceFee?: ServiceFee | null): { done: boolean; text: string; note?: string } {
+  const text = rewardStateText(award);
+  const cut = yocto(award.service_fee);
+  if (cut === 0n) return text;
+  const pending = award.service_fee_sent === false ? ", still to be sent" : "";
+  const fee = `${formatNear(cut)} of the ${formatNear(award.amount)} is the ${serviceFee ? `${feePercent(serviceFee.bps)} ` : ""}service fee${serviceFee ? `, for ${serviceFee.account}` : ""}${pending}.`;
+  return { ...text, note: text.note ? `${fee} ${text.note}` : fee };
+}
+
+function rewardStateText(award: Award): { done: boolean; text: string; note?: string } {
   const s = awardStage(award);
   const registration = (fee: bigint) => `${formatNear(fee)} went to registering the contract with the wNEAR token.`;
   switch (s.stage) {

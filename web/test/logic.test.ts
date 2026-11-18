@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { acceptingSubmissions, type ChallengeView, formatNear, isMissingAccount, NearRpc, parseNear, sha256Hex, verdictMetrics } from "../src/lib/near.ts";
 import { OneClick, quoteRequest, WNEAR_ASSET } from "../src/lib/oneclick.ts";
-import { awardStage, claimTgas, rewardText } from "../src/lib/payout.ts";
+import { awardStage, claimTgas, feePercent, rewardText, splitReward } from "../src/lib/payout.ts";
 import * as tx from "../src/lib/transactions.ts";
 
 test("NEAR amounts parse exactly and refuse anything else", () => {
@@ -246,4 +246,27 @@ test("a won reward's stage follows the contract's Intents payout fields", () => 
   assert.equal(rewardText(split).text, "Paid: 1 NEAR into NEAR Intents and 3.99875 NEAR as NEAR");
 
   assert.equal(tx.claimAward("c.near", 200n).actions[0]!.params.gas, String(200n * 10n ** 12n));
+});
+
+test("a service fee comes out of the reward before the winner is paid", () => {
+  const NEAR = 10n ** 24n;
+  const fee = { account: "board.near", bps: 250 };
+  assert.equal(feePercent(250), "2.5%");
+  assert.equal(feePercent(1_000), "10%");
+  assert.equal(feePercent(1), "0.01%");
+  assert.deepEqual(splitReward(5n * NEAR, fee), { fee: 125n * 10n ** 21n, winner: 4_875n * 10n ** 21n });
+  assert.deepEqual(splitReward(10_039n, fee), { fee: 250n, winner: 9_789n });
+  assert.deepEqual(splitReward(5n * NEAR, null), { fee: 0n, winner: 5n * NEAR });
+
+  const won = { evaluation: 1, winner: "w.near", amount: String(5n * NEAR), paid: false, in_flight: false, payout: "Near" as const, to_intents: "0", fee: "0", wrapped: "0", service_fee: String(125n * 10n ** 21n), service_fee_sent: true };
+  assert.deepEqual(awardStage(won), { stage: "owed", amount: 4_875n * 10n ** 21n, refused: false });
+  const paid = rewardText({ ...won, paid: true }, fee);
+  assert.equal(paid.text, "Paid by the contract with this result");
+  assert.equal(paid.note, "0.125 NEAR of the 5 NEAR is the 2.5% service fee, for board.near.");
+  assert.match(rewardText({ ...won, paid: true, service_fee_sent: false }, fee).note ?? "", /still to be sent\.$/);
+  // Into NEAR Intents: the deposit is the reward less the fee and the registration.
+  const registration = 1_250_000_000_000_000_000_000n;
+  const intents = { ...won, payout: "Intents" as const, paid: true, to_intents: String(4_875n * 10n ** 21n - registration), fee: String(registration) };
+  assert.deepEqual(awardStage(intents), { stage: "paid", intents: 4_875n * 10n ** 21n - registration, near: 0n, fee: registration });
+  assert.match(rewardText(intents, fee).note ?? "", /^0\.125 NEAR of the 5 NEAR is the 2\.5% service fee, for board\.near\. 0\.00125 NEAR went to registering/);
 });
