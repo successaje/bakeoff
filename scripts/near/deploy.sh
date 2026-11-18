@@ -12,7 +12,7 @@
 #   - `outlayer login <network>` completed for the same account
 #
 # Environment overrides: RULES_FILE, TEST_SET_FILE, CHALLENGE_NAME, CHALLENGE_BALANCE,
-# INTENTS (see below)
+# INTENTS and SERVICE_FEE (see below)
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
 
@@ -34,6 +34,16 @@ case "${INTENTS:-}" in
   "") if [ "$NETWORK" = mainnet ]; then INTENTS_ROUTE=wrap.near,intents.near; else INTENTS_ROUTE=; fi ;;
   *,*) INTENTS_ROUTE="$INTENTS" ;;
   *) echo "INTENTS must be none or <wnear>,<verifier>" >&2; exit 1 ;;
+esac
+
+# A share of a won bounty for whoever runs the board, as SERVICE_FEE=<account>:<basis points>,
+# e.g. board.near:250 for 2.5%; at most 1000 (10%). It is fixed once deployed, shown on the
+# challenge page, and taken only when someone wins. None by default.
+case "${SERVICE_FEE:-}" in
+  "") ;;
+  *:*) [[ "${SERVICE_FEE#*:}" =~ ^[0-9]+$ ]] && [ "${SERVICE_FEE#*:}" -ge 1 ] && [ "${SERVICE_FEE#*:}" -le 1000 ] \
+    || { echo "SERVICE_FEE's basis points must be 1 to 1000" >&2; exit 1; } ;;
+  *) echo "SERVICE_FEE must be <account>:<basis points>, e.g. board.near:250" >&2; exit 1 ;;
 esac
 
 for tool in near outlayer cargo python3; do
@@ -62,10 +72,11 @@ CONTRACT_WASM=target/near/bakeoff_contract.wasm
 # variables commonly lose them, and the evaluator hashes what it receives.
 TEST_SET_SHA256=$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], encoding="utf-8").read().rstrip("\n").encode()).hexdigest())' "$TEST_SET_FILE")
 INIT_ARGS=$(python3 -I - "$RULES_FILE" "$OUTLAYER" "$EVALUATOR_URL" "$EVALUATOR_SHA256" \
-  "$SECRETS_PROFILE" "$BAKEOFF_ACCOUNT" "$TEST_SET_SHA256" "$INTENTS_ROUTE" <<'EOF'
+  "$SECRETS_PROFILE" "$BAKEOFF_ACCOUNT" "$TEST_SET_SHA256" "$INTENTS_ROUTE" "${SERVICE_FEE:-}" <<'EOF'
 import json, sys
-rules, outlayer, url, sha, profile, owner, test_set_sha, route = sys.argv[1:]
+rules, outlayer, url, sha, profile, owner, test_set_sha, route, fee = sys.argv[1:]
 wrap, _, verifier = route.partition(",")
+fee_account, _, fee_bps = fee.rpartition(":")
 print(json.dumps({
     "owner": owner,
     "outlayer": outlayer,
@@ -74,6 +85,7 @@ print(json.dumps({
     "rules_json": open(rules, encoding="utf-8").read(),
     "test_set_sha256": test_set_sha,
     "intents": {"wrap": wrap, "verifier": verifier} if route else None,
+    "service_fee": {"account": fee_account, "bps": int(fee_bps)} if fee else None,
 }))
 EOF
 )
