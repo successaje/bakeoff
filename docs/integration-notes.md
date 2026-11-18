@@ -78,6 +78,30 @@ Not yet run on mainnet. A first mainnet test needs a challenge deployed from thi
 - Models owned by `nearai` are served from NEAR AI's attested TEE infrastructure. The live rules allow only confidential models: `z-ai/glm-5.3-flash`, `Qwen/Qwen3.6-35B-A3B-FP8` and `qwen/qwen3.5-397b-a17b`.
 - Some models accept no sampling parameters (for example `deepseek-ai/DeepSeek-V4.1-Flash-1017`), so `temperature` is optional in the rules and omitted when unset.
 
+## Attested model answers (2026-11-18)
+
+What NEAR AI Cloud returns, and what checking it costs, measured against `z-ai/glm-5.3-flash`.
+
+- **The report.** `GET /v1/attestation/report?model=…&nonce=…&signing_algo=ecdsa` needs no API key and returned 809 KB in 2.2 s, most of it NVIDIA evidence (about 98 KB per server). It listed three servers, each a separate TDX virtual machine with its own container setup, all holding the same signing key `0x3b753b4406613c5e70ae640508632b600424fa0c`.
+- **What binds what.** In each server's TDX quote (version 4, 5,006 bytes), the first 32 bytes of `report_data` are the signing address, zero-padded, and the last 32 the request's nonce. `mr_config_id` is `01` followed by the SHA-256 of `info.tcb_info.app_compose`, and the GPU evidence's `nonce` field is the same nonce. All of this held for all three servers.
+- **Signatures.** `GET /v1/signature/{chat_id}?model=…&signing_algo=ecdsa` takes the API key and answered in about 0.7 s. Its `text` was `model:sha256(request):sha256(response)`, and both hashes matched the exact bytes sent and received. The signature is Ethereum `personal_sign` (EIP-191), and it recovers to the attested address.
+- **Intel's collateral.** It comes from Intel's own service, `api.trustedservices.intel.com`: the PCK CRL, TCB info and QE identity with their issuer chains in headers, plus the root CA CRL. That was 9.9 KB for the platform `90C06F000000`, and the quote verified as `UpToDate`. dcap-qvl's own collateral client needs reqwest, which has no WASI build, so the evaluator ports its few requests onto its own HTTP client.
+- **Instructions in WebAssembly** (wasmtime's fuel meter, `wasm32-wasip2`):
+  - size-optimized (`opt-level = "z"`, the workspace default), one quote cost about 420 million instructions and one signature 18 million;
+  - with the elliptic-curve crates at `opt-level = 3`, about 290 million and 14.5 million;
+  - k256's precomputed tables made no difference.
+- **A whole run.** The 16-ticket sample with attestation required needed between 550 and 700 million instructions; the same candidate without it needed under 100 million. That came to 10.5 s, against 4.6 s without the check.
+- **The limit.** Checking all three servers' quotes ran out of a billion instructions, so the evaluator checks one server per key, as NEAR AI's chat verifier does. A 100-ticket attested run needs about 2 billion. OutLayer's `estimate_execution_cost` for 110 s and 128 MB:
+
+  | Instructions | Estimate |
+  |---|---|
+  | 1 billion | 0.0120001 NEAR |
+  | 10 billion | 0.012001 NEAR |
+  | 100 billion | 0.01201 NEAR |
+
+  The contract now asks for 10 billion, and attested test sets hold at most 250 tickets.
+- **Not yet run on OutLayer.** A worker must reach Intel's and NVIDIA's services as well as NEAR AI's. Until a sealed run shows that, the live rules don't require attestation. `examples/rules/near-ai-attested.json` does.
+
 ## Measured against NEAR AI Cloud (from a laptop, 16 sealed-sample tickets)
 
 All runs use GLM-5.3 Flash. The first run was sequential; the rest had 8 calls in flight.

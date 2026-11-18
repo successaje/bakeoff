@@ -57,7 +57,7 @@ const MAX_MEMORY_MB: u32 = 128;
 const MAX_EXECUTION_SECONDS: u64 = 110;
 
 const MAX_CONFIG_BYTES: usize = 16 * 1024;
-/// The evaluator's verdicts are under 900 bytes. A longer one is rejected
+/// The evaluator's verdicts are under 1,000 bytes. A longer one is rejected
 /// rather than stored, which keeps a record within what `RECORD_FEE` pays for.
 const MAX_VERDICT_BYTES: usize = 1024;
 /// Settled evaluations checked for the award in one call. Bounded so that a
