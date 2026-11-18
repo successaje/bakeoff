@@ -11,6 +11,7 @@ import { challengeGates } from "../lib/near.ts";
 import { Avatar } from "./art.tsx";
 import { Medal, STANDING } from "./board.tsx";
 import { reasonText, ResultsTable } from "./challenge.tsx";
+import { ResultsChart } from "./ResultsChart.tsx";
 import { ArrowRight, Search } from "./Icons.tsx";
 
 function Podium({ entries, challenge }: { entries: Entry[]; challenge: string }) {
@@ -86,7 +87,8 @@ export function ChallengeLeaderboard({ detail, highlight, children }: { detail: 
   const [query, setQuery] = useState("");
   const id = detail.listing.id;
   const award = detail.view.award;
-  const entries = rankBuilders(detail.evaluations, challengeGates(detail.view), award?.evaluation ?? null);
+  const gates = challengeGates(detail.view);
+  const entries = rankBuilders(detail.evaluations, gates, award?.evaluation ?? null);
   const q = query.trim().toLowerCase();
   const filtered = q ? entries.filter((e) => e.account.includes(q)) : entries;
   return (
@@ -105,6 +107,16 @@ export function ChallengeLeaderboard({ detail, highlight, children }: { detail: 
           ))}
         </div>
       </div>
+      <ResultsChart
+        challenge={id}
+        evaluations={detail.evaluations}
+        owner={detail.view.owner}
+        awarded={award?.evaluation ?? null}
+        gates={gates}
+        baseline={detail.listing.baseline}
+        match={q ? (account) => account.includes(q) : undefined}
+        onShowTable={() => setView("results")}
+      />
       <p className="muted small lb-note">
         {view === "builders"
           ? <>Ranked on the {detail.listing.tickets || ""} hidden tickets. Each builder appears once, with their best result. The earliest submission to meet every requirement wins the reward; the owner's trial runs are listed but never ranked.</>

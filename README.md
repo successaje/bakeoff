@@ -165,7 +165,7 @@ The board is live at [bakeoff-near.vercel.app](https://bakeoff-near.vercel.app),
 - **A page per challenge, in tabs:**
   - Overview: the problem today, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked;
   - Data: the public practice tickets, with a field dictionary taken from the on-chain rules and the spread of their labels;
-  - Leaderboard: each builder once by their best result, or every result as recorded;
+  - Leaderboard: a chart of every result by cost and accuracy, with the area that meets both requirements shaded and the baseline marked, then each builder once by their best result, or every result as recorded;
   - Rules: the requirements, how the reward is won, what a solution may change, and checks in the browser that the rules and the evaluator build match their on-chain hashes;
   - Take part: how to compete with the MCP server;
 - **A page per result:** each requirement against the result and the baseline, the solution's config found from its transaction and checked against its hash, the exact request to try it, its limits, and the evidence on-chain;
