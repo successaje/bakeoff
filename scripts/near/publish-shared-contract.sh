@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Publishes the challenge contract once as a NEAR global contract (NEP-591), by its code hash, so
-# new challenges reference it instead of storing their own 186 KB. Referenced by hash, the code a
+# new challenges reference it instead of storing their own 211 KB. Referenced by hash, the code a
 # challenge runs can never change, even by whoever published it. Publishing an already published
 # hash is skipped.
 #
-# It burns ten times the normal storage rate, once: about 18.6 NEAR for this contract (testnet
+# It burns ten times the normal storage rate, once: about 21.1 NEAR for this contract (testnet
 # NEAR on testnet). It publishes the build the board serves (web/public/contract), so challenges
 # deployed either way run the same code.
 #
