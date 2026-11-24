@@ -100,7 +100,11 @@ What NEAR AI Cloud returns, and what checking it costs, measured against `z-ai/g
   | 100 billion | 0.01201 NEAR |
 
   The contract now asks for 10 billion, and attested test sets hold at most 250 tickets.
-- **Not yet run on OutLayer.** A worker must reach Intel's and NVIDIA's services as well as NEAR AI's. Until a sealed run shows that, the live rules don't require attestation. `examples/rules/near-ai-attested.json` does.
+- **On OutLayer (2026-11-24).** Owner trial `few-shot-guided` on `challenge-20261118175408.finishr.testnet`, over the 16-ticket sealed sample.
+  - **Setup.** The rules are `examples/rules/near-ai-attested.json`. The evaluator is `c4d75cb7…`, 1.15 MB on FastFS. The contract is the reproducible build of `582f428`, code hash `FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7`, deployed locked (no access keys) in one transaction: create, fund 2.2 NEAR, deploy and `new`. `scripts/near/verify-contract.sh` rebuilt that commit from GitHub and matched the hash.
+  - **The worker reached every service.** NEAR AI's signatures and attestation report, Intel's collateral and NVIDIA's attestation service all answered. The verdict, 664 bytes, records `"model_tee":{"answers":16,"signed":16,"signers":["0x3b753b4406613c5e70ae640508632b600424fa0c"],"tdx":"UpToDate"}`: `Passed` at 87.5% accuracy and 72 µ$ per ticket.
+  - **Cost.** OutLayer's job log shows 539,580,955 instructions and 14.85 s of execution, after a 1.4 s compile. That is within the 550 to 700 million measured under wasmtime, and about half of the old 1 billion limit.
+  - **Timing.** 41.1 s from request to recorded verdict.
 
 ## Measured against NEAR AI Cloud (from a laptop, 16 sealed-sample tickets)
 
