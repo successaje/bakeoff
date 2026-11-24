@@ -21,22 +21,28 @@ import { sha256Hex } from "./near.ts";
 import type { Transaction } from "./transactions.ts";
 
 /**
- * The contract the board deploys: the same build as the testnet challenges opened since
- * 2026-11-13, whose accounts report this code hash. The board checks the bytes it serves
- * against it before asking the wallet to deploy them.
+ * The contract the board deploys: the reproducible build of commit 582f428, with service fees, the
+ * NEAR Intents payout and room for attested model answers. Its metadata names that commit, so
+ * scripts/near/verify-contract.sh can rebuild it and match a deployed copy, and it is the code
+ * challenge-20261118175408.finishr.testnet runs. The board checks the bytes it serves against
+ * this hash before asking the wallet to deploy them.
  */
 export const CONTRACT = {
   path: "contract/bakeoff_contract.wasm",
-  bytes: 186_518,
+  bytes: 211_306,
   /** NEAR's code hash: base58 of the SHA-256 of the code. */
-  codeHash: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU",
+  codeHash: "FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7",
 };
 
-/** The evaluator build every Bakeoff challenge pins, and where each network fetches it from. */
+/**
+ * The evaluator build a challenge deployed from the board pins, and where each network fetches it
+ * from. Testnet's checks NEAR AI Cloud's attestation where the rules ask for it; mainnet keeps the
+ * build its live round ran until that one is published there.
+ */
 export const EVALUATOR: Record<Network, { url: string; sha256: string }> = {
   testnet: {
-    url: "https://test.fastfs.io/finishr.testnet/outlayer.testnet/e168863655d99382a4ab5e6fd1d112d47cbfe57c827d44530610eddfab5e4081.wasm",
-    sha256: "e168863655d99382a4ab5e6fd1d112d47cbfe57c827d44530610eddfab5e4081",
+    url: "https://test.fastfs.io/finishr.testnet/outlayer.testnet/c4d75cb773a251f83a5f519c8bf496ba3933d75ee56ed985f45216d6da7e43b0.wasm",
+    sha256: "c4d75cb773a251f83a5f519c8bf496ba3933d75ee56ed985f45216d6da7e43b0",
   },
   mainnet: {
     url: "https://main.fastfs.io/bakeoff.near/outlayer.near/e168863655d99382a4ab5e6fd1d112d47cbfe57c827d44530610eddfab5e4081.wasm",
@@ -48,14 +54,15 @@ export const OUTLAYER_CONTRACT: Record<Network, string> = { testnet: "outlayer.t
 
 /**
  * Networks where the contract above is published once as a NEAR global contract (NEP-591), by its
- * code hash. A challenge there references that copy instead of storing its own 186 KB, so it
+ * code hash. A challenge there references that copy instead of storing its own 211 KB, so it
  * costs only its own state, and since it is referenced by hash, what it runs can never change.
- * scripts/near/publish-shared-contract.sh publishes it.
+ * scripts/near/publish-shared-contract.sh publishes it, burning about 21 NEAR once.
+ *
+ * None is published for this build yet. Testnet's copy, published on 2026-11-17 (HeXPDJmQ…), is
+ * the previous build, without service fees or source metadata, so the board deploys the code
+ * itself until this one is published.
  */
-export const SHARED_CONTRACT: Partial<Record<Network, string>> = {
-  // Published by finishr.testnet on 2026-11-17, tx EKgccR1AwGWt7UVJDRBWV8P52R4gBq9krUxzGDZc2vTm.
-  testnet: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU",
-};
+export const SHARED_CONTRACT: Partial<Record<Network, string>> = {};
 /** The OutLayer secrets profile scripts/near/store-secrets.sh writes to. */
 export const SECRETS_PROFILE = "bakeoff";
 
@@ -76,7 +83,7 @@ const CENT = 10n ** 22n;
 /**
  * NEAR to send the new account: storage for its code, rules and starting state, rounded up to
  * 0.01 NEAR. A locked account can never be deleted, so anything beyond what it stores stays with
- * it; this sends what it needs, about 1.9 NEAR, where deploy.sh sends 2.5.
+ * it; this sends what it needs, about 2.2 NEAR, where deploy.sh sends 2.5.
  */
 export function storageDeposit(codeBytes: number, rulesJson: string): bigint {
   const bytes = BigInt(codeBytes) + BigInt(new TextEncoder().encode(rulesJson).length) + STATE_ALLOWANCE_BYTES;

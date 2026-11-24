@@ -120,7 +120,7 @@ export function WalletDeploy({ network, owner, challenge, rulesJson, ready, onOw
 
       <p className="small text-2 deploy-terms"><Lock /> The account gets no keys, so it is locked from the start: nobody, you included, can change or delete it, and the {formatNear(deposit)} it stores stays with it. {shared
         ? <>It runs the shared Bakeoff contract published on {network}, referenced by its code hash ({shared.slice(0, 8)}…), so it stores only its own state.</>
-        : <>A wallet that opens in a new page may refuse a 182 KB contract; browser-extension wallets take it.</>}</p>
+        : <>A wallet that opens in a new page may refuse a 211 KB contract; browser-extension wallets take it.</>}</p>
       {network === "mainnet" && (
         <label className="setup-check deploy-consent">
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />

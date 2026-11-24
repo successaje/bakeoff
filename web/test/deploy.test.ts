@@ -14,7 +14,9 @@ const input = { network: "testnet" as const, owner: "kettle.testnet", challenge:
 test("the contract the board serves is the build the newest testnet challenges run", async () => {
   assert.equal(code.length, CONTRACT.bytes);
   // NEAR reports this code hash for challenge-20261113142333.finishr.testnet and its siblings.
-  assert.equal(await codeHash(code), "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU");
+  assert.equal(await codeHash(code), "FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7");
+  // A reproducible build names its commit in the metadata it embeds.
+  assert.ok(new TextDecoder().decode(code).includes("git+https://github.com/successaje/bakeoff?rev=582f4281d5ca4e45fad0f11ab43d368dd9051a48"));
   assert.equal(await codeHash(code), CONTRACT.codeHash);
 });
 
@@ -46,13 +48,14 @@ test("new gets what deploy.sh gives it: the owner, OutLayer, the evaluator, the 
     test_set_sha256: input.testSetSha256,
   });
   assert.equal((initArgs({ ...input, network: "mainnet" }) as { outlayer: string }).outlayer, "outlayer.near");
-  assert.equal(EVALUATOR.testnet.sha256, EVALUATOR.mainnet.sha256);
+  // FastFS names a file by its SHA-256, so each network's URL serves the build its hash pins.
+  for (const evaluator of Object.values(EVALUATOR)) assert.ok(evaluator.url.endsWith(`/${evaluator.sha256}.wasm`), evaluator.url);
 });
 
-test("the challenge is sent what it stores, about 1.9 NEAR, rounded up to 0.01", () => {
+test("the challenge is sent what it stores, about 2.2 NEAR, rounded up to 0.01", () => {
   const deposit = storageDeposit(code.length, rulesJson);
   const near = Number(deposit) / 1e24;
-  assert.ok(near > 1.88 && near < 1.95, `got ${near}`);
+  assert.ok(near > 2.13 && near < 2.25, `got ${near}`);
   assert.equal(deposit % 10n ** 22n, 0n);
 });
 
@@ -80,7 +83,7 @@ test("on the shared contract, one transaction uses the published code by hash an
   const tx = deploySharedTransaction(input, CONTRACT.codeHash);
   assert.deepEqual(tx.actions.map((a) => a.type), ["CreateAccount", "Transfer", "UseGlobalContract", "FunctionCall"]);
   const use = tx.actions[2]!;
-  assert.deepEqual(use.type === "UseGlobalContract" && use.params, { contractIdentifier: { codeHash: "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU" } });
+  assert.deepEqual(use.type === "UseGlobalContract" && use.params, { contractIdentifier: { codeHash: "FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7" } });
   const call = tx.actions[3]!;
   assert.deepEqual(call.type === "FunctionCall" && call.params.args, initArgs(input));
   assert.ok(!tx.actions.some((a) => (a.type as string) === "AddKey" || a.type === "DeployContract"));
@@ -98,9 +101,10 @@ test("a challenge on the shared contract is sent what the sandbox proved enough,
   assert.ok(sharedStorageDeposit(rulesJson) * 30n < storageDeposit(CONTRACT.bytes, rulesJson));
 });
 
-test("the shared contract published on testnet is the build the board serves", () => {
-  assert.equal(SHARED_CONTRACT.testnet, CONTRACT.codeHash);
-  assert.equal(SHARED_CONTRACT.mainnet, undefined);
+test("a shared copy is used only where it is the build the board serves", () => {
+  for (const hash of Object.values(SHARED_CONTRACT)) assert.equal(hash, CONTRACT.codeHash);
+  // Testnet's copy from 2026-11-17 is the previous build, so none is listed until this one is published.
+  assert.notEqual(SHARED_CONTRACT.testnet, "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU");
 });
 
 test("a reproducible build's metadata names its commit", () => {

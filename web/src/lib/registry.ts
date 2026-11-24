@@ -61,6 +61,8 @@ export const LISTING_REGISTRY: Partial<Record<Network, string>> = {};
 export const CHALLENGE_CODE_HASHES = [
   "BRtk1Lbh4vHb92f97678AbwyXpS92XS6sKPDJqmbRrDF",
   "HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU",
+  // The reproducible build of 582f428, which the board deploys from 2026-11-24.
+  "FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7",
 ];
 
 interface RegistryListing {
