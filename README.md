@@ -102,7 +102,7 @@ The verdict then records `model_tee`: how many answers were signed, by which key
 
 - **What it costs.** In WebAssembly a signature takes about 14.5 million instructions and a quote about 290 million, so a 100-ticket run needs about 2 billion. The contract now lets a run use 10 billion; OutLayer prices that at under 0.000001 NEAR more. Attested test sets hold at most 250 tickets, and the check gets 25 s of its own, beside the run's budget.
 - **What it leaves out.** Every server holding a key binds it the same way, so the evaluator verifies one server's quote per key, as NEAR AI's chat verifier does. NVIDIA's token is read the way NEAR AI's verifier reads it, without checking its signature. The container setup is checked to be the one the quote commits to; whether that setup is trustworthy is NEAR AI's to show, through the images it publishes.
-- **Where it has run.** Against NEAR AI Cloud from the WASI evaluator under wasmtime, on the 16-ticket sample: every answer signed by the attested key, Intel status `UpToDate`, NVIDIA's verdict true, 550 to 700 million instructions and 10.5 s against 4.6 s without the check ([integration notes](docs/integration-notes.md#attested-model-answers-2026-11-18)). It has not yet run on an OutLayer worker, which must reach Intel's and NVIDIA's services as well as NEAR AI's, so the live challenges don't require it yet.
+- **Where it has run.** On an OutLayer worker on testnet, in a sealed trial on [`challenge-20261118175408.finishr.testnet`](https://testnet.nearblocks.io/address/challenge-20261118175408.finishr.testnet). That challenge runs the reproducible build of commit `582f428` and has no access keys. All 16 answers were signed by the attested key, Intel's status was `UpToDate`, and NVIDIA's verdict was true. The run used 540 million instructions and 14.9 s, and its verdict arrived 41 s after the request ([integration notes](docs/integration-notes.md#attested-model-answers-2026-11-18)). The live demo challenges predate the check and don't require it.
 
 ### Why the order is by submission, not by verdict
 
@@ -346,6 +346,7 @@ Verified on NEAR mainnet, on `challenge-20261107153920.bakeoff.near`:
 - the round used under 0.03 NEAR in fees, plus a 0.245 NEAR storage deposit for the secrets.
 
 Verified on NEAR testnet with OutLayer and NEAR AI Cloud:
+- on 2026-11-24, a sealed trial whose rules require [attested model answers](#attested-model-answers) passed on an OutLayer worker. Every one of its 16 answers was signed by NEAR AI's attested key. The TDX quote and GPU evidence answered a nonce made inside the enclave, and `scripts/near/verify-contract.sh` matched the challenge's code to its commit;
 - sealed evaluations ran inside OutLayer's TEE, with the test set and API key injected only for the pinned evaluator build;
 - every recorded verdict's digests matched the challenge's commitments;
 - on a 16-ticket sample, four candidates were recorded with the expected outcomes: a policy rejection, an accuracy failure, a latency failure, and one `Passed` at 93.75% accuracy, 98 µ$ per ticket and 6.0 s p95;
