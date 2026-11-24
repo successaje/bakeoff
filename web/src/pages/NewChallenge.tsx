@@ -348,7 +348,7 @@ export function NewChallenge() {
                   <Unit unit="days"><input className="input" inputMode="numeric" value={draft.days} onChange={(e) => up({ days: e.target.value })} /></Unit>
                 </Field>
               </div>
-              <p className="muted small setup-costs">Deploying from your wallet costs about 1.9 NEAR of storage, which stays with the locked challenge; the scripts send 2.5 NEAR, which you get back by deleting the challenge before you lock it. Storing the test cases takes a deposit of about 0.25 NEAR, and each scoring run about 0.02 NEAR.</p>
+              <p className="muted small setup-costs">Deploying from your wallet costs about 2.2 NEAR of storage, which stays with the locked challenge; the scripts send 2.5 NEAR, which you get back by deleting the challenge before you lock it. Storing the test cases takes a deposit of about 0.25 NEAR, and each scoring run about 0.02 NEAR.</p>
             </Section>
 
             <Section index={5} id="deploy" title="Deploy from your wallet" lede="One approval in your wallet creates the challenge account, sends it the storage it needs, deploys the Bakeoff contract and sets it up with your rules. Or run the scripts in the Commands tab instead.">
