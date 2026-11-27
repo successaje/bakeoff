@@ -213,8 +213,8 @@ export function AgentTiles() {
             key={`${r}:${c}`}
             className="wall-tile wall-raised"
             style={{ ...place, "--k": k } as React.CSSProperties}
-            initial={{ opacity: 0, y: 8 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, transform: "translateY(8px)" }}
+            whileInView={{ opacity: 1, transform: "translateY(0px)" }}
             viewport={{ once: true, margin: "-10% 0px" }}
             transition={{ delay: (r + c) * 0.035, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
@@ -238,8 +238,8 @@ const SESSION = [
 /** An agent's session through Bakeoff's MCP server, ending on the latest result when there is one. */
 export function AgentSession({ outcome }: { outcome: string | null }) {
   const step = (i: number) => ({
-    initial: { opacity: 0, x: -6 },
-    whileInView: { opacity: 1, x: 0 },
+    initial: { opacity: 0, transform: "translateX(-6px)" },
+    whileInView: { opacity: 1, transform: "translateX(0px)" },
     viewport: { once: true, margin: "-10% 0px" },
     transition: { delay: 0.3 + i * 0.32, duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
   });

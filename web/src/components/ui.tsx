@@ -8,12 +8,14 @@ import { Check, Copy, External } from "./Icons.tsx";
 export function Reveal({ children, delay = 0, y = 10, className, as = "div", immediate = false }: { children: ReactNode; delay?: number; y?: number; className?: string; as?: "div" | "section" | "li"; immediate?: boolean }) {
   const reduced = usePrefersReducedMotion();
   const Tag = motion[as];
-  // Page headers animate on arrival; everything else as it scrolls into view.
-  const show = immediate ? { animate: { opacity: 1, y: 0 } } : { whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin: "-8% 0px" } };
+  // Page headers animate on arrival; everything else as it scrolls into view. A full transform
+  // string, not y, so Motion runs it on the compositor.
+  const settled = { opacity: 1, transform: "translateY(0px)" };
+  const show = immediate ? { animate: settled } : { whileInView: settled, viewport: { once: true, margin: "-8% 0px" } };
   return (
     <Tag
       className={className}
-      initial={reduced ? false : { opacity: 0, y }}
+      initial={reduced ? false : { opacity: 0, transform: `translateY(${y}px)` }}
       {...show}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
     >

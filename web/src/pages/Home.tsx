@@ -99,7 +99,7 @@ function LiveCard({ details }: { details: ChallengeDetail[] | null }) {
     <div className="ridge-card">
       <AnimatePresence mode="wait" initial={false}>
         {item ? (
-          <motion.div key={`${item.kind}:${item.challenge}:${item.evaluation}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+          <motion.div key={`${item.kind}:${item.challenge}:${item.evaluation}`} initial={{ opacity: 0, transform: "translateY(8px)" }} animate={{ opacity: 1, transform: "translateY(0px)" }} exit={{ opacity: 0, transform: "translateY(-8px)" }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
             <ActivityCard activity={item} />
           </motion.div>
         ) : <div className="activity card skeleton" style={{ height: 64 }} />}
@@ -110,9 +110,10 @@ function LiveCard({ details }: { details: ChallengeDetail[] | null }) {
 
 function Hero({ details, win }: { details: ChallengeDetail[] | null; win: ChallengeSummary | null }) {
   const reduced = usePrefersReducedMotion();
+  // A full transform string, not y, so Motion hands the animation to the compositor.
   const rise = (delay: number) => ({
-    initial: reduced ? false : { opacity: 0, y: 12 },
-    animate: { opacity: 1, y: 0 },
+    initial: reduced ? false : { opacity: 0, transform: "translateY(12px)" },
+    animate: { opacity: 1, transform: "translateY(0px)" },
     transition: { delay, duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   });
   return (
@@ -430,7 +431,7 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
           </div>
           <div className="spot-art">
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={i} className="spot-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+              <motion.div key={i} className="spot-panel" initial={{ opacity: 0, transform: "translateY(12px)" }} animate={{ opacity: 1, transform: "translateY(0px)" }} exit={{ opacity: 0, transform: "translateY(-12px)" }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
                 {slide.panel(win, loading)}
               </motion.div>
             </AnimatePresence>
@@ -458,7 +459,7 @@ function Receipt({ rows, details, win }: { rows: ChallengeSummary[] | null; deta
   ];
   const award = win?.view?.award;
   return (
-    <motion.div className="receipt-wrap" initial={{ opacity: 0, y: 24, rotate: 0 }} whileInView={{ opacity: 1, y: 0, rotate: -1.2 }} viewport={{ once: true, margin: "-10% 0px" }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+    <motion.div className="receipt-wrap" initial={{ opacity: 0, transform: "translateY(24px) rotate(0deg)" }} whileInView={{ opacity: 1, transform: "translateY(0px) rotate(-1.2deg)" }} viewport={{ once: true, margin: "-10% 0px" }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
       <div className="receipt">
         <div className="receipt-head">
           <span className="receipt-brand"><LogoMark size={22} /> Bakeoff</span>
