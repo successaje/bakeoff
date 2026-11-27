@@ -29,6 +29,8 @@ The board reads the registry for each network named in `LISTING_REGISTRY` in [`w
 
 The setup form's Listing tab writes the arguments (`list-args.json`) and the near-cli command once a registry is configured for the challenge's network.
 
+The [MCP server](../mcp/README.md) reads the same registry, so agents find self-listed challenges too. It marks them as self-listed, and it scores practice runs on them only with an evaluator build the board deploys and NEAR AI Cloud as the model endpoint, so a listing cannot have a contributor's API key sent elsewhere.
+
 ## Deploying
 
 ```bash
