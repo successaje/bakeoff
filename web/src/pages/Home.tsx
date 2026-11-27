@@ -18,7 +18,7 @@ import { GoalPanel, PracticePanel, SealedPanel, STEPS } from "../components/Step
 import { Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, type ChallengeSummary, latestWin, loadAll, loadChallenges, recordsOf } from "../lib/data.ts";
 import { ago, microDollars, percent, seconds, shortHash } from "../lib/format.ts";
-import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
+import { useAsync, useOnScreen, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { rankAccounts, recentActivity } from "../lib/leaderboard.ts";
 import { challengeGates, formatNear, type Gates, type Metrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
@@ -395,24 +395,27 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Off-screen, the steps hold still and the panel's own animations pause, so nothing runs unseen.
+  const [ref, onScreen] = useOnScreen<HTMLDivElement>();
   const duration = (n: number) => (n === SLIDES.length - 1 ? 11 : 7);
+  const running = !reduced && !paused && onScreen;
   useEffect(() => {
-    if (reduced || paused) return;
+    if (!running) return;
     const timer = setTimeout(() => setI((n) => (n + 1) % SLIDES.length), duration(i) * 1000);
     return () => clearTimeout(timer);
-  }, [i, reduced, paused]);
+  }, [i, running]);
   const slide = SLIDES[i]!;
   return (
     <section className="landing-section">
       <div className="container">
-        <div className="spot card" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+        <div ref={ref} className={`spot card${onScreen ? "" : " is-offscreen"}`} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
           <div className="spot-copy">
             <span className="mono-label">How a bake-off works</span>
             <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
             <ol className="spot-steps">
               {SLIDES.map((s, n) => (
                 <li key={s.tab} className={n === i ? "active" : n < i ? "done" : ""}>
-                  {n === i && !reduced && !paused && <span className="spot-progress" style={{ animationDuration: `${duration(n)}s` }} aria-hidden="true" />}
+                  {n === i && running && <span className="spot-progress" style={{ animationDuration: `${duration(n)}s` }} aria-hidden="true" />}
                   <button type="button" aria-expanded={n === i} onClick={() => setI(n)}>
                     <span className="spot-n mono">{String(n + 1).padStart(2, "0")}</span>
                     <span>{s.title}</span>

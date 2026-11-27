@@ -37,6 +37,20 @@ export function useNow(ms = 1000): number {
 }
 
 /** True once the element has scrolled into view. */
+/** Whether the element is on screen now, unlike useInView, which latches once it has been seen. */
+export function useOnScreen<T extends Element>(margin = "0px"): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T>(null);
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => setOnScreen(Boolean(entry?.isIntersecting)), { rootMargin: margin });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [margin]);
+  return [ref, onScreen];
+}
+
 export function useInView<T extends Element>(margin = "-10% 0px"): [React.RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   const [seen, setSeen] = useState(false);

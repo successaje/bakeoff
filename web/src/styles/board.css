@@ -327,6 +327,8 @@ a.live-pill:hover svg { transform: translateX(3px); }
 .spot-link svg { width: 15px; height: 15px; transition: transform var(--dur-fast); }
 .spot-link:hover { color: var(--accent); }
 .spot-link:hover svg { transform: translateX(3px); }
+/* Off-screen the spotlight holds still: its panel's own animations wait until it is seen. */
+.spot.is-offscreen * { animation-play-state: paused !important; }
 .spot-progress { position: absolute; left: -2px; top: 0; bottom: 0; width: 2px; background: var(--accent); transform-origin: top; animation: spot-progress linear both; }
 @keyframes spot-progress { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .spot-art {

@@ -10,7 +10,7 @@
  */
 
 import type { CSSProperties } from "react";
-import { useInView, usePrefersReducedMotion } from "../lib/hooks.ts";
+import { useInView, useOnScreen, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { hashString, seeded } from "./art.tsx";
 
 /** The letters, seven rows each. The top two rows are ascenders, which stand above the bar. */
@@ -90,10 +90,12 @@ function Word({ art, className }: { art: Art; className: string }) {
 export function FooterWordmark() {
   const reduced = usePrefersReducedMotion();
   const [ref, seen] = useInView<HTMLDivElement>("0px 0px -8% 0px");
+  // The sparks glow in turn for as long as the page is open; off-screen they wait.
+  const [screenRef, onScreen] = useOnScreen<HTMLDivElement>();
   return (
     <div
-      ref={ref}
-      className={`fw${seen ? " baked" : ""}${reduced ? " still" : ""}`}
+      ref={(element) => { ref.current = element; screenRef.current = element; }}
+      className={`fw${seen ? " baked" : ""}${seen && !onScreen ? " asleep" : ""}${reduced ? " still" : ""}`}
       style={{ "--cycle": `${SPARKS * SPARK_GAP}s` } as CSSProperties}
       aria-hidden="true"
     >

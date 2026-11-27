@@ -99,6 +99,7 @@
 .fw-bar-label { font-family: var(--font-mono); font-size: 13px; fill: var(--muted); pointer-events: none; }
 .fw-spark { fill: var(--ridge-heat); opacity: 0; pointer-events: none; animation: fw-spark var(--cycle) var(--ease-out) var(--d) infinite paused; }
 .fw.baked .fw-spark { animation-play-state: running; }
+.fw.baked.asleep .fw-spark { animation-play-state: paused; }
 @keyframes fw-spark { 0%, 100% { opacity: 0; } 2% { opacity: 1; } 12% { opacity: 0; } }
 @media (hover: hover) {
   .fw-tile:hover { fill: var(--ridge-heat); transition-duration: 0s; }
