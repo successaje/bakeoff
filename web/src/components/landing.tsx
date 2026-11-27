@@ -6,7 +6,7 @@
  */
 
 import { motion } from "motion/react";
-import type { ComponentType, SVGProps } from "react";
+import { type ComponentType, type CSSProperties, memo, type SVGProps } from "react";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds } from "../lib/format.ts";
 import { challengeGates } from "../lib/near.ts";
@@ -59,7 +59,30 @@ function ridgeTiles(): Tile[][] {
   return rows;
 }
 
-const TILES = ridgeTiles();
+const TILES = ridgeTiles().flat();
+
+/** One tile as a rounded square in path data, so a whole layer of tiles is a single element. */
+function tilePath({ x, y }: Tile): string {
+  const side = SIZE - 4;
+  return `M${x + 3} ${y + 1}h${side}a2 2 0 0 1 2 2v${side}a2 2 0 0 1-2 2h-${side}a2 2 0 0 1-2-2v-${side}a2 2 0 0 1 2-2z`;
+}
+
+/**
+ * The tiles in colour, in layers by when they come in. Each layer is its own element whose opacity
+ * the compositor animates over the blank tiles, so the colour drifting in repaints nothing.
+ */
+const COLOUR_LAYERS = 8;
+const LAYERS = (() => {
+  const first = Math.min(...TILES.map((t) => t.delay));
+  const span = Math.max(...TILES.map((t) => t.delay)) - first;
+  const layers = Array.from({ length: COLOUR_LAYERS }, (_, k) => ({ delay: first + (span * (k + 0.5)) / COLOUR_LAYERS, tones: new Map<string, string>() }));
+  for (const t of TILES) {
+    const layer = layers[Math.min(COLOUR_LAYERS - 1, Math.floor(((t.delay - first) / span) * COLOUR_LAYERS))]!;
+    layer.tones.set(t.tone, (layer.tones.get(t.tone) ?? "") + tilePath(t));
+  }
+  return layers;
+})();
+const BLANK = TILES.map(tilePath).join("");
 
 /** Lines that rise from the ground to points on the ridge, like routes to a summit. */
 const ROUTES: [number, number][] = [[90, 300], [300, 520], [470, 600], [760, 590], [930, 1000], [1300, 1060]];
@@ -81,42 +104,64 @@ function RidgePin({ pin }: { pin: Pin }) {
   );
 }
 
+/** A layer of the band: every layer shares the viewBox and sizing, so they line up exactly. */
+function Layer({ className, style, children }: { className: string; style?: CSSProperties; children: React.ReactNode }) {
+  return <svg className={`ridge-art ${className}`} style={style} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">{children}</svg>;
+}
+
+/** The sky and the tiles, which never change after the first render. */
+const RidgeTiles = memo(function RidgeTiles() {
+  return (
+    <>
+      <Layer className="ridge-sky">
+        <defs>
+          <linearGradient id="ridge-sky" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" style={{ stopColor: "var(--ridge-sky-a)" }} />
+            <stop offset="0.62" style={{ stopColor: "var(--ridge-sky-b)" }} />
+            <stop offset="1" style={{ stopColor: "var(--ridge-sky-c)" }} />
+          </linearGradient>
+        </defs>
+        <rect width={W} height={H} fill="url(#ridge-sky)" />
+      </Layer>
+      <Layer className="ridge-layer ridge-blank-layer"><path d={BLANK} className="ridge-blank" /></Layer>
+      {LAYERS.map((layer, k) => (
+        <Layer key={k} className="ridge-layer ridge-tone-layer" style={{ "--d": `${layer.delay.toFixed(2)}s` } as CSSProperties}>
+          {[...layer.tones].map(([tone, d]) => <path key={tone} d={d} className={`ridge-${tone}`} />)}
+        </Layer>
+      ))}
+    </>
+  );
+});
+
 /**
  * The hero's band, and a chart of the latest win: a ridge of ticket tiles
- * under a dashed bar. The tiles build up blank, then each breathes in its
- * colour and keeps it. The winner's peak rises past the bar and turns gold;
- * the team's own setup stays under it. Pins label each peak when there is a
- * result to show, and the bar names the requirements.
+ * under a dashed bar. The tiles rise in blank, then their colours drift in
+ * from left to right and stay. The winner's peak rises past the bar and turns
+ * gold; the team's own setup stays under it. Pins label each peak when there
+ * is a result to show, and the bar names the requirements.
+ *
+ * Each moving part is a layer of its own animated only by opacity and
+ * transform, so the intro runs on the compositor and never repaints the band.
  */
 export function RidgeArt({ pins = [], bar = "the bar" }: { pins?: Pin[]; bar?: string }) {
   return (
-    <svg className="ridge-art" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-      <defs>
-        <linearGradient id="ridge-sky" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" style={{ stopColor: "var(--ridge-sky-a)" }} />
-          <stop offset="0.62" style={{ stopColor: "var(--ridge-sky-b)" }} />
-          <stop offset="1" style={{ stopColor: "var(--ridge-sky-c)" }} />
-        </linearGradient>
-      </defs>
-      <rect width={W} height={H} fill="url(#ridge-sky)" />
-      {TILES.map((row, r) => (
-        <g key={r} className="ridge-row" style={{ "--r": r } as React.CSSProperties}>
-          {row.map((t) => <rect key={t.x} x={t.x + 1} y={t.y + 1} width={SIZE} height={SIZE} rx="2" className={`ridge-${t.tone}`} style={{ "--d": `${t.delay.toFixed(2)}s` } as React.CSSProperties} />)}
-        </g>
-      ))}
-      <path d={`M0 ${H - BAR}H${W}`} className="ridge-bar" />
-      <text x="24" y={H - BAR - 9} className="ridge-bar-label">{bar}</text>
-      {ROUTES.map(([from, to]) => {
-        const y = H - ridge(to) + 6;
-        return (
-          <g key={`${from}-${to}`} className="ridge-route">
-            <path d={`M${from} ${H}L${to} ${y}`} />
-            <circle cx={to} cy={y} r="3.2" />
-          </g>
-        );
-      })}
-      {pins.map((pin) => <RidgePin key={pin.text} pin={pin} />)}
-    </svg>
+    <>
+      <RidgeTiles />
+      <Layer className="ridge-lines">
+        <path d={`M0 ${H - BAR}H${W}`} className="ridge-bar" />
+        <text x="24" y={H - BAR - 9} className="ridge-bar-label">{bar}</text>
+        {ROUTES.map(([from, to]) => {
+          const y = H - ridge(to) + 6;
+          return (
+            <g key={`${from}-${to}`} className="ridge-route">
+              <path d={`M${from} ${H}L${to} ${y}`} />
+              <circle cx={to} cy={y} r="3.2" />
+            </g>
+          );
+        })}
+      </Layer>
+      {pins.length > 0 && <Layer className="ridge-pins">{pins.map((pin) => <RidgePin key={pin.text} pin={pin} />)}</Layer>}
+    </>
   );
 }
 

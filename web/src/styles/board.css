@@ -152,13 +152,18 @@ a.live-pill:hover svg { transform: translateX(3px); }
 .ridge-green { fill: var(--ridge-green); }
 .ridge-sage { fill: var(--ridge-sage); }
 .ridge-stone { fill: var(--ridge-stone); }
-.ridge-row { animation: ridge-rise 640ms var(--ease-out) both; animation-delay: calc(var(--r) * 24ms + 260ms); }
+.ridge-blank { fill: var(--ridge-blank); }
+/* The intro animates whole layers by opacity and transform only, so it runs on the compositor: the
+   blank tiles rise in, each colour layer fades in over them, then the pins. Nothing repaints. */
+.ridge-blank-layer { animation: ridge-rise 640ms var(--ease-out) 260ms both; }
 @keyframes ridge-rise { from { opacity: 0; transform: translateY(8px); } }
+.ridge-tone-layer { animation: tone-in 1.1s var(--ease-out) var(--d) both; }
+@keyframes tone-in { from { opacity: 0; } }
 .ridge-bar { stroke: var(--text); stroke-opacity: 0.5; stroke-width: 1.5; stroke-dasharray: 7 7; }
 .ridge-bar-label { font-family: var(--font-mono); font-size: 13px; fill: var(--text); fill-opacity: 0.8; paint-order: stroke; stroke: var(--ridge-sky-a); stroke-width: 5px; stroke-linejoin: round; }
 .ridge-route path { stroke: var(--ridge-line); stroke-width: 1.5; fill: none; }
 .ridge-route circle { fill: var(--ridge-line); }
-.ridge-pin { animation: pin-in 600ms var(--ease-out) 3.2s both; }
+.ridge-pins { animation: pin-in 600ms var(--ease-out) 3.2s both; }
 @keyframes pin-in { from { opacity: 0; transform: translateY(6px); } }
 .ridge-pin path { stroke: var(--text); stroke-opacity: 0.55; stroke-width: 1.5; }
 .ridge-pin circle { fill: var(--text); }
@@ -167,11 +172,9 @@ a.live-pill:hover svg { transform: translateX(3px); }
 .ridge-pin-gold circle { fill: var(--gold); }
 .ridge-pin-gold rect { fill: var(--ink); stroke: none; }
 .ridge-pin-gold text { fill: var(--ink-text); font-weight: 600; }
-.ridge-row rect { animation: tone-in 1.1s var(--ease-out) var(--d) both; }
-@keyframes tone-in { from { fill: var(--ridge-blank); } }
 @media (max-width: 760px) {
   .ridge-card { right: 12px; bottom: 12px; width: min(276px, calc(100% - 24px)); }
-  .ridge-pin { display: none; }
+  .ridge-pins { display: none; }
 }
 
 .activity { display: grid; gap: 6px; padding: 14px 16px; border-radius: 16px; box-shadow: var(--shadow-lg); transition: transform var(--dur) var(--ease-out), border-color var(--dur); }
