@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { NearRpc } from "./near.ts";
+import { LISTING_REGISTRY, mergeChallenges, selfListedChallenges } from "./registry.ts";
 
 export type Network = "testnet" | "mainnet";
 
@@ -11,6 +13,11 @@ export interface ChallengeConfig {
   practiceSet?: string;
   /** Path or https URL of the labeling guide the tickets were labelled with. */
   labelingGuide?: string;
+  /**
+   * Set for a challenge its owner listed on-chain in the listing registry: the account that listed
+   * it. Bakeoff has not reviewed it.
+   */
+  listedBy?: string;
 }
 
 export interface Config {
@@ -31,6 +38,8 @@ export interface Config {
   cacheDir: string;
   /** The Bakeoff board whose list of challenges is used when no config file is given. */
   boardUrl: string;
+  /** The listing registry whose challenges join the board's when no config file is given. */
+  listingRegistry?: string;
 }
 
 /** The public board: its /challenges.json lists every challenge with its practice set and labeling guide. */
@@ -98,6 +107,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxSubmissions,
     cacheDir: env.BAKEOFF_CACHE_DIR ?? join(homedir(), ".cache", "bakeoff-mcp"),
     boardUrl: (env.BAKEOFF_BOARD_URL ?? BOARD_URL).replace(/\/+$/, ""),
+    // Set but empty turns the registry off.
+    listingRegistry: (env.BAKEOFF_LISTING_REGISTRY ?? LISTING_REGISTRY[network]) || undefined,
   };
 }
 
@@ -122,21 +133,26 @@ export async function boardChallenges(boardUrl: string, network: Network, fetchI
 
 /**
  * The configuration to run with. A config file (BAKEOFF_MCP_CONFIG) is used as it is. Without
- * one, the challenges come from the board's list for the network, narrowed to BAKEOFF_CHALLENGES
- * when that is set; if the board cannot be read, BAKEOFF_CHALLENGES alone still works, without
- * practice sets.
+ * one, the challenges come from the board's list for the network plus those listed in the
+ * network's listing registry, narrowed to BAKEOFF_CHALLENGES when that is set. A registry that
+ * cannot be read is skipped. If the board cannot be read, BAKEOFF_CHALLENGES alone still works,
+ * with practice sets only for self-listed challenges.
  */
 export async function resolveConfig(env: NodeJS.ProcessEnv = process.env, fetchImpl: typeof fetch = fetch): Promise<Config & { source: string }> {
   const config = loadConfig(env);
   if (env.BAKEOFF_MCP_CONFIG) return { ...config, source: env.BAKEOFF_MCP_CONFIG };
   const wanted = config.challenges.map((c) => c.id);
-  let listed: ChallengeConfig[];
-  try {
-    listed = await boardChallenges(config.boardUrl, config.network, fetchImpl);
-  } catch (error) {
-    if (wanted.length) return { ...config, source: `BAKEOFF_CHALLENGES (the board's list could not be read: ${(error as Error).message})` };
-    throw new Error(`could not read the board's list of challenges at ${config.boardUrl}/challenges.json (${(error as Error).message}); set BAKEOFF_MCP_CONFIG or BAKEOFF_CHALLENGES`);
+  const registry = config.listingRegistry;
+  const [board, selfListed] = await Promise.all([
+    boardChallenges(config.boardUrl, config.network, fetchImpl).then((list) => ({ list }), (error: Error) => ({ error })),
+    registry ? selfListedChallenges(registry, new NearRpc(config.rpcUrl, fetchImpl)).catch(() => null) : null,
+  ]);
+  const pick = (listed: ChallengeConfig[]) => (wanted.length ? wanted.map((id) => listed.find((c) => c.id === id) ?? { id }) : listed);
+  const fromRegistry = selfListed ? ` and the listing registry ${registry}` : "";
+  if ("error" in board) {
+    const reason = board.error.message;
+    if (wanted.length) return { ...config, challenges: pick(selfListed ?? []), source: `BAKEOFF_CHALLENGES (the board's list could not be read: ${reason})` };
+    throw new Error(`could not read the board's list of challenges at ${config.boardUrl}/challenges.json (${reason}); set BAKEOFF_MCP_CONFIG or BAKEOFF_CHALLENGES`);
   }
-  const challenges = wanted.length ? wanted.map((id) => listed.find((c) => c.id === id) ?? { id }) : listed;
-  return { ...config, challenges, source: `${config.boardUrl}/challenges.json` };
+  return { ...config, challenges: pick(mergeChallenges(board.list, selfListed ?? [])), source: `${config.boardUrl}/challenges.json${fromRegistry}` };
 }
