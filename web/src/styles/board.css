@@ -111,9 +111,19 @@ a.live-pill:hover { border-color: var(--text); }
   .live-pill > span:not(.status-dot) { white-space: normal; }
 }
 a.live-pill:hover svg { transform: translateX(3px); }
-.goal-slot { display: inline-block; }
-.goal-word { display: inline-block; font-size: 1.1em; color: var(--text-2); }
+/* The goal word: every word is stacked in the slot and only opacity and transform change, so the
+   swap runs on the compositor. The slot's width follows the current word, sliding the centred line. */
+.goal-slot { position: relative; display: inline-block; white-space: nowrap; }
+.goal-slot.is-measured { transition: width 460ms var(--ease-out); }
+.goal-strut { font-size: 1.1em; }
+.goal-word { position: absolute; top: 0; left: 50%; font-size: 1.1em; color: var(--text-2); opacity: 0; transform: translate(-50%, 0.4em); transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-out); }
+.goal-word.is-past { transform: translate(-50%, -0.4em); }
+.goal-word.is-current { opacity: 1; transform: translate(-50%, 0); transition-delay: 90ms; }
 .goal-word.final { color: var(--accent); }
+/* The full stop travels with the word but reads as the sentence's own: upright, in the heading's face and colour. */
+.goal-stop { font-family: var(--font-sans); font-style: normal; font-weight: 450; font-size: calc(1em / 1.1); color: var(--text); }
+/* Where the longest word would wrap, every word takes a line of its own, so the headline keeps its height. */
+@media (max-width: 640px) { .goal-slot { display: block; margin-inline: auto; } }
 .landing-hero h1 { font-size: clamp(2.4rem, 1.5rem + 2.6vw, 3.5rem); line-height: 1.08; letter-spacing: -0.035em; font-weight: 450; margin-top: var(--space-4); }
 .landing-lede { margin-top: var(--space-4); max-width: 760px; font-size: clamp(1.1rem, 0.95rem + 0.6vw, 1.45rem); line-height: 1.45; font-weight: 350; color: var(--text-2); }
 /* The latest win in numbers, each against the team's own agent. */

@@ -241,7 +241,7 @@
   @keyframes flow-down { to { background-position: 0 24px; } }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel *, .ridge-row, .ridge-row rect, .ridge-pin, .wall-raised, .spot-progress, .fw-tile, .fw-spark { animation: none !important; transition: none !important; }
+  .panel *, .ridge-layer, .ridge-pins, .wall-raised, .spot-progress, .fw-tile, .fw-spark, .goal-slot, .goal-word { animation: none !important; transition: none !important; }
 }
 
 @media (max-width: 420px) { .card-grid { grid-template-columns: 1fr; } }

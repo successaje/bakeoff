@@ -6,7 +6,7 @@
  */
 
 import { AnimatePresence, motion } from "motion/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Avatar, Cover, HostMark } from "../components/art.tsx";
 import { ActivityCard, ChallengeTile, MoreLink, SectionHead, topEntries } from "../components/board.tsx";
@@ -43,7 +43,12 @@ function LivePill({ win }: { win: ChallengeSummary | null }) {
 
 const GOALS = ["cheaper", "faster", "more accurate", "better"];
 
-/** The headline's goal: it runs through what a team can ask for, then settles on "better". */
+/**
+ * The headline's goal: it runs through what a team can ask for, then settles on "better". Every word
+ * is drawn, stacked, and only opacity and transform change, so the swap runs on the compositor. The
+ * slot glides to the current word's width, so the centred line slides instead of jumping, and on a
+ * narrow screen the word has a line of its own, so the page below never moves.
+ */
 function GoalWord() {
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
@@ -54,13 +59,26 @@ function GoalWord() {
     return () => clearTimeout(timer);
   }, [i, last, reduced]);
   const n = reduced ? last : i;
+  const words = useRef<(HTMLSpanElement | null)[]>([]);
+  const [width, setWidth] = useState<number | null>(null);
+  // Measured before paint, and again when the font loads or the viewport rescales the headline.
+  useLayoutEffect(() => {
+    const word = words.current[n];
+    if (!word) return;
+    const measure = () => setWidth(word.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(word);
+    return () => observer.disconnect();
+  }, [n]);
   return (
-    <span className="goal-slot" aria-hidden="true">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span key={n} className={`serif goal-word ${n === last ? "final" : ""}`} initial={{ y: "0.4em", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "-0.4em", opacity: 0 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}>
-          {GOALS[n]}
-        </motion.span>
-      </AnimatePresence>
+    <span className={`goal-slot${width === null ? "" : " is-measured"}`} style={width === null ? undefined : { width }} aria-hidden="true">
+      <span className="serif goal-strut">{"\u200b"}</span>
+      {GOALS.map((goal, k) => (
+        <span key={goal} ref={(el) => { words.current[k] = el; }} className={`serif goal-word${k === n ? " is-current" : k < n ? " is-past" : ""}${k === last ? " final" : ""}`}>
+          {goal}<span className="goal-stop">.</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -102,7 +120,7 @@ function Hero({ details, win }: { details: ChallengeDetail[] | null; win: Challe
       <div className="container landing-copy">
         <motion.div {...rise(0.02)}><LivePill win={win} /></motion.div>
         <motion.h1 {...rise(0.08)} aria-label="Make your AI work better.">
-          <span aria-hidden="true">Make your AI work </span><GoalWord /><span aria-hidden="true">.</span>
+          <span aria-hidden="true">Make your AI work </span><GoalWord />
         </motion.h1>
         <motion.p className="landing-lede" {...rise(0.14)}>
           Teams post a goal for an AI workflow. Builders and their agents compete on test cases they never see, and a NEAR contract pays the result that meets it.
