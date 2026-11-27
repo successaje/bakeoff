@@ -103,15 +103,23 @@ p { margin: 0; text-wrap: pretty; }
   background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
 }
 .badge-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.badge-live::before { animation: pulse 1.8s var(--ease-in-out) infinite; box-shadow: 0 0 0 0 currentColor; }
+/* A live badge's ring sits over its dot and is scaled and faded on the compositor, never repainted. */
+.badge-live { position: relative; }
+.badge-live::after { content: ""; position: absolute; left: 10px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: currentColor; animation: ping 1.8s var(--ease-in-out) infinite; pointer-events: none; }
 .badge-green { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .badge-amber { color: var(--amber); background: var(--amber-soft); border-color: transparent; }
 .badge-coral { color: var(--coral); background: var(--coral-soft); border-color: transparent; }
 .badge-sky { color: var(--sky); background: var(--sky-soft); border-color: transparent; }
+/* The film's recorded scenes still pulse by box-shadow. */
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); }
   70% { box-shadow: 0 0 0 6px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* The ring grows 6px past the dot and fades, as a box-shadow pulse would, but by transform and opacity. */
+@keyframes ping {
+  0% { opacity: 0.6; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(2.7); }
 }
 
 /* Cards */
