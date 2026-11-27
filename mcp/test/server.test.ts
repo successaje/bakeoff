@@ -12,7 +12,7 @@ import { CHALLENGE, challengeView, config, FakeChain, FakeCli, FakeClock } from 
 
 const WASM = new TextEncoder().encode("\0asm pinned build");
 
-async function connect(overrides: Partial<Config> = {}) {
+async function connect(overrides: Partial<Config> = {}, listedBy?: string) {
   const dir = await mkdtemp(join(tmpdir(), "bakeoff-mcp-"));
   const practice = join(dir, "practice.json");
   await writeFile(practice, JSON.stringify([
@@ -22,15 +22,16 @@ async function connect(overrides: Partial<Config> = {}) {
   const chain = new FakeChain();
   chain.challenges = [challengeView({ evaluator: { url: "https://fastfs.example/e.wasm", sha256: sha256Hex(WASM) } })];
   const runs: RunOptions[] = [];
+  const fetched: string[] = [];
   const clock = new FakeClock();
   const server = createServer(
-    config({ challenges: [{ id: CHALLENGE, practiceSet: practice }], cacheDir: join(dir, "cache"), ...overrides }),
+    config({ challenges: [{ id: CHALLENGE, practiceSet: practice, ...(listedBy ? { listedBy } : {}) }], cacheDir: join(dir, "cache"), ...overrides }),
     {
       rpc: chain.asRpc(),
       runCli: new FakeCli().run,
       sleep: clock.sleep,
       now: clock.now,
-      fetchImpl: (() => Promise.resolve(new Response(WASM))) as unknown as typeof fetch,
+      fetchImpl: ((url: string) => { fetched.push(url); return Promise.resolve(new Response(WASM)); }) as unknown as typeof fetch,
       runEvaluator: (options) => {
         runs.push(options);
         return Promise.resolve({
@@ -48,7 +49,7 @@ async function connect(overrides: Partial<Config> = {}) {
     const text = (result.content as { text: string }[])[0]?.text ?? "";
     return { isError: Boolean(result.isError), text, json: () => JSON.parse(text) };
   };
-  return { client, call, runs, chain };
+  return { client, call, runs, chain, fetched };
 }
 
 test("the server offers the contributor workflow as tools and a prompt", async () => {
@@ -120,4 +121,24 @@ test("practice scoring needs the contributor's own model API key", async () => {
   const result = await call("score_on_practice", { challenge_id: CHALLENGE, config_json: "{}" });
   assert.ok(result.isError);
   assert.match(result.text, /BAKEOFF_LLM_API_KEY/);
+});
+
+test("a self-listed challenge is marked, and is not practised with your key on an evaluator Bakeoff does not know", async () => {
+  const { call, runs, fetched } = await connect({}, "owner.testnet");
+  const listed = (await call("list_challenges")).json() as { challenges: { id: string; self_listed?: { listed_by: string } }[] };
+  assert.equal(listed.challenges[0]?.self_listed?.listed_by, "owner.testnet");
+  const detail = (await call("get_challenge", { challenge_id: CHALLENGE })).json() as { self_listed?: { note: string } };
+  assert.match(detail.self_listed?.note ?? "", /Bakeoff has not reviewed it/);
+
+  const scored = await call("score_on_practice", { challenge_id: CHALLENGE, config_json: "{}" });
+  assert.ok(scored.isError);
+  assert.match(scored.text, /self-listed and pins evaluator [0-9a-f]{64}, which is not a Bakeoff build/);
+  assert.deepEqual(runs, []);
+  assert.deepEqual(fetched, []);
+});
+
+test("a challenge from the board is not marked as self-listed", async () => {
+  const { call } = await connect();
+  const listed = (await call("list_challenges")).json() as { challenges: Record<string, unknown>[] };
+  assert.ok(!("self_listed" in listed.challenges[0]!));
 });

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { ChallengeConfig, Config } from "./config.ts";
 import { ensureEvaluator, readMaterial, runEvaluator, sha256Hex } from "./evaluator.ts";
 import { type ChallengeView, formatNear, NearRpc, nsToIso } from "./near.ts";
+import { practiceRunRefusal } from "./registry.ts";
 import { claimAward, SUBMIT_DEPOSIT, SubmissionBudget, type SubmitDeps, submitCandidate } from "./submit.ts";
 
 export interface ServerDeps extends SubmitDeps {
@@ -63,11 +64,18 @@ function serviceFee(view: ChallengeView) {
   };
 }
 
-function summary(id: string, view: ChallengeView, now: number) {
+/** How a self-listed challenge is marked wherever it is shown. */
+const selfListed = (challenge: ChallengeConfig) =>
+  challenge.listedBy
+    ? { self_listed: { listed_by: challenge.listedBy, note: "Listed on-chain by its owner. Bakeoff has not reviewed it; its rules and reward are the contract's." } }
+    : {};
+
+function summary(challenge: ChallengeConfig, view: ChallengeView, now: number) {
   const rules = JSON.parse(view.rules_json) as { gates?: unknown };
   const open = view.status === "Open" && (view.closes_at === null || BigInt(now) * 1_000_000n < BigInt(view.closes_at));
   return {
-    id,
+    id: challenge.id,
+    ...selfListed(challenge),
     status: view.status,
     accepting_submissions: open,
     bounty: formatNear(view.bounty),
@@ -93,7 +101,7 @@ function summary(id: string, view: ChallengeView, now: number) {
 export function createServer(config: Config, deps: ServerDeps): McpServer {
   const rpc = deps.rpc;
   const budget = new SubmissionBudget(config.maxSubmissions);
-  const server = new McpServer({ name: "bakeoff", version: "0.1.0" });
+  const server = new McpServer({ name: "bakeoff", version: "0.1.1" });
 
   // Tools act only on configured challenges, so text an agent reads elsewhere
   // cannot steer it into submitting to another contract.
@@ -116,7 +124,8 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
     "list_challenges",
     {
       title: "List challenges",
-      description: "Lists the Bakeoff challenges this server offers, with status, bounty, deadline, gates and any award.",
+      description:
+        "Lists the Bakeoff challenges this server offers, with status, bounty, deadline, gates and any award. A challenge marked self_listed was listed on-chain by its owner and has not been reviewed by Bakeoff.",
       annotations: read,
     },
     async () => {
@@ -124,7 +133,7 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
       const rows = await Promise.all(
         config.challenges.map(async (c) => {
           try {
-            return summary(c.id, await rpc.getChallenge(c.id), now);
+            return summary(c, await rpc.getChallenge(c.id), now);
           } catch (error) {
             return { id: c.id, error: (error as Error).message };
           }
@@ -152,7 +161,7 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
           practice = (JSON.parse(await practiceTickets(challenge)) as unknown[]).length;
         }
         return json({
-          ...summary(challenge_id, view, deps.now()),
+          ...summary(challenge, view, deps.now()),
           owner: view.owner,
           rules: { ...RULE_DEFAULTS, ...JSON.parse(view.rules_json) },
           rules_sha256: view.rules_sha256,
@@ -268,6 +277,8 @@ export function createServer(config: Config, deps: ServerDeps): McpServer {
         const challenge = offered(challenge_id);
         if (!config.llmApiKey) throw new Error("set BAKEOFF_LLM_API_KEY to a NEAR AI Cloud key to score on the practice set");
         const view = await rpc.getChallenge(challenge_id);
+        const refusal = practiceRunRefusal(challenge, view);
+        if (refusal) throw new Error(refusal);
         const tickets = JSON.parse(await practiceTickets(challenge)) as unknown[];
         const scored = ticket_limit ? tickets.slice(0, ticket_limit) : tickets;
         const wasmPath = await ensureEvaluator(view.evaluator, config.cacheDir, deps.fetchImpl);
