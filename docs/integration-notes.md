@@ -41,6 +41,29 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - cargo-near 0.11 fails with "Failed to validate wasm" on Rust 1.98 output. cargo-near 0.23 builds the contract (168 KB), and the result deploys and runs in a near-workspaces 0.24 sandbox. `scripts/build-contract.sh` refuses versions below 0.13.
 - In the sandbox, a 300 Tgas submission covers the contract call, the 150 Tgas forwarded to `request_execution`, the yield, and the 20 Tgas result callback.
 
+### Reproducible build (2026-11-18)
+
+- `cargo near build reproducible-wasm` (cargo-near 0.23 on the host) builds in `sourcescan/cargo-near:0.22.0-rust-1.99.1`, the image cargo-near 0.23's own project template pins, by digest `sha256:c9655eaf…43b5bb`. The image is linux/amd64 only, 509 MB compressed. On an arm64 Mac it runs under emulation and a build takes about 5.5 minutes.
+- Commit `845b5c3` built three times to the same 203,166 bytes and code hash `3gQRwG6bH2P2e4cb27JcKYEDtVeF8JBjxcR4xvcPgAWt`: twice from fresh worktrees at different paths, and once by `scripts/near/verify-contract.sh`, which fetched the commit from GitHub. That run used a local stand-in RPC reporting the commit and hash, and printed the match.
+- Across machines: CI's reproducible job built commit `593cbf5` on GitHub's x86_64 runner in about 40 seconds, to contract code hash `AqsszcSJb6634mByXJDMo74faiJL7NqMrXnkJ6GgEefc`. The same commit built on an arm64 Mac, under emulation, gave the same hash.
+- The build embeds its NEP-330 metadata in the contract. `contract_source_metadata` returns `link` (the repository at the commit) and `build_info`: `build_environment` (the image and digest), `build_command`, `contract_path: "contract"` and `source_code_snapshot: "git+https://github.com/successaje/bakeoff?rev=<commit>"`. Since the commit is in the code, every commit builds to a different hash, even one that changes only documentation. What stays fixed is that the same commit always gives the same hash.
+- Challenges deployed before this change return `"build_info": null`: they were built with the host's toolchain and name no commit.
+- The build refuses a working tree with uncommitted changes. A clean `git worktree` builds the committed source without disturbing a working checkout.
+
+## Paying a winner into NEAR Intents (sandbox, 2026-11-17)
+
+How the contract talks to the two mainnet contracts, from NEAR Intents' deposit guide and wrap.near's interface:
+- **wrap.near** registers an account for 0.00125 NEAR (`storage_deposit` with `registration_only`), wraps attached NEAR with `near_deposit`, and unwraps with `near_withdraw`, which needs 1 yoctoNEAR attached. An account already registered gets its deposit back.
+- **intents.near** takes a NEP-141 deposit through the token's `ft_transfer_call`, with the account to credit as `msg`, and holds it under the token id `nep141:wrap.near`. The guide budgets about 100 Tgas for the call; the contract attaches 100 Tgas to it and asks `claim_award` for 160 Tgas in all.
+- The contract sends registration, wrap and deposit as one batch of three function calls to wrap.near, so a failure in any of them reverts all three and refunds the attached NEAR. The callback reads `ft_transfer_call`'s result, the amount the verifier kept, and owes the rest as NEAR.
+
+Measured with mocks of both contracts in a near-workspaces sandbox (`a_winner_can_take_the_bounty_into_near_intents`, `a_refused_intents_deposit_comes_back_and_is_paid_as_near`):
+- A 5 NEAR award, claimed with 200 Tgas, leaves 4.99875 NEAR in the winner's Intents balance and 0.00125 NEAR with the token.
+- With the verifier refusing, the 4.99875 wNEAR comes back to the contract; a second claim with 100 Tgas unwraps it, and the winner's balance rises by exactly 4.99875 NEAR.
+- The contract's wasm grew from 186,518 to 204,062 bytes, so a new challenge locks about 0.18 NEAR more storage.
+
+Not yet run on mainnet. A first mainnet test needs a challenge deployed from this build with a small bounty, won by a submission with `payout: "Intents"`.
+
 ## Measured locally (wasmtime 50, mock API)
 
 | Measure | Value |
@@ -54,6 +77,34 @@ Findings from building against OutLayer and NEAR AI Cloud. They were checked aga
 - OpenAI-compatible endpoint: `https://cloud-api.near.ai/v1/chat/completions`. `/v1/models` publishes per-token prices and the sampling parameters each model accepts.
 - Models owned by `nearai` are served from NEAR AI's attested TEE infrastructure. The live rules allow only confidential models: `z-ai/glm-5.3-flash`, `Qwen/Qwen3.6-35B-A3B-FP8` and `qwen/qwen3.5-397b-a17b`.
 - Some models accept no sampling parameters (for example `deepseek-ai/DeepSeek-V4.1-Flash-1017`), so `temperature` is optional in the rules and omitted when unset.
+
+## Attested model answers (2026-11-18)
+
+What NEAR AI Cloud returns, and what checking it costs, measured against `z-ai/glm-5.3-flash`.
+
+- **The report.** `GET /v1/attestation/report?model=…&nonce=…&signing_algo=ecdsa` needs no API key and returned 809 KB in 2.2 s, most of it NVIDIA evidence (about 98 KB per server). It listed three servers, each a separate TDX virtual machine with its own container setup, all holding the same signing key `0x3b753b4406613c5e70ae640508632b600424fa0c`.
+- **What binds what.** In each server's TDX quote (version 4, 5,006 bytes), the first 32 bytes of `report_data` are the signing address, zero-padded, and the last 32 the request's nonce. `mr_config_id` is `01` followed by the SHA-256 of `info.tcb_info.app_compose`, and the GPU evidence's `nonce` field is the same nonce. All of this held for all three servers.
+- **Signatures.** `GET /v1/signature/{chat_id}?model=…&signing_algo=ecdsa` takes the API key and answered in about 0.7 s. Its `text` was `model:sha256(request):sha256(response)`, and both hashes matched the exact bytes sent and received. The signature is Ethereum `personal_sign` (EIP-191), and it recovers to the attested address.
+- **Intel's collateral.** It comes from Intel's own service, `api.trustedservices.intel.com`: the PCK CRL, TCB info and QE identity with their issuer chains in headers, plus the root CA CRL. That was 9.9 KB for the platform `90C06F000000`, and the quote verified as `UpToDate`. dcap-qvl's own collateral client needs reqwest, which has no WASI build, so the evaluator ports its few requests onto its own HTTP client.
+- **Instructions in WebAssembly** (wasmtime's fuel meter, `wasm32-wasip2`):
+  - size-optimized (`opt-level = "z"`, the workspace default), one quote cost about 420 million instructions and one signature 18 million;
+  - with the elliptic-curve crates at `opt-level = 3`, about 290 million and 14.5 million;
+  - k256's precomputed tables made no difference.
+- **A whole run.** The 16-ticket sample with attestation required needed between 550 and 700 million instructions; the same candidate without it needed under 100 million. That came to 10.5 s, against 4.6 s without the check.
+- **The limit.** Checking all three servers' quotes ran out of a billion instructions, so the evaluator checks one server per key, as NEAR AI's chat verifier does. A 100-ticket attested run needs about 2 billion. OutLayer's `estimate_execution_cost` for 110 s and 128 MB:
+
+  | Instructions | Estimate |
+  |---|---|
+  | 1 billion | 0.0120001 NEAR |
+  | 10 billion | 0.012001 NEAR |
+  | 100 billion | 0.01201 NEAR |
+
+  The contract now asks for 10 billion, and attested test sets hold at most 250 tickets.
+- **On OutLayer (2026-11-24).** Owner trial `few-shot-guided` on `challenge-20261118175408.finishr.testnet`, over the 16-ticket sealed sample.
+  - **Setup.** The rules are `examples/rules/near-ai-attested.json`. The evaluator is `c4d75cb7…`, 1.15 MB on FastFS. The contract is the reproducible build of `582f428`, code hash `FsqcVHi64uFDznY3Vycqo2DgfZtMt9TYGumbNhx3XPu7`, deployed locked (no access keys) in one transaction: create, fund 2.2 NEAR, deploy and `new`. `scripts/near/verify-contract.sh` rebuilt that commit from GitHub and matched the hash.
+  - **The worker reached every service.** NEAR AI's signatures and attestation report, Intel's collateral and NVIDIA's attestation service all answered. The verdict, 664 bytes, records `"model_tee":{"answers":16,"signed":16,"signers":["0x3b753b4406613c5e70ae640508632b600424fa0c"],"tdx":"UpToDate"}`: `Passed` at 87.5% accuracy and 72 µ$ per ticket.
+  - **Cost.** OutLayer's job log shows 539,580,955 instructions and 14.85 s of execution, after a 1.4 s compile. That is within the 550 to 700 million measured under wasmtime, and about half of the old 1 billion limit.
+  - **Timing.** 41.1 s from request to recorded verdict.
 
 ## Measured against NEAR AI Cloud (from a laptop, 16 sealed-sample tickets)
 
@@ -217,3 +268,9 @@ FastFS uploads call a method that does not exist, so explorers list the upload a
 - **Operational notes.**
   - near.org's public mainnet RPC answered HTTP 429 during the deploy. The scripts, the MCP server and near-cli now use FastNEAR, and a deploy that stops after creating its account resumes into it.
   - Ad blockers' cosmetic filters hid the web board's funding controls, because of class names such as `sponsor-block`. Those classes are renamed.
+
+## Shared contract on testnet (2026-11-17)
+
+The challenge contract the board serves (`web/public/contract/bakeoff_contract.wasm`, 186,518 bytes, code hash `HeXPDJmQgPDfBfYvedbTL3iVyFvX7yZ84NH3s5n3tTGU`) is published on testnet as a NEAR global contract by hash, from `finishr.testnet`, with `scripts/near/publish-shared-contract.sh` and near-cli-rs 0.31.1: transaction `EKgccR1AwGWt7UVJDRBWV8P52R4gBq9krUxzGDZc2vTm`. It burned 18.653 testnet NEAR, ten times the normal storage rate for its size, as NEP-591 sets. The 16 testnet NEAR it needed beyond `finishr.testnet`'s balance came from two faucet accounts, `bakeoff-faucet-1-20261117.testnet` and `bakeoff-faucet-2-20261117.testnet`.
+
+Testnet challenges deployed from the setup form now reference it, and need about 0.06 NEAR of storage instead of 1.9. Nothing is published on mainnet, where the same step would burn about 18.6 NEAR.

@@ -2,12 +2,22 @@
 
 export type Network = "testnet" | "mainnet";
 
-export const NETWORKS: Record<Network, { rpc: string; explorer: string; wrap: string }> = {
-  // FastNEAR answers view calls about four times faster than NEAR's own
-  // public endpoints, with open CORS.
-  testnet: { rpc: "https://test.rpc.fastnear.com", explorer: "https://testnet.nearblocks.io", wrap: "wrap.testnet" },
-  mainnet: { rpc: "https://free.rpc.fastnear.com", explorer: "https://nearblocks.io", wrap: "wrap.near" },
+export const NETWORKS: Record<Network, { rpc: string; rpcFallback: string; explorer: string; wrap: string }> = {
+  // FastNEAR answers view calls about four times faster than NEAR's own public endpoints, with
+  // open CORS, but refuses bursts; NEAR's endpoints take over while it rests.
+  testnet: { rpc: "https://test.rpc.fastnear.com", rpcFallback: "https://rpc.testnet.near.org", explorer: "https://testnet.nearblocks.io", wrap: "wrap.testnet" },
+  mainnet: { rpc: "https://free.rpc.fastnear.com", rpcFallback: "https://rpc.mainnet.near.org", explorer: "https://nearblocks.io", wrap: "wrap.near" },
 };
+
+/** How a winner is paid: NEAR, or wNEAR into their NEAR Intents balance. */
+export type Payout = "Near" | "Intents";
+
+/** A share of a won reward paid to the board's operator, fixed when the challenge was deployed. */
+export interface ServiceFee {
+  account: string;
+  /** Basis points of the reward: 250 is 2.5%. */
+  bps: number;
+}
 
 export interface Award {
   evaluation: number;
@@ -15,6 +25,18 @@ export interface Award {
   amount: string;
   paid: boolean;
   in_flight: boolean;
+  /** The rest are absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
+  /** yoctoNEAR deposited into the winner's NEAR Intents balance. */
+  to_intents?: string;
+  /** yoctoNEAR spent registering the contract with the wNEAR token. */
+  fee?: string;
+  /** yoctoNEAR of wNEAR the verifier refused, owed to the winner as NEAR. */
+  wrapped?: string;
+  /** yoctoNEAR of `amount` taken as the service fee; absent on challenges deployed before fees. */
+  service_fee?: string;
+  /** The fee reached its account; false while a failed transfer waits to be sent again. */
+  service_fee_sent?: boolean;
 }
 
 export type ChallengeStatus = "Draft" | "Open" | "Awarded" | "Closed";
@@ -34,6 +56,10 @@ export interface ChallengeView {
   bounty?: string;
   closes_at?: string | null;
   award?: Award | null;
+  /** Where a winner may be paid into NEAR Intents; absent or null where they cannot. */
+  intents?: { wrap: string; verifier: string } | null;
+  /** Absent or null where the challenge takes no service fee. */
+  service_fee?: ServiceFee | null;
 }
 
 export interface EvaluationView {
@@ -45,6 +71,8 @@ export interface EvaluationView {
   status: "Pending" | "Passed" | "Failed" | "Rejected";
   reasons: string[];
   verdict: string | null;
+  /** Absent on challenges deployed before Intents payouts. */
+  payout?: Payout;
   requested_at: string;
   settled_at: string | null;
 }
@@ -65,20 +93,42 @@ export function isMissingAccount(error: unknown): boolean {
 const MAX_IN_FLIGHT = 4;
 /** Waits before each retry of a refused call, in ms; each is spread by ±25% so retries do not land together. */
 const RETRY_DELAYS_MS = [400, 1000, 2200, 4500];
+/** How long an endpoint that refused a call is left alone while the others take the calls. */
+const REST_MS = 8_000;
 
 type RpcBody<T> = { error?: { cause?: { name?: string }; message?: string }; result?: T & { error?: string } };
 
 export class NearRpc {
+  /** The preferred endpoint; the others are used while it rests. */
   readonly url: string;
+  readonly urls: string[];
   private readonly fetchImpl: typeof fetch;
   private readonly retryDelaysMs: number[];
+  private readonly restMs: number;
+  private readonly resting = new Map<string, number>();
   private active = 0;
   private readonly waiting: (() => void)[] = [];
 
-  constructor(url: string, fetchImpl: typeof fetch = fetch.bind(globalThis), options: { retryDelaysMs?: number[] } = {}) {
-    this.url = url;
+  constructor(urls: string | string[], fetchImpl: typeof fetch = fetch.bind(globalThis), options: { retryDelaysMs?: number[]; restMs?: number } = {}) {
+    this.urls = typeof urls === "string" ? [urls] : urls;
+    this.url = this.urls[0]!;
     this.fetchImpl = fetchImpl;
     this.retryDelaysMs = options.retryDelaysMs ?? RETRY_DELAYS_MS;
+    this.restMs = options.restMs ?? REST_MS;
+  }
+
+  /** The first endpoint not resting; when all are, they take turns. */
+  private endpoint(attempt: number): { url: string; others: boolean } {
+    const now = Date.now();
+    const awake = this.urls.filter((u) => (this.resting.get(u) ?? 0) <= now);
+    return { url: awake[0] ?? this.urls[attempt % this.urls.length]!, others: awake.length > 1 };
+  }
+
+  /** Rests an endpoint that refused a call. Returns true when another can take the retry now. */
+  private refused(url: string): boolean {
+    this.resting.set(url, Date.now() + this.restMs);
+    const now = Date.now();
+    return this.urls.some((u) => (this.resting.get(u) ?? 0) <= now);
   }
 
   /** Runs one call once fewer than MAX_IN_FLIGHT are running, so a page's reads queue instead of bursting. */
@@ -102,27 +152,30 @@ export class NearRpc {
     const request = JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-web", method: "query", params: { finality: "final", ...params } });
     for (let attempt = 0; ; attempt++) {
       const retryable = attempt < this.retryDelaysMs.length;
+      const { url } = this.endpoint(attempt);
+      // A refused call goes straight to an endpoint that is not resting, or waits if none is.
+      const retry = async () => { if (!this.refused(url)) await this.pause(attempt); };
       let reply: { status: number; body: RpcBody<T> | null };
       try {
         reply = await this.slot(async () => {
-          const response = await this.fetchImpl(this.url, { method: "POST", headers: { "content-type": "application/json" }, body: request });
+          const response = await this.fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: request });
           return { status: response.status, body: response.ok ? ((await response.json()) as RpcBody<T>) : null };
         });
       } catch (error) {
         // A rate limit answered without CORS headers reaches the page as a network error, so a
         // failed request is retried like a 429.
-        if (retryable) { await this.pause(attempt); continue; }
+        if (retryable) { await retry(); continue; }
         throw new Error(`NEAR RPC could not be reached (${(error as Error).message})`);
       }
       if (reply.status === 429 || reply.status >= 500) {
-        if (retryable) { await this.pause(attempt); continue; }
+        if (retryable) { await retry(); continue; }
         throw new Error(`NEAR RPC answered ${reply.status}`);
       }
       if (!reply.body) throw new Error(`NEAR RPC answered ${reply.status}`);
       const { error, result } = reply.body;
       if (error) {
         const name = error.cause?.name ?? error.message ?? "";
-        if (retryable && /TIMEOUT|TOO_MANY_REQUESTS|NO_SYNCED_BLOCKS/.test(name)) { await this.pause(attempt); continue; }
+        if (retryable && /TIMEOUT|TOO_MANY_REQUESTS|NO_SYNCED_BLOCKS/.test(name)) { await retry(); continue; }
         throw new Error(`${label}: ${name}`);
       }
       if (result?.error) throw new Error(`${label}: ${result.error}`);
@@ -136,6 +189,17 @@ export class NearRpc {
       `${accountId}.${method}`,
     );
     return JSON.parse(new TextDecoder().decode(Uint8Array.from(result.result ?? []))) as T;
+  }
+
+  /**
+   * NEAR's hash of the code an account runs: base58 of its SHA-256. An account that uses a global
+   * contract (NEP-591) by hash reports its own code as none (1111…1111) and the shared code's hash
+   * separately, so that one is returned instead.
+   */
+  async codeHash(accountId: string): Promise<string> {
+    const result = await this.query<{ code_hash?: string; global_contract_hash?: string | null }>({ request_type: "view_account", account_id: accountId }, `${accountId} account`);
+    const own = result.code_hash ?? "";
+    return /^1+$/.test(own) && result.global_contract_hash ? result.global_contract_hash : own;
   }
 
   /**
@@ -208,6 +272,38 @@ export interface Metrics {
   leaks?: number;
   invalid_answers?: number;
   tickets?: number;
+}
+
+/**
+ * Where a challenge's rules require attested model answers: which TEE keys signed this run's
+ * answers, as the evaluator checked them inside the enclave. See evaluator/src/attestation.rs.
+ */
+export interface ModelTee {
+  /** Answers whose signature recovered to an attested key. */
+  signed: number;
+  answers: number;
+  /** The attested signing addresses, 0x-prefixed. */
+  signers: string[];
+  /** Intel's TCB status for the TDX quotes checked, the least current if they differ. */
+  tdx: string;
+}
+
+export function verdictModelTee(evaluation: EvaluationView): ModelTee | null {
+  if (!evaluation.verdict) return null;
+  try {
+    return ((JSON.parse(evaluation.verdict) as { model_tee?: ModelTee | null }).model_tee ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a challenge's rules require every answer to come from the provider's attested TEEs. */
+export function requiresModelAttestation(view: ChallengeView): boolean {
+  try {
+    return (JSON.parse(view.rules_json) as { model_attestation?: string }).model_attestation === "near-ai-cloud";
+  } catch {
+    return false;
+  }
 }
 
 export function verdictMetrics(evaluation: EvaluationView): Metrics | null {

@@ -14,10 +14,12 @@ import { CodeBlock, CopyButton, Reveal } from "../components/ui.tsx";
 import { ArrowRight, Check, Download, Lock, Plus, Shield } from "../components/Icons.tsx";
 import { microDollars, percent, seconds } from "../lib/format.ts";
 import type { Gates, Network } from "../lib/near.ts";
+import { LISTING_REGISTRY } from "../lib/registry.ts";
 import { useSession } from "../lib/session.tsx";
+import { WalletDeploy } from "../components/WalletDeploy.tsx";
 import {
-  baselineFromReport, baselineOf, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, type Goal, issuesOf,
-  json, LIMITS, listingOf, lockCommand, num, REQUEST_OPTIONS, rulesOf, suffix, TEST_SET_PATH,
+  baselineConfigFromReport, baselineFromReport, baselineOf, challengeId, commandsOf, type Draft, emptyDraft, gatesOf, type Goal, issuesOf,
+  json, LIMITS, listCommand, listingOf, lockCommand, num, registryArgs, REQUEST_OPTIONS, rulesOf, suffix, TEST_SET_PATH,
 } from "../lib/setup.ts";
 
 const KEY = "bakeoff:new-challenge";
@@ -38,6 +40,7 @@ const SECTIONS = [
   { id: "models", title: "Models and limits" },
   { id: "goal", title: "Goal and the bar" },
   { id: "reward", title: "Reward and deadline" },
+  { id: "deploy", title: "Deploy from your wallet" },
 ] as const;
 
 const GOALS: { id: Goal; title: string; text: string }[] = [
@@ -131,7 +134,7 @@ export function NewChallenge() {
     const baseline = baselineFromReport(text);
     if (!baseline) return setReportError("That isn't calibration's report.json: it has no baseline_metrics.");
     setReportError(null);
-    up({ baseline });
+    up({ baseline, baselineConfig: baselineConfigFromReport(text) ?? draft.baselineConfig });
   };
 
   return (
@@ -151,8 +154,8 @@ export function NewChallenge() {
         <Reveal className="setup-safe">
           <span className="feature-icon"><Shield /></span>
           <div>
-            <h3>Your test cases and API key never touch this page.</h3>
-            <p className="text-2 small">The form runs in your browser and sends nothing; your draft is kept in this browser only. You run the commands on your own machine, where the scripts read both and the OutLayer CLI encrypts them for the evaluator. <Link to="/teams">How hosting works</Link></p>
+            <h2>Your test cases and API key never touch this page.</h2>
+            <p className="text-2 small">The form runs in your browser and sends nothing; your draft is kept in this browser only. To deploy, it can hash your test set file here, without uploading it. You seal the test cases and key on your own machine, where the OutLayer CLI encrypts them for the evaluator. <Link to="/teams">How hosting works</Link></p>
           </div>
         </Reveal>
 
@@ -202,6 +205,12 @@ export function NewChallenge() {
                 </Field>
                 <Field label="Priorities" wide hint="Comma-separated, lowest first.">
                   <input className="input" value={draft.priorities} onChange={(e) => up({ priorities: e.target.value })} spellCheck={false} />
+                </Field>
+                <Field label="Practice tickets (optional)" wide hint="An https link to the public tickets builders tune on, in the format of data/tickets/practice.json.">
+                  <input className="input" value={draft.practiceSet ?? ""} onChange={(e) => up({ practiceSet: e.target.value.trim() })} placeholder="https://…/practice.json" spellCheck={false} />
+                </Field>
+                <Field label="Labeling guide (optional)" wide hint="An https link to the guide both ticket sets were labelled by.">
+                  <input className="input" value={draft.labelingGuide ?? ""} onChange={(e) => up({ labelingGuide: e.target.value.trim() })} placeholder="https://…/labeling-guide.md" spellCheck={false} />
                 </Field>
                 <Field label="Hidden test cases" hint={<>About 100 works well. Keep the file at <span className="mono">{TEST_SET_PATH}</span>: that folder stays out of git.</>}>
                   <input className="input" inputMode="numeric" value={draft.tickets} onChange={(e) => up({ tickets: e.target.value })} />
@@ -271,6 +280,9 @@ export function NewChallenge() {
                 <textarea className="textarea" rows={4} value={report} onChange={(e) => readReport(e.target.value)} placeholder='{ "baseline_metrics": { … } }' spellCheck={false} aria-label="report.json" />
                 {reportError ? <p className="setup-error small">{reportError}</p> : report.trim() && <p className="setup-ok small"><Check /> Baseline read from the report.</p>}
                 <p className="muted small">The report holds only totals, nothing about individual test cases, so it is safe to paste and to publish.</p>
+                <Field label="Baseline config's SHA-256 (optional)" hint="From the report. With it, the board finds your trial runs of this config and shows them as your baseline measured in the enclave, beside these figures.">
+                  <input className="input mono" value={draft.baselineConfig ?? ""} onChange={(e) => up({ baselineConfig: e.target.value.trim().toLowerCase() })} placeholder="64 hex characters" spellCheck={false} />
+                </Field>
               </details>
 
               <div className="setup-goals" role="radiogroup" aria-label="Goal">
@@ -336,7 +348,11 @@ export function NewChallenge() {
                   <Unit unit="days"><input className="input" inputMode="numeric" value={draft.days} onChange={(e) => up({ days: e.target.value })} /></Unit>
                 </Field>
               </div>
-              <p className="muted small setup-costs">Deploying costs about 2.5 NEAR, mostly storage you get back by deleting the challenge. Storing the test cases takes a deposit of about 0.25 NEAR, and each scoring run about 0.02 NEAR.</p>
+              <p className="muted small setup-costs">Deploying from your wallet costs about 2.2 NEAR of storage, which stays with the locked challenge; the scripts send 2.5 NEAR, which you get back by deleting the challenge before you lock it. Storing the test cases takes a deposit of about 0.25 NEAR, and each scoring run about 0.02 NEAR.</p>
+            </Section>
+
+            <Section index={5} id="deploy" title="Deploy from your wallet" lede="One approval in your wallet creates the challenge account, sends it the storage it needs, deploys the Bakeoff contract and sets it up with your rules. Or run the scripts in the Commands tab instead.">
+              <WalletDeploy network={draft.network} owner={draft.account.trim()} challenge={id} rulesJson={files.rules.text} ready={ready} onOwner={(account) => up({ account })} onDownload={(name, text) => download(name, text, "text/plain")} />
             </Section>
           </div>
 
@@ -373,14 +389,21 @@ export function NewChallenge() {
                     <button type="button" className="btn btn-sm" onClick={() => download(file.name, file.text, file.type)}><Download /> Download</button>
                   </span>
                 </div>
-                <pre className="code setup-code" aria-label={file.name}>{file.text}</pre>
-                {tab === "listing" && <p className="muted small">Add it under <span className="mono">"{draft.network}"</span> in <span className="mono">web/public/challenges.json</span> with a pull request. Until then the challenge opens at its address with its on-chain data.</p>}
+                <pre className="code setup-code" aria-label={file.name} tabIndex={0}>{file.text}</pre>
+                {tab === "listing" && (LISTING_REGISTRY[draft.network]
+                  ? <div className="setup-onchain">
+                      <p className="small text-2">List it on-chain, without a pull request: only the account the challenge was created under can. Save the arguments as <span className="mono">list-args.json</span>, then run:</p>
+                      <CodeBlock code={listCommand(draft, LISTING_REGISTRY[draft.network]!)} />
+                      <button type="button" className="btn btn-sm" onClick={() => download("list-args.json", json(registryArgs(draft)), "application/json")}><Download /> list-args.json</button>
+                      <p className="muted small">It appears on the board as Self-listed once the challenge is deployed. Or add the listing above to <span className="mono">web/public/challenges.json</span> with a pull request.</p>
+                    </div>
+                  : <p className="muted small">Add it under <span className="mono">"{draft.network}"</span> in <span className="mono">web/public/challenges.json</span> with a pull request. Until then the challenge opens at its address with its on-chain data.</p>)}
                 {tab === "rules" && <p className="muted small">Calibration ignores the requirements in this file, so download it once before calibrating and again after you enter the baseline.</p>}
               </div>
               {tab === "commands" && (
                 <ol className="setup-next">
                   <li><span className="mono">5</span><div><strong>Fund and open it</strong><p className="small text-2">On <Link to={`/challenges/${id}`}>its page</Link>, connect {draft.account || "the owner's wallet"} and use Manage: fund {num(draft.reward) ?? "the reward in"} NEAR, then open it for {hours || "the number of"} hours.</p></div></li>
-                  <li><span className="mono">6</span><div><strong>Lock it</strong><p className="small text-2">Deletes the challenge account's keys, so nobody, you included, can change its code. This cannot be undone.</p><CodeBlock code={lockCommand(draft)} /></div></li>
+                  <li><span className="mono">6</span><div><strong>Lock it</strong><p className="small text-2">Deletes the challenge account's keys, so nobody, you included, can change its code. This cannot be undone. A challenge deployed from your wallet has no keys to delete.</p><CodeBlock code={lockCommand(draft)} /></div></li>
                   <li><span className="mono">7</span><div><strong>List it on the board</strong><p className="small text-2">Add the listing from the Listing tab to <span className="mono">web/public/challenges.json</span>.</p></div></li>
                 </ol>
               )}

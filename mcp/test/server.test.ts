@@ -56,7 +56,7 @@ test("the server offers the contributor workflow as tools and a prompt", async (
   const tools = (await client.listTools()).tools;
   assert.deepEqual(tools.map((t) => t.name), [
     "list_challenges", "get_challenge", "get_evaluations", "get_practice_tickets",
-    "get_labeling_guide", "score_on_practice", "submit_candidate",
+    "get_labeling_guide", "score_on_practice", "submit_candidate", "claim_award",
   ]);
   assert.equal(tools.find((t) => t.name === "list_challenges")?.annotations?.readOnlyHint, true);
   assert.equal(tools.find((t) => t.name === "submit_candidate")?.annotations?.readOnlyHint, false);
@@ -72,6 +72,16 @@ test("challenges are summarised with the bounty and deadline people read", async
   assert.equal(challenges[0].gates.min_accuracy_bp, 8500);
 });
 
+test("a challenge with a service fee says what the winner receives after it", async () => {
+  const { call, chain } = await connect();
+  chain.challenges = [challengeView({ bounty: "5000000000000000000000000", service_fee: { account: "board.testnet", bps: 250 } })];
+  const { challenges } = (await call("list_challenges")).json();
+  assert.deepEqual(challenges[0].service_fee, { account: "board.testnet", percent: 2.5, winner_receives: "4.875 NEAR" });
+  chain.challenges = [challengeView()];
+  const plain = (await call("list_challenges")).json();
+  assert.equal(plain.challenges[0].service_fee, undefined);
+});
+
 test("get_challenge fills in the evaluator's defaults for limits the rules leave out", async () => {
   const { call } = await connect();
   const challenge = (await call("get_challenge", { challenge_id: CHALLENGE })).json();
@@ -84,7 +94,7 @@ test("get_challenge fills in the evaluator's defaults for limits the rules leave
 
 test("only configured challenges are served", async () => {
   const { call } = await connect();
-  for (const name of ["get_challenge", "get_evaluations", "get_practice_tickets", "score_on_practice", "submit_candidate"]) {
+  for (const name of ["get_challenge", "get_evaluations", "get_practice_tickets", "score_on_practice", "submit_candidate", "claim_award"]) {
     const result = await call(name, { challenge_id: "elsewhere.testnet", config_json: "{}" });
     assert.ok(result.isError, name);
     assert.match(result.text, /not a challenge this server offers/);

@@ -6,11 +6,13 @@
 import { spawn } from "node:child_process";
 import type { Config } from "./config.ts";
 import { sha256Hex } from "./evaluator.ts";
-import type { Award, EvaluationView, NearRpc } from "./near.ts";
+import type { Award, EvaluationView, NearRpc, Payout } from "./near.ts";
 
 /** Matches the contract: 0.025 NEAR for OutLayer and 0.01 NEAR for the record. */
 export const SUBMIT_DEPOSIT = "0.035 NEAR";
 export const SUBMIT_GAS = "300.0 Tgas";
+/** The contract needs 160 Tgas to send an award into NEAR Intents; NEAR needs far less. */
+export const CLAIM_GAS = "200.0 Tgas";
 
 export interface CliResult {
   code: number | null;
@@ -33,6 +35,8 @@ export interface SubmissionResult {
   metrics: Record<string, number> | null;
   config_sha256: string;
   transaction: string | null;
+  /** How this submission asked to be paid if it wins. */
+  payout: Payout;
   award: (Award & { won_by_this_submission: boolean }) | null;
   note?: string;
 }
@@ -86,6 +90,7 @@ export async function submitCandidate(
   challengeId: string,
   configJson: string,
   waitSeconds: number,
+  payout: Payout = "Near",
 ): Promise<SubmissionResult> {
   if (!config.account) {
     throw new Error("set BAKEOFF_ACCOUNT to the account that signs submissions");
@@ -107,25 +112,28 @@ export async function submitCandidate(
   if (challenge.closes_at !== null && BigInt(deps.now()) * 1_000_000n >= BigInt(challenge.closes_at)) {
     throw new Error(`the deadline for ${challengeId} has passed`);
   }
+  if (payout === "Intents" && !challenge.intents) {
+    throw new Error(`${challengeId} cannot pay into NEAR Intents; its winners are paid in NEAR`);
+  }
 
   budget.take();
   const firstId = challenge.evaluations;
   const configSha = sha256Hex(configJson);
   const { code, output } = await deps.runCli(config.nearCli, [
     "contract", "call-function", "as-transaction", challengeId, "submit",
-    "json-args", JSON.stringify({ config_json: configJson }),
+    // Contracts deployed before Intents payouts take config_json alone.
+    "json-args", JSON.stringify(payout === "Intents" ? { config_json: configJson, payout } : { config_json: configJson }),
     "prepaid-gas", SUBMIT_GAS, "attached-deposit", SUBMIT_DEPOSIT,
     "sign-as", config.account,
     "network-config", config.network,
-    config.signWith === "keychain" ? "sign-with-keychain" : "sign-with-legacy-keychain",
+    signWith(config),
     "send",
   ]);
   const clean = output.replace(ANSI, "");
   // The transaction stays open until OutLayer answers, which can outlast the
   // RPC node's wait; that timeout is expected and the contract is polled.
   if (code !== 0 && !/408 Request Timeout|TIMEOUT_ERROR/.test(clean)) {
-    const lines = clean.split("\n").map((l) => l.trim()).filter(Boolean);
-    throw new Error(`the submission was not sent: ${lines.filter((l) => /error/i.test(l)).slice(-3).join(" | ") || lines.slice(-3).join(" | ")}`);
+    throw new Error(`the submission was not sent: ${cliError(clean)}`);
   }
   const transaction = /Transaction ID: (\w+)/.exec(clean)?.[1] ?? null;
 
@@ -146,7 +154,7 @@ export async function submitCandidate(
   if (!evaluation) {
     return {
       evaluation_id: null, status: "NotRecorded", eligible: null, reasons: [], metrics: null,
-      config_sha256: configSha, transaction, award: null,
+      config_sha256: configSha, transaction, payout, award: null,
       note: "near-cli sent the transaction but no evaluation was recorded; check the transaction on the explorer",
     };
   }
@@ -160,6 +168,7 @@ export async function submitCandidate(
     metrics: verdict?.metrics ?? null,
     config_sha256: configSha,
     transaction,
+    payout,
     award: null,
   };
   if (evaluation.status === "Pending") {
@@ -173,9 +182,59 @@ export async function submitCandidate(
       if (award) {
         result.award = { ...award, won_by_this_submission: award.evaluation === evaluation.id };
         if (award.paid || award.evaluation !== evaluation.id) break;
+        // An award into NEAR Intents waits for claim_award rather than going out with the verdict.
+        if (award.payout === "Intents" && !award.in_flight) {
+          result.note = "This submission won. The bounty goes into your NEAR Intents balance once claim_award is called: use the claim_award tool, or any account may send it.";
+          break;
+        }
       }
       await deps.sleep(3_000);
     }
   }
   return result;
+}
+
+/**
+ * Sends a won bounty that is still owed: into the winner's NEAR Intents
+ * balance if they asked for that, otherwise as NEAR. Any account may sign it;
+ * the contract pays only the winner. Returns the award once the payment settles.
+ */
+export async function claimAward(config: Config, deps: SubmitDeps, challengeId: string): Promise<Award> {
+  if (!config.account) {
+    throw new Error("set BAKEOFF_ACCOUNT to the account that signs the claim");
+  }
+  const { award } = await deps.rpc.getChallenge(challengeId);
+  if (!award) throw new Error(`${challengeId} has not awarded its bounty`);
+  if (award.paid) throw new Error(`the award on ${challengeId} has been paid`);
+  if (award.in_flight) throw new Error(`a payment of the award on ${challengeId} is already on its way`);
+
+  const { code, output } = await deps.runCli(config.nearCli, [
+    "contract", "call-function", "as-transaction", challengeId, "claim_award",
+    "json-args", "{}",
+    "prepaid-gas", CLAIM_GAS, "attached-deposit", "0 NEAR",
+    "sign-as", config.account,
+    "network-config", config.network,
+    signWith(config),
+    "send",
+  ]);
+  if (code !== 0) throw new Error(`the claim was not sent: ${cliError(output.replace(ANSI, ""))}`);
+
+  // The payment and its callback land a few blocks after the claim.
+  let latest = award;
+  for (let i = 0; i < 10; i++) {
+    latest = (await deps.rpc.getChallenge(challengeId)).award ?? latest;
+    if (!latest.in_flight) break;
+    await deps.sleep(2_000);
+  }
+  return latest;
+}
+
+function signWith(config: Config): string {
+  return config.signWith === "keychain" ? "sign-with-keychain" : "sign-with-legacy-keychain";
+}
+
+/** The lines of near-cli's output that say what went wrong. */
+function cliError(output: string): string {
+  const lines = output.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.filter((l) => /error/i.test(l)).slice(-3).join(" | ") || lines.slice(-3).join(" | ");
 }

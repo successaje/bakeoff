@@ -8,11 +8,11 @@ The public face of Bakeoff: a static React app that reads bounties, results and 
 |---|---|
 | Home | **Hero:** a live line naming the latest winner, then "Make your AI work better", its goal word running through cheaper, faster and more accurate before it settles. Under it, a full-width band that charts the latest win: a ridge of ticket tiles, built up blank and then breathing in their colour, under a dashed bar labelled with the real requirements, the winner's peak rising past it and the team's own setup below, with a card cycling through the latest on-chain activity. **Built on:** the logo of each part Bakeoff runs on, with its job in a few words. **Leaderboards:** one card per requirement, each builder's best result next to the team's own setup, with the requirement marked on every bar. **Challenges** as wide cards with their requirements. **Agents:** an agent's session through the MCP tools beside a wall of tiles that light up in turn. **How a bake-off works** as a stepper beside each step's panel, ending on the winning result replayed. **Everything you need to run a bake-off,** over a receipt read from the contracts. **Guides,** and three things nobody can do. |
 | Challenges | Every listed challenge as a card, with search and category tiles: open, awarded, coming up and demo rounds. |
-| Challenge | A competition page in tabs, with the tab bar pinned under the top bar as you scroll. **Overview:** the problem, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked. **Data:** the public practice tickets, a field dictionary from the on-chain rules, label charts and a ticket explorer. **Leaderboard:** a podium, then each builder once by their best result, or every result as recorded. **Rules:** the requirements, how the reward is won, what a solution may change, and the in-browser checks. **Take part.** The owner also sees a **Manage** tab. |
+| Challenge | A competition page in tabs, with the tab bar pinned under the top bar as you scroll. **Overview:** the problem, the goal against the baseline, how it's tested and a timeline, beside the host, reward, participation and whether the contract is locked. **Data:** the public practice tickets, a field dictionary from the on-chain rules, label charts and a ticket explorer. **Leaderboard:** every scored result on a chart of cost against accuracy, then a podium, then each builder once by their best result, or every result as recorded. On the chart the area that meets the accuracy and cost requirements is shaded and the baseline is marked; a dot met every requirement, a cross failed (a result inside the shaded area can still fail on latency or a leak), and a hollow square is an owner's trial. Each mark links to its result and shows its figures on hover or keyboard focus; the "All results" table holds the same figures without the chart. **Rules:** the requirements, how the reward is won, what a solution may change, and the in-browser checks. **Take part.** The owner also sees a **Manage** tab. |
 | Result | Did it meet each requirement; how it compares with the baseline; the solution's config, to copy or download; the exact request to try it safely; the test's limitations; the evidence on-chain; and **Check the enclave proof**, which verifies OutLayer's Intel TDX quote for the run in the browser (Intel's signature chain, the record it commits to, OutLayer's approved list) and ties it to the pinned evaluator and the recorded verdict. The verifier is a WebAssembly build of `dcap-qvl` from [`quote-verifier/`](quote-verifier/), loaded only when the button is pressed. |
 | For builders | Connecting Claude Code, Codex or any MCP client; the seven tools and what each costs; the safety model. |
 | For teams | What a team brings, how the requirements come from its baseline, a challenge's lifecycle, the ways to fund it, and what setting one up takes, with a link to the setup form. |
-| Set up a challenge (`/#/challenges/new`) | The form behind every "Host a challenge" button: the challenge and its owner, the task's labels, the models builders may use and the run limits, a goal that sets the requirements from the baseline (typed in, or read from calibration's `report.json`), and the reward. It writes the rules file, the board's listing entry and every setup command with the values filled in, and checks them against the evaluator's limits as you type. It runs in the browser, sends nothing, and never asks for the test cases or the API key. |
+| Set up a challenge (`/#/challenges/new`) | The form behind every "Host a challenge" button: the challenge and its owner, the task's labels, the models builders may use and the run limits, a goal that sets the requirements from the baseline (typed in, or read from calibration's `report.json`), and the reward. It writes the rules file, the board's listing entry and every setup command with the values filled in, and checks them against the evaluator's limits as you type. Its last step deploys the challenge from the owner's wallet in one approval, locked from the start, after hashing the test set in the browser without uploading it, and hands over the deployment record for the scripts that seal the test set and key. It runs in the browser, sends nothing, and never asks for the test cases or the API key. |
 | How it works | One submission end to end; what stays hidden and what is public; what you still have to trust; questions. |
 | Leaderboard | Builders across every listed challenge, ranked by rewards won, then results that met every requirement. |
 | Account | One NEAR account's record: rewards won, every result it submitted, and the challenges it hosts. |
@@ -25,6 +25,8 @@ The public face of Bakeoff: a static React app that reads bounties, results and 
 The contract stores only the SHA-256 of each result's config. The result page lists the submitter's transactions to the challenge through [nearblocks](https://nearblocks.io), reads each `submit` transaction's arguments from FastNEAR's archival node, and shows the config only if it hashes to the record. From the config and the rules it rebuilds the chat request the evaluator sent for each ticket, the same way the evaluator does, for the team to download and run beside its current agent.
 
 The challenges listed, with a title, the task and the baseline each sponsor published, are in [`public/challenges.json`](public/challenges.json). Everything else comes from the contracts.
+
+Owners can also list a challenge themselves, on-chain, in the [listing registry](../registry/README.md). The board reads the registry for each network in `LISTING_REGISTRY` ([`src/lib/registry.ts`](src/lib/registry.ts)) and adds its listings to the file's, which wins when both list a challenge. It shows a self-listed challenge only if its account runs a known build of the challenge contract, by code hash, and marks it Self-listed: Bakeoff has not reviewed it. A registry that cannot be read leaves the board as it is. No registry is configured yet; `scripts/near/deploy-registry.sh` deploys one.
 
 ## Design
 
@@ -42,13 +44,16 @@ The challenges listed, with a title, the task and the baseline each sponsor publ
   - **Results that settle** while a challenge page is open glow once, and a result still scoring shimmers its label.
 - **Restraint.** Headings are set light, at weight 450. Entrances rise 10 px over half a second, and interface transitions take 140–200 ms. Everything respects `prefers-reduced-motion`: the steps stop advancing on their own and the replay shows the finished run.
 - **Loading.** Only the home page and the shared shell load up front. Other pages and the wallet connector load on first use.
+- **Accessibility.** Checked with axe-core on every page type in light and dark, with no violations: small text reaches at least 4.5:1 contrast on every background it sits on (the light theme's green is `#007a4c` for that reason), headings never skip a level, no control sits inside another (a section's copy-link button sits beside its summary), scrollable code panels take keyboard focus, and links inside sentences are underlined. Nothing scrolls sideways at 375 px.
 
 ## Trust and status
 
 - **Demo rounds** carry a Demo badge and a notice saying which parts are real. A listing marks itself as a demo with `"demo": true`.
+- **Baselines measured in the enclave.** A listing's baseline is the owner's own calibration, the median of three runs on their machine. When the listing names the baseline config's SHA-256 (`baseline_config_sha256`, from calibration's `report.json`), the board finds the owner's trial runs of exactly that config, which the enclave scored on the hidden tickets but which never win, and shows them beside the published figures, as a median when there are several. Single runs vary, latency most, so the published figures stay what the requirements were set from.
 - **Awarded and paid** are separate states. Cards say Awarded until the payment lands, and the challenge page explains an unpaid award and how to retry it.
 - **Freshness.** The challenge page shows when it last read the chain and has a Refresh button. While a result is scoring, it re-reads every 10 s.
 - **Sources.** The footer, each challenge's problem and goal sections, and each result say which figures come from the contract and which from the owner's listing. The How it works page lists what users still have to trust.
+- **Reads that hold up.** Chain reads go to FastNear first and to NEAR's own RPC while FastNear rests: an endpoint that refuses a call rests for 8 s and the retry goes straight to the other, waiting with backoff only when both are resting. At most four calls run at once per network, so a page's reads queue instead of bursting into the free endpoints' rate limits. A challenge's view is read once and shared by the list and its page for 15 s. A read that fails after its retries shows the error with Try again; only an account or contract that does not exist shows not-found.
 
 ## Checks in the browser
 
@@ -65,7 +70,7 @@ Connect with [NEAR Connect](https://docs.near.org/web3-apps/tutorials/web-login/
 | Add to the reward from the wallet | Draft, or open before the deadline |
 | Open for N hours | Draft |
 | Withdraw the reward | Draft, or after an unwon deadline with nothing pending |
-| Retry a failed award payment | Any connected account, from the notice on the challenge or result page |
+| Send a reward into the winner's NEAR Intents balance, or retry a failed payment | Any connected account, from the notice on the challenge or result page |
 | Add wNEAR you hold | One approval unwraps it and funds the bounty |
 | Fund from another chain | Mainnet: see below |
 
@@ -85,6 +90,23 @@ The swap delivers to your own NEAR account, not to the contract:
 If a swap fails, 1Click refunds to your account's NEAR Intents balance. Without a partner key 1Click adds a 0.25% fee.
 
 NEAR Intents has no testnet, so cross-chain funding works on mainnet only. On testnet, use the wallet and wNEAR paths, from `wrap.testnet`.
+
+### Rewards paid into NEAR Intents
+
+On a challenge that can pay into NEAR Intents, the Rules and Take part tabs say so, and a winner who asked for it is shown at each stage ([`src/lib/payout.ts`](src/lib/payout.ts)):
+
+| Stage | The result page says | The button |
+|---|---|---|
+| Won, not sent yet | Won; to be paid into the winner's NEAR Intents balance | Send it into the winner's NEAR Intents balance, with 200 Tgas |
+| On its way | Won; the deposit into NEAR Intents is on its way | none |
+| Paid | Paid into the winner's NEAR Intents balance, as wNEAR, with the 0.00125 NEAR registration noted | none |
+| Refused | Won; NEAR Intents refused the deposit, so it is owed as NEAR | Send it to the winner as NEAR |
+
+Awards on contracts deployed before Intents payouts carry none of the new fields and read as before.
+
+### Service fees
+
+A challenge deployed with a service fee shows it before anyone submits: the sidebar's Reward gives what the winner receives after it, and the Rules tab names the fee's account and says it is fixed. Once a result wins, the result page notes the fee taken and whether it has been sent. `SERVICE_FEE` in [`src/lib/deploy.ts`](src/lib/deploy.ts) adds a fee to challenges deployed from the board; none is set, and the contract the board serves must be one that takes a fee before it is.
 
 ## Run it
 
@@ -112,6 +134,7 @@ The tests cover:
 - rebuilding the evaluator's chat request, and checking requirements and the baseline comparison;
 - NEAR amount parsing, refusing anything that is not a plain positive decimal;
 - the transactions the page asks a wallet to sign;
+- each stage of a reward paid into NEAR Intents, and the gas its claim needs;
 - the 1Click quote request;
 - the 1Click client against a fake API.
 

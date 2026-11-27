@@ -6,6 +6,7 @@
 //! everything except the network transport lives here so it can be tested
 //! natively.
 
+pub mod attestation;
 pub mod digest;
 pub mod evaluate;
 pub mod grading;

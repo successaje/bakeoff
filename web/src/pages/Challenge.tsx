@@ -18,12 +18,15 @@ import { DataExplorer } from "../components/DataExplorer.tsx";
 import { ErrorBoundary, ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { ArrowRight, Check, Coins, Copy, Cube, External, Hash, Lock, More, Replay, Shield, Timer } from "../components/Icons.tsx";
 import { ManagePanel, RetryPayment } from "../components/Manage.tsx";
-import { CodeBlock, CopyButton, Countdown, DemoBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
+import { CodeBlock, CopyButton, Countdown, DemoBadge, SelfListedBadge, DemoNotice, displayStatus, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge, rpcFor } from "../lib/data.ts";
 import { microDollars, percent, seconds, utc } from "../lib/format.ts";
 import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
+import { awardStage, feePercent, splitReward } from "../lib/payout.ts";
 import { challengeGates, type EvaluationView, formatNear, type Gates, isMissingAccount, type Metrics, nsToDate, sha256Hex, verdictMetrics } from "../lib/near.ts";
-import type { Baseline } from "../lib/registry.ts";
+import { enclaveBaseline } from "../lib/baseline.ts";
+import type { Baseline, ListedChallenge } from "../lib/registry.ts";
+import { commitLink, type SourceMetadata, sourceOf } from "../lib/source.ts";
 import { useSession } from "../lib/session.tsx";
 import { NotFound } from "./NotFound.tsx";
 
@@ -77,7 +80,7 @@ function CheckRow({ icon: Icon, title, value, detail, run }: { icon: typeof Hash
       <span className="check-icon"><Icon /></span>
       <div className="check-body">
         <div className="check-title">
-          <h4>{title}</h4>
+          <h3>{title}</h3>
           {state.ok && <span className="badge badge-green badge-dot">Matches</span>}
           {state.mismatch && <span className="badge badge-coral badge-dot">Mismatch</span>}
           {state.failed && <span className="badge badge-amber badge-dot">Could not verify</span>}
@@ -116,7 +119,7 @@ function LockRow({ detail }: { detail: ChallengeDetail }) {
       <span className="check-icon"><Shield /></span>
       <div className="check-body">
         <div className="check-title">
-          <h4>Contract code</h4>
+          <h3>Contract code</h3>
           {count === 0 && <span className="badge badge-green badge-dot">Locked · 0 keys</span>}
           {count !== undefined && count > 0 && <span className="badge badge-amber badge-dot">Not locked · {count} {plural}</span>}
           {keys.error && !keys.data && <span className="badge badge-amber badge-dot">Could not verify</span>}
@@ -136,12 +139,46 @@ function LockRow({ detail }: { detail: ChallengeDetail }) {
   );
 }
 
+/** The code the challenge runs, and the commit it was built from when the build is reproducible. */
+function SourceRow({ detail }: { detail: ChallengeDetail }) {
+  const id = detail.listing.id;
+  const source = useAsync(async () => {
+    const rpc = rpcFor(detail.network);
+    const [codeHash, metadata] = await Promise.all([rpc.codeHash(id), rpc.view<SourceMetadata>(id, "contract_source_metadata").catch(() => null)]);
+    return sourceOf(codeHash, metadata);
+  }, `source:${detail.network}:${id}`);
+  const build = source.data?.build;
+  return (
+    <div className="check-row">
+      <span className="check-icon"><Cube /></span>
+      <div className="check-body">
+        <div className="check-title">
+          <h3>Source</h3>
+          {source.data && (build ? <span className="badge badge-green badge-dot">Reproducible build</span> : <span className="badge badge-amber badge-dot">No source commit</span>)}
+          {source.error && !source.data && <span className="badge badge-amber badge-dot">Could not verify</span>}
+        </div>
+        {source.data && <div className="hash-line"><code className="mono break">{source.data.codeHash}</code><CopyButton text={source.data.codeHash} label="Copy the code hash" /></div>}
+        <p className="muted small">
+          {build
+            ? <>The code hash above is built from <a href={commitLink(build)} target="_blank" rel="noopener noreferrer">commit {build.commit.slice(0, 7)}</a> in a pinned build image, as the contract's own metadata says. Building that commit gives the same hash: <code className="mono">scripts/near/verify-contract.sh {id}</code> rebuilds it and compares.</>
+            : source.data
+              ? "The code hash above was built without a pinned build environment, so the contract's metadata names no commit, and only a build with the same toolchain reproduces the hash. Challenges deployed since reproducible builds were added name the commit they were built from."
+              : source.error
+                ? `Could not read the contract's code: ${source.error.message}.`
+                : "Reading the contract's code and metadata…"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Verification({ detail }: { detail: ChallengeDetail }) {
   const { view } = detail;
   return (
     <div className="verify">
-      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain, and whether the contract's code can still change.</p>
+      <p className="text-2 tab-intro">The contract records a result only if it names these exact rules, this solution and this test set. Check the commitments here, in your browser, against the chain, and whether the contract's code can still change and which source it was built from.</p>
       <LockRow detail={detail} />
+      <SourceRow detail={detail} />
       <CheckRow icon={Hash} title="Rules" value={view.rules_sha256} detail="SHA-256 of the rules the contract serves, requirements included." run={async () => {
         const actual = await sha256Hex(view.rules_json);
         if (actual !== view.rules_sha256) throw new Mismatch(`The served rules hash to ${actual}, not the commitment.`);
@@ -166,7 +203,7 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   return (
     <div className="find-config">
       <hr className="divider" />
-      <h4>Find a result by its config</h4>
+      <h3>Find a result by its config</h3>
       <p className="muted small">Every result records the SHA-256 of the config it scored. Paste a config to find its results.</p>
       <textarea className="textarea" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"version": 1, "model": "…", …}' spellCheck={false} aria-label="Solution config" />
       <div className="row">
@@ -185,6 +222,15 @@ function FindConfig({ evaluations, onFound }: { evaluations: EvaluationView[]; o
   );
 }
 
+/** The award callout's sentence for a reward that is won but not yet paid. */
+function pendingAwardText(award: NonNullable<ChallengeDetail["view"]["award"]>): string {
+  const stage = awardStage(award);
+  if (stage.stage === "sending") return stage.intents ? "The deposit into NEAR Intents is on its way." : "The payment is on its way.";
+  if (stage.stage === "to-intents") return "The winner asked to be paid into NEAR Intents. Any connected wallet can send it; the contract pays only the winner.";
+  if (stage.stage === "owed" && stage.refused) return "NEAR Intents refused the deposit, so the reward is owed as NEAR. Any connected wallet can send it; the contract pays only the winner.";
+  return "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner.";
+}
+
 function TakePart({ detail }: { detail: ChallengeDetail }) {
   const open = displayStatus(detail.view) === "open";
   return (
@@ -195,15 +241,51 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
           : "This challenge is not taking submissions. Its practice tickets and leaderboard stay public, and the MCP server can still score solutions against it."}
       </p>
       <ol className="compete-steps">
-        <li><span className="mono">1</span><div><h4>Build the server</h4><CodeBlock code={"git clone https://github.com/successaje/bakeoff\ncd bakeoff/mcp && npm ci && npm run build"} /></div></li>
-        <li><span className="mono">2</span><div><h4>Add it to Claude Code</h4><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -- "$PWD/scripts/serve-local.sh"`} /></div></li>
-        <li><span className="mono">3</span><div><h4>Ask your agent</h4><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
+        <li><span className="mono">1</span><div><h3>Have the tools</h3><p className="small text-2">Node 22.18 or newer, <a href="https://wasmtime.dev" target="_blank" rel="noopener noreferrer">wasmtime</a> for practice scoring, and <a href="https://github.com/near/near-cli-rs" target="_blank" rel="noopener noreferrer">near-cli-rs</a> with your {detail.network} account's key in its keychain. The server signs through near-cli and never sees the key.</p></div></li>
+        <li><span className="mono">2</span><div><h3>Add the server to Claude Code</h3><CodeBlock code={`claude mcp add bakeoff \\\n  -e BAKEOFF_ACCOUNT=<your ${detail.network} account> \\\n  -e BAKEOFF_NETWORK=${detail.network} \\\n  -e BAKEOFF_CHALLENGES=${detail.listing.id} \\\n  -e BAKEOFF_LLM_API_KEY=<your NEAR AI Cloud key> \\\n  -- npx -y bakeoff-mcp`} /><p className="small muted">The key is for practice runs; sealed runs use the challenge owner's. To keep it out of the client's config, export it in your shell instead.</p></div></li>
+        <li><span className="mono">3</span><div><h3>Ask your agent</h3><CodeBlock code={`Compete in the Bakeoff challenge ${detail.listing.id}. Read the rules and the labeling guide, find the cheapest solution that meets every requirement on the practice tickets with margin, and ask me before you submit.`} /></div></li>
       </ol>
       <div className="row">
         <Link to="/builders" className="btn">Full guide for builders <ArrowRight /></Link>
         <span className="muted small">A submission costs 0.035 NEAR plus gas, most of it refunded. Its config becomes public on-chain.</span>
       </div>
+      {detail.view.intents && (
+        <p className="muted small">This challenge can pay a win into NEAR Intents, to take as another token or on another chain: ask your agent to submit with the Intents payout.</p>
+      )}
     </div>
+  );
+}
+
+/** The owner's published baseline, with the enclave's measurement of the same agent beside it when there is one. */
+function TodayFigures({ id, listing, owner, evaluations }: { id: string; listing: ListedChallenge; owner: string; evaluations: EvaluationView[] }) {
+  const measured = enclaveBaseline(listing, { owner }, evaluations);
+  const published = listing.baseline;
+  const rows = [
+    { label: "Accuracy today", value: percent(published.accuracy_bp), enclave: measured && percent(measured.metrics.accuracy_bp) },
+    { label: "Cost per ticket", value: microDollars(published.cost_per_ticket_uusd), enclave: measured && microDollars(measured.metrics.cost_per_ticket_uusd) },
+    { label: "p95 latency", value: seconds(published.p95_latency_ms), enclave: measured && seconds(measured.metrics.p95_latency_ms) },
+  ];
+  const runs = measured?.runs ?? [];
+  return (
+    <>
+      {published.accuracy_bp > 0 && (
+        <dl className="today">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}{row.enclave && <span className="today-enclave">{row.enclave} in the enclave</span>}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <p className="muted small">
+        {!listing.baseline_config_sha256
+          ? <>Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</>
+          : !measured
+            ? <>Figures published by {listing.sponsor}: the median of three calibration runs of its current agent on its own machine. That agent has not been scored in the enclave on this challenge yet.</>
+            : <>Figures published by {listing.sponsor}: the median of three calibration runs of its current agent on its own machine. The same agent, config <span className="mono">{listing.baseline_config_sha256.slice(0, 10)}…</span>, was also scored in the enclave on these hidden tickets, in {runs.map((r, i) => <span key={r.id}>{i ? ", " : ""}<Link to={`/challenges/${id}/results/${r.id}`}>result #{r.id}</Link></span>)}{runs.length > 1 ? ", whose median is shown" : ""}. Single runs vary, latency most.</>}
+      </p>
+    </>
   );
 }
 
@@ -211,23 +293,24 @@ function TakePart({ detail }: { detail: ChallengeDetail }) {
 function DocSection({ id, title, children, intro }: { id: string; title: string; intro?: React.ReactNode; children: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   return (
-    <details className="doc-section folding" id={id} open>
-      <summary>
-        <h2>{title}</h2>
-        <button type="button" className="icon-btn doc-link" aria-label={copied ? "Link copied" : `Copy a link to ${title}`} title={copied ? "Link copied" : "Copy link"} onClick={(event) => {
-          event.preventDefault();
-          void navigator.clipboard?.writeText(`${location.href.split("#").slice(0, 2).join("#")}#${id}`).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1400);
-          });
-        }}>{copied ? <Check /> : <Copy />}</button>
-        <span className="doc-fold" aria-hidden="true" />
-      </summary>
-      <div className="doc-body">
-        {intro && <p className="text-2 doc-intro">{intro}</p>}
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </div>
-    </details>
+    <div className="doc-wrap">
+      <details className="doc-section folding" id={id} open>
+        <summary>
+          <h2>{title}</h2>
+          <span className="doc-fold" aria-hidden="true" />
+        </summary>
+        <div className="doc-body">
+          {intro && <p className="text-2 doc-intro">{intro}</p>}
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </div>
+      </details>
+      <button type="button" className="icon-btn doc-link" aria-label={copied ? "Link copied" : `Copy a link to ${title}`} title={copied ? "Link copied" : "Copy link"} onClick={() => {
+        void navigator.clipboard?.writeText(`${location.href.split("#").slice(0, 2).join("#")}#${id}`).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1400);
+        });
+      }}>{copied ? <Check /> : <Copy />}</button>
+    </div>
   );
 }
 
@@ -268,17 +351,18 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
   return (
     <aside className="cx-side">
       <div className="side-block">
-        <h4>Challenge host</h4>
+        <h2>Challenge host</h2>
         <div className="side-host"><HostMark name={listing.sponsor} size={34} /><div><strong>{listing.sponsor}</strong><Link to={`/accounts/${view.owner}`} className="muted small break">{view.owner}</Link></div></div>
       </div>
       <div className="side-block">
-        <h4>Reward</h4>
+        <h2>Reward</h2>
         <p className="side-reward"><Coins /> {formatNear(award?.amount ?? view.bounty ?? "0")}</p>
-        <p className="muted small">{award ? (award.paid ? <>Paid to <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
+        {view.service_fee && <p className="muted small">The winner receives {formatNear(splitReward(BigInt(award?.amount ?? view.bounty ?? "0"), view.service_fee).winner)}, after a {feePercent(view.service_fee.bps)} service fee</p>}
+        <p className="muted small">{award ? (award.paid ? <>Paid {BigInt(award.to_intents ?? "0") > 0n ? "into the NEAR Intents balance of" : "to"} <Link to={`/accounts/${award.winner}`}>{award.winner}</Link></> : "Won, payment pending") : status === "open" ? "Held by the contract until a result meets every requirement" : status === "draft" ? "Escrowed when the owner opens it" : "Returned to the owner if nobody wins"}</p>
         {status === "open" && <p className="small"><Timer /> <Countdown closesAt={view.closes_at} /></p>}
       </div>
       <div className="side-block">
-        <h4>Participation</h4>
+        <h2>Participation</h2>
         <dl className="side-stats">
           <div><dt>Builders</dt><dd>{builders}</dd></div>
           <div><dt>Results</dt><dd>{evaluations.length}</dd></div>
@@ -287,7 +371,7 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
         </dl>
       </div>
       <div className="side-block">
-        <h4>Contract</h4>
+        <h2>Contract</h2>
         <div className="hash-line"><a className="mono small break" href={explorer(network, "address", listing.id)} target="_blank" rel="noopener noreferrer">{listing.id}</a><CopyButton text={listing.id} label="Copy the contract account" /></div>
         <p className="side-chips">
           <span className="chip chip-grey">{network}</span>
@@ -296,12 +380,12 @@ function Sidebar({ detail, sections }: { detail: ChallengeDetail; sections: { id
       </div>
       {listing.tags && listing.tags.length > 0 && (
         <div className="side-block">
-          <h4>Tags</h4>
+          <h2>Tags</h2>
           <p className="side-chips">{listing.tags.map((t) => <span key={t} className="chip chip-grey">{t}</span>)}</p>
         </div>
       )}
       <nav className="side-block side-toc" aria-label="On this page">
-        <h4>On this page</h4>
+        <h2>On this page</h2>
         {sections.map((s) => <button key={s.id} type="button" onClick={() => scrollToSection(s.id)}>{s.label}</button>)}
       </nav>
     </aside>
@@ -329,7 +413,7 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
   const gates = challengeGates(detail.view);
   const rules = useMemo(() => {
     try {
-      return JSON.parse(detail.view.rules_json) as { models?: Record<string, unknown>; allowed_tools?: string[]; allowed_request_options?: string[]; max_tokens_cap?: number; time_budget_ms?: number; max_concurrency?: number };
+      return JSON.parse(detail.view.rules_json) as { models?: Record<string, unknown>; allowed_tools?: string[]; allowed_request_options?: string[]; max_tokens_cap?: number; time_budget_ms?: number; max_concurrency?: number; model_attestation?: string };
     } catch {
       return null;
     }
@@ -347,6 +431,12 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
           <li>The owner's own submissions are trial runs: recorded, never paid.</li>
           <li>A submission made before the deadline can still win after it.</li>
           <li>If nobody wins by the deadline, the owner can take the reward back.</li>
+          {detail.view.service_fee && (
+            <li>A {feePercent(detail.view.service_fee.bps)} service fee goes to <span className="mono break">{detail.view.service_fee.account}</span> when the reward is won, and the winner receives the rest. It was fixed when the challenge was deployed and cannot change; nothing is taken if nobody wins.</li>
+          )}
+          {detail.view.intents && (
+            <li>The winner can ask to be paid as wNEAR into their NEAR Intents balance, to swap for another token or withdraw to another chain. Any account can then send it; wrap.near keeps 0.00125 NEAR to register the contract.</li>
+          )}
         </ul>
       </DocSection>
       {rules && (
@@ -358,6 +448,9 @@ function RulesTab({ detail }: { detail: ChallengeDetail }) {
             <div><dt>Most output tokens</dt><dd>{rules.max_tokens_cap ?? "–"}</dd></div>
             <div><dt>Time for the whole run</dt><dd>{rules.time_budget_ms ? seconds(rules.time_budget_ms) : "–"}</dd></div>
             <div><dt>Tickets in flight</dt><dd>{rules.max_concurrency ?? 8}</dd></div>
+            {rules.model_attestation === "near-ai-cloud" && (
+              <div><dt>Model answers</dt><dd>Every one must be signed in NEAR AI Cloud's attested TEEs. The evaluator checks each signature and the TEEs' Intel TDX and NVIDIA GPU attestation inside the enclave, with a nonce made for the run.</dd></div>
+            )}
           </dl>
           <details className="raw-rules"><summary className="small">The rules as the contract stores them</summary><CodeBlock code={JSON.stringify(JSON.parse(detail.view.rules_json), null, 2)} label="Rules JSON" /></details>
         </DocSection>
@@ -513,6 +606,7 @@ export function Challenge() {
           <span className="cx-hostline-text">{listing.sponsor} · AI workflow challenge · {network}</span>
           <StatusChip view={view} />
           {listing.demo && <DemoBadge />}
+          {listing.self_listed && <SelfListedBadge by={listing.listed_by} />}
           <span className="cx-actions"><PrimaryAction detail={data} /><MoreMenu detail={data} isOwner={isOwner} onRefresh={refresh} /></span>
         </div>
         <motion.div className="cx-title" initial={reduced ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}>
@@ -556,7 +650,7 @@ export function Challenge() {
                   <div>
                     <p>
                       <strong>{award.winner}</strong> won the {formatNear(award.amount)} reward with result #{award.evaluation}.{" "}
-                      {award.in_flight ? "The payment is on its way." : "The payment has not completed yet. Any connected wallet can retry it; the contract pays only the winner."}
+                      {pendingAwardText(award)}
                     </p>
                     <RetryPayment id={id} award={award} onChanged={refresh} />
                   </div>
@@ -564,14 +658,7 @@ export function Challenge() {
               )}
               <DocSection id="problem" title="Overview" intro={`What ${listing.sponsor}'s workflow does today, in its own words and figures.`}>
                 <p className="problem-text">{listing.problem ?? listing.summary}</p>
-                {listing.baseline.accuracy_bp > 0 && (
-                  <dl className="today">
-                    <div><dt>Accuracy today</dt><dd>{percent(listing.baseline.accuracy_bp)}</dd></div>
-                    <div><dt>Cost per ticket</dt><dd>{microDollars(listing.baseline.cost_per_ticket_uusd)}</dd></div>
-                    <div><dt>p95 latency</dt><dd>{seconds(listing.baseline.p95_latency_ms)}</dd></div>
-                  </dl>
-                )}
-                <p className="muted small">Figures published by {listing.sponsor} for its current agent. The contract does not measure them.</p>
+                <TodayFigures id={id} listing={listing} owner={view.owner} evaluations={data.evaluations} />
               </DocSection>
               {gates && (
                 <DocSection id="goal" title="Goal" intro={goalSentence(gates, listing.baseline)}>

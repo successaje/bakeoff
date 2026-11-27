@@ -6,6 +6,9 @@ use crate::verdict::Reason;
 use std::collections::{BTreeMap, HashSet};
 
 const MAX_TEST_SET_TICKETS: usize = 500;
+/// With attested model answers, each answer costs about 14.5 million instructions to check. 250
+/// tickets, every one escalated, is 500 answers: under 8 billion of the contract's 10 billion.
+const MAX_ATTESTED_TICKETS: usize = 250;
 const MAX_CONCURRENCY: usize = 32;
 const MAX_REQUEST_OPTIONS_BYTES: usize = 2048;
 
@@ -14,6 +17,10 @@ const MAX_REQUEST_OPTIONS_BYTES: usize = 2048;
 /// download before it and the resolve transaction after it must all fit, so
 /// a run may not be budgeted more than this.
 pub const MAX_TIME_BUDGET_MS: u64 = 100_000;
+/// Time for checking the model provider's attestation after the run, where the rules ask for
+/// it: one signature per answer, a report per signer, Intel's collateral and NVIDIA's service.
+/// It comes on top of `time_budget_ms`, and the two together stay within `MAX_TIME_BUDGET_MS`.
+pub const ATTESTATION_BUDGET_MS: u64 = 25_000;
 
 /// Request body fields the evaluator always sets itself.
 const RESERVED_REQUEST_FIELDS: &[&str] = &[
@@ -55,6 +62,16 @@ pub fn check_rules(rules: &Rules) -> Result<(), String> {
         return Err(format!(
             "time_budget_ms must be between 1 and {MAX_TIME_BUDGET_MS} to fit NEAR's yield window"
         ));
+    }
+    if rules.model_attestation.is_some() {
+        if !rules.endpoint.starts_with("https://") || !rules.endpoint.contains("/v1/") {
+            return Err("model_attestation needs an https endpoint under /v1/".into());
+        }
+        if rules.time_budget_ms + ATTESTATION_BUDGET_MS > MAX_TIME_BUDGET_MS {
+            return Err(format!(
+                "with model_attestation, time_budget_ms must leave {ATTESTATION_BUDGET_MS} ms of the {MAX_TIME_BUDGET_MS} for the attestation check"
+            ));
+        }
     }
     if rules.max_concurrency == 0 || rules.max_concurrency > MAX_CONCURRENCY {
         return Err(format!(
@@ -181,6 +198,9 @@ fn check_request_options(
 /// nothing about the sealed tickets may reach the verdict.
 pub fn test_set_is_valid(rules: &Rules, tickets: &[Ticket]) -> bool {
     if tickets.is_empty() || tickets.len() > MAX_TEST_SET_TICKETS {
+        return false;
+    }
+    if rules.model_attestation.is_some() && tickets.len() > MAX_ATTESTED_TICKETS {
         return false;
     }
     let mut ids = HashSet::with_capacity(tickets.len());

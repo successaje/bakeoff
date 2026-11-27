@@ -83,7 +83,7 @@
 .footer-tag { max-width: 16ch; font-size: clamp(1.7rem, 1.2rem + 1.5vw, 2.5rem); font-weight: 480; line-height: 1.12; letter-spacing: -0.04em; color: var(--text); }
 .footer-tag .serif { color: var(--accent); }
 .footer-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6) var(--space-5); }
-.footer-links h4 { font-size: var(--text-sm); font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.footer-links h2 { font-size: var(--text-sm); font-weight: 600; color: var(--text); margin-bottom: 6px; }
 .footer-links a { display: block; width: fit-content; font-size: var(--text-sm); color: var(--text-2); padding: 3px 0; transition: color var(--dur-fast); }
 .footer-links a:hover { color: var(--text); }
 
@@ -342,7 +342,7 @@
 .check-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); border: 1px solid var(--border); }
 .check-icon svg { width: 20px; height: 20px; }
 .check-title { display: flex; align-items: center; gap: var(--space-3); }
-.check-title h4 { font-size: var(--text-base); }
+.check-title h3 { font-size: var(--text-base); }
 .hash-line { display: flex; align-items: center; gap: var(--space-2); margin: 4px 0; }
 .hash-line code { font-size: 12px; color: var(--text-2); }
 .hash-line .icon-btn { width: 30px; height: 30px; }
@@ -350,12 +350,12 @@
 @media (max-width: 640px) { .check-row { grid-template-columns: 1fr; } .check-icon { display: none; } }
 
 .find-config { display: grid; gap: var(--space-3); }
-.find-config h4 { font-size: var(--text-base); }
+.find-config h3 { font-size: var(--text-base); }
 
 .compete-steps { list-style: none; padding: 0; margin: 0 0 var(--space-5); display: grid; gap: var(--space-5); }
 .compete-steps li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-4); }
 .compete-steps li > span { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: var(--text-sm); }
-.compete-steps h4 { margin: 4px 0 var(--space-3); }
+.compete-steps h3 { font-size: var(--text-base); margin: 4px 0 var(--space-3); }
 .compete .code { white-space: pre-wrap; word-break: break-word; }
 
 /* Class names avoid words such as sponsor, ad, promo and banner: ad blockers'
@@ -508,7 +508,7 @@
 .tee-checks { list-style: none; margin: 0; padding: 0; display: grid; }
 .tee-check { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border); }
 .tee-check:first-child { border-top: 0; }
-.tee-check h4 { font-size: var(--text-sm); margin-bottom: 2px; }
+.tee-check h3 { font-size: var(--text-sm); margin-bottom: 2px; }
 .tee-check p { overflow-wrap: anywhere; }
 .tee-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
 .tee-mark svg { width: 13px; height: 13px; }

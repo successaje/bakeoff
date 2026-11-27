@@ -11,12 +11,14 @@ import { Check, Close, Coins, Download, External, Timer } from "../components/Ic
 import { EnclaveProof } from "../components/EnclaveProof.tsx";
 import { ErrorNotice } from "../components/ErrorBoundary.tsx";
 import { RetryPayment } from "../components/Manage.tsx";
-import { Account, CodeBlock, CopyButton, DemoBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
+import { Account, CodeBlock, CopyButton, DemoBadge, SelfListedBadge, DemoNotice, explorer, Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, forget, loadChallenge } from "../lib/data.ts";
 import { microDollars, percent, seconds, shortHash, utc } from "../lib/format.ts";
-import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, verdictMetrics } from "../lib/near.ts";
+import { enclaveBaseline } from "../lib/baseline.ts";
+import { challengeGates, type EvaluationView, formatNear, isMissingAccount, nsToDate, requiresModelAttestation, verdictMetrics, verdictModelTee } from "../lib/near.ts";
 import { chatRequest, checkRequirements, compareWithBaseline, findSubmission, type Submission, summariseConfig } from "../lib/results.ts";
 import { useAsync } from "../lib/hooks.ts";
+import { rewardText } from "../lib/payout.ts";
 import { NotFound } from "./NotFound.tsx";
 
 const TICKET_PLACEHOLDER = "<the customer's message>";
@@ -54,14 +56,8 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
       {won && award ? (
         <>
           <strong className="bounty-amount amber">{formatNear(award.amount)}</strong>
-          {award.paid ? (
-            <p className="reward-state ok"><Check /> Paid by the contract with this result</p>
-          ) : (
-            <>
-              <p className="reward-state pending"><Timer /> {award.in_flight ? "Won; the payment is on its way" : "Won; the payment has not completed"}</p>
-              <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
-            </>
-          )}
+          <RewardState award={award} serviceFee={detail.view.service_fee} />
+          <RetryPayment id={detail.listing.id} award={award} onChanged={onChanged} />
         </>
       ) : (
         <p className="reward-state">
@@ -73,6 +69,16 @@ function RewardCard({ e, detail, onChanged }: { e: EvaluationView; detail: Chall
         </p>
       )}
     </aside>
+  );
+}
+
+function RewardState({ award, serviceFee }: { award: NonNullable<ChallengeDetail["view"]["award"]>; serviceFee?: ChallengeDetail["view"]["service_fee"] }) {
+  const { done, text, note } = rewardText(award, serviceFee);
+  return (
+    <>
+      <p className={`reward-state ${done ? "ok" : "pending"}`}>{done ? <Check /> : <Timer />} {text}</p>
+      {note && <p className="muted small">{note}</p>}
+    </>
   );
 }
 
@@ -97,13 +103,51 @@ function Solution({ submission, error, loading, configSha }: { submission: Submi
         {facts.options.length > 0 && <div><dt>Model options</dt><dd className="mono">{facts.options.join(", ")}</dd></div>}
         {facts.escalation && <div><dt>Second opinion</dt><dd className="mono">{facts.escalation}</dd></div>}
       </dl>
-      <pre className="code config-code">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
+      <pre className="code config-code" tabIndex={0} aria-label="Solution config">{JSON.stringify(JSON.parse(submission.config), null, 2)}</pre>
       <div className="row">
         <CopyButton text={submission.config} label="Copy the config" />
         <button type="button" className="btn btn-sm" onClick={() => download("bakeoff-config.json", submission.config)}><Download /> Download the config</button>
         <span className="outcome ok"><Check /> Hashes to this result's record</span>
       </div>
     </>
+  );
+}
+
+/** Says which baseline the comparison uses, and what the enclave measured for the same agent. */
+/**
+ * Where the rules require attested model answers: what the evaluator checked inside the enclave.
+ * Every answer's NEAR AI signature, over the exact request and response, recovered to a key that
+ * a TDX quote and GPU evidence bound to a nonce the run made.
+ */
+function ModelAnswers({ e, required }: { e: EvaluationView; required: boolean }) {
+  const tee = verdictModelTee(e);
+  if (!required && !tee) return null;
+  if (!tee) {
+    return (
+      <div><dt>Model answers</dt><dd><span className="met no"><Close /> Not shown to come from attested TEEs</span><span className="muted small">The rules require every answer to be signed in NEAR AI Cloud's attested TEEs. This run's could not be shown to be, so it cannot pass.</span></dd></div>
+    );
+  }
+  const all = tee.signed === tee.answers;
+  return (
+    <div>
+      <dt>Model answers</dt>
+      <dd>
+        {all ? <span className="met yes"><Check /> {tee.answers} of {tee.answers} signed in NEAR AI Cloud's attested TEEs</span> : <span className="met no"><Close /> {tee.signed} of {tee.answers} signed in attested TEEs</span>}
+        {tee.signers.map((signer) => <span key={signer} className="mono break small">{signer}</span>)}
+        <span className="muted small">Checked inside the enclave: each answer's signature covers the exact request and response, and recovers to this key. NEAR AI's Intel TDX quote binds the key and a nonce made for this run (Intel status: {tee.tdx}), and NVIDIA's attestation service accepted the GPU evidence for the same nonce.</span>
+      </dd>
+    </div>
+  );
+}
+
+function MeasuredBaseline({ id, detail }: { id: string; detail: { listing: Parameters<typeof enclaveBaseline>[0]; view: { owner: string }; evaluations: EvaluationView[] } }) {
+  const { listing } = detail;
+  const measured = enclaveBaseline(listing, detail.view, detail.evaluations);
+  if (!measured) return <p className="muted small">Against {listing.sponsor}'s published figures for its current agent.</p>;
+  return (
+    <p className="muted small">
+      Against {listing.sponsor}'s published figures, the median of three calibration runs. The same agent scored {percent(measured.metrics.accuracy_bp)}, {microDollars(measured.metrics.cost_per_ticket_uusd)} a ticket and {seconds(measured.metrics.p95_latency_ms)} p95 in the enclave on these hidden tickets{measured.runs.length > 1 ? `, the median of ${measured.runs.length} runs` : ""}, in {measured.runs.map((r, i) => <span key={r.id}>{i ? ", " : ""}<Link to={`/challenges/${id}/results/${r.id}`}>result #{r.id}</Link></span>)}.
+    </p>
   );
 }
 
@@ -178,6 +222,7 @@ export function Result() {
                 <span className={`badge badge-dot ${outcome.badge.tone}`}>{e.status === "Pending" ? <span className="shimmer-text on-color">{outcome.badge.label}</span> : outcome.badge.label}</span>
                 {e.eligible === false && <span className="badge trial">Owner's trial</span>}
                 {listing.demo && <DemoBadge />}
+          {listing.self_listed && <SelfListedBadge by={listing.listed_by} />}
               </div>
               <h1 className="page-title result-title">{outcome.headline}</h1>
               <p className="page-lede">
@@ -235,6 +280,7 @@ export function Result() {
                 </div>
               ))}
             </div>
+            <MeasuredBaseline id={id} detail={data} />
           </Reveal>
         )}
 
@@ -292,6 +338,7 @@ export function Result() {
               <div><dt>Hidden test set</dt><dd><span className="mono break small">{verdict.test_set_sha256}</span>{verdict.test_set_sha256 === view.test_set_sha256 ? <span className="met yes"><Check /> The challenge's commitment</span> : <span className="met no"><Close /> Not the challenge's commitment</span>}</dd></div>
             )}
             <div><dt>Evaluator build</dt><dd><span className="mono break small">{view.evaluator.sha256}</span><span className="muted small">Pinned by the challenge; check it on the challenge page.</span></dd></div>
+            <ModelAnswers e={e} required={requiresModelAttestation(view)} />
             <div><dt>Requested</dt><dd>{utc(requested)}</dd></div>
             <div><dt>Recorded</dt><dd>{settled ? utc(settled) : "Not yet"}</dd></div>
           </dl>

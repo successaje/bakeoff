@@ -10,8 +10,12 @@
 # Prerequisites (see README):
 #   - BAKEOFF_ACCOUNT in .env, with its key in the system keychain (near-cli-rs)
 #   - `outlayer login <network>` completed for the same account
+#   - Docker, and no uncommitted changes: the contract is built reproducibly
+#     from the committed source (scripts/build-contract.sh), so anyone can
+#     check what the challenge runs with scripts/near/verify-contract.sh
 #
-# Environment overrides: RULES_FILE, TEST_SET_FILE, CHALLENGE_NAME, CHALLENGE_BALANCE
+# Environment overrides: RULES_FILE, TEST_SET_FILE, CHALLENGE_NAME, CHALLENGE_BALANCE,
+# INTENTS and SERVICE_FEE (see below)
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
 
@@ -20,10 +24,30 @@ require_mainnet_confirmation "$BAKEOFF_ACCOUNT"
 RULES_FILE="${RULES_FILE:-examples/rules/near-ai.json}"
 TEST_SET_FILE="${TEST_SET_FILE:-data/tickets/sealed-sample.json}"
 CHALLENGE_NAME="${CHALLENGE_NAME:-challenge-$(date -u +%Y%m%d%H%M%S)}"
-# The contract's 186 KB of code locks about 1.9 NEAR of storage.
+# The contract's 204 KB of code locks about 2.1 NEAR of storage.
 CHALLENGE_BALANCE="${CHALLENGE_BALANCE:-2.5 NEAR}"
 CHALLENGE="$CHALLENGE_NAME.$BAKEOFF_ACCOUNT"
 SECRETS_PROFILE=bakeoff
+# Winners may ask to be paid into NEAR Intents where it runs: on mainnet,
+# through wrap.near and intents.near. It has no testnet deployment. Set
+# INTENTS=none to pay every winner in NEAR, or INTENTS=<wnear>,<verifier> to
+# route through other contracts.
+case "${INTENTS:-}" in
+  none) INTENTS_ROUTE= ;;
+  "") if [ "$NETWORK" = mainnet ]; then INTENTS_ROUTE=wrap.near,intents.near; else INTENTS_ROUTE=; fi ;;
+  *,*) INTENTS_ROUTE="$INTENTS" ;;
+  *) echo "INTENTS must be none or <wnear>,<verifier>" >&2; exit 1 ;;
+esac
+
+# A share of a won bounty for whoever runs the board, as SERVICE_FEE=<account>:<basis points>,
+# e.g. board.near:250 for 2.5%; at most 1000 (10%). It is fixed once deployed, shown on the
+# challenge page, and taken only when someone wins. None by default.
+case "${SERVICE_FEE:-}" in
+  "") ;;
+  *:*) [[ "${SERVICE_FEE#*:}" =~ ^[0-9]+$ ]] && [ "${SERVICE_FEE#*:}" -ge 1 ] && [ "${SERVICE_FEE#*:}" -le 1000 ] \
+    || { echo "SERVICE_FEE's basis points must be 1 to 1000" >&2; exit 1; } ;;
+  *) echo "SERVICE_FEE must be <account>:<basis points>, e.g. board.near:250" >&2; exit 1 ;;
+esac
 
 for tool in near outlayer cargo python3; do
   command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
@@ -51,9 +75,11 @@ CONTRACT_WASM=target/near/bakeoff_contract.wasm
 # variables commonly lose them, and the evaluator hashes what it receives.
 TEST_SET_SHA256=$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], encoding="utf-8").read().rstrip("\n").encode()).hexdigest())' "$TEST_SET_FILE")
 INIT_ARGS=$(python3 -I - "$RULES_FILE" "$OUTLAYER" "$EVALUATOR_URL" "$EVALUATOR_SHA256" \
-  "$SECRETS_PROFILE" "$BAKEOFF_ACCOUNT" "$TEST_SET_SHA256" <<'EOF'
+  "$SECRETS_PROFILE" "$BAKEOFF_ACCOUNT" "$TEST_SET_SHA256" "$INTENTS_ROUTE" "${SERVICE_FEE:-}" <<'EOF'
 import json, sys
-rules, outlayer, url, sha, profile, owner, test_set_sha = sys.argv[1:]
+rules, outlayer, url, sha, profile, owner, test_set_sha, route, fee = sys.argv[1:]
+wrap, _, verifier = route.partition(",")
+fee_account, _, fee_bps = fee.rpartition(":")
 print(json.dumps({
     "owner": owner,
     "outlayer": outlayer,
@@ -61,6 +87,8 @@ print(json.dumps({
     "secrets": {"profile": profile, "owner": owner},
     "rules_json": open(rules, encoding="utf-8").read(),
     "test_set_sha256": test_set_sha,
+    "intents": {"wrap": wrap, "verifier": verifier} if route else None,
+    "service_fee": {"account": fee_account, "bps": int(fee_bps)} if fee else None,
 }))
 EOF
 )

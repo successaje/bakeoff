@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["evaluator", "contract", "tools/mock-outlayer", "integration-tests"]
+members = ["evaluator", "contract", "registry", "tools/mock-outlayer", "tools/mock-wnear", "tools/mock-intents", "integration-tests"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,3 +16,32 @@ debug = false
 panic = "abort"
 overflow-checks = true
 strip = true
+
+# The evaluator checks NEAR AI Cloud's ECDSA signatures and Intel TDX quotes in WebAssembly, where
+# OutLayer meters every instruction. Size-optimized, one signature costs about 18 million
+# instructions and one quote about 420 million; these crates are optimized for speed instead.
+# None of them is part of the contracts' build, whose code hashes are unaffected.
+[profile.release.package.k256]
+opt-level = 3
+[profile.release.package.p256]
+opt-level = 3
+[profile.release.package.ecdsa]
+opt-level = 3
+[profile.release.package.elliptic-curve]
+opt-level = 3
+[profile.release.package.crypto-bigint]
+opt-level = 3
+[profile.release.package.primeorder]
+opt-level = 3
+[profile.release.package.ff]
+opt-level = 3
+[profile.release.package.group]
+opt-level = 3
+[profile.release.package.dcap-qvl]
+opt-level = 3
+[profile.release.package.dcap-qvl-webpki]
+opt-level = 3
+[profile.release.package.der]
+opt-level = 3
+[profile.release.package.x509-cert]
+opt-level = 3

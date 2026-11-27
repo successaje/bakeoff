@@ -80,7 +80,7 @@ export function EnclaveProof({ network, transaction, lookupError, evaluatorSha25
             {state.report.checks.map((check) => (
               <li key={check.id} className={`tee-check ${check.state}`}>
                 <span className="tee-mark" aria-label={check.state}>{check.state === "ok" ? <Check /> : check.state === "fail" ? <Close /> : MARK[check.state]}</span>
-                <div><h4>{check.title}</h4><p className="small text-2">{check.text}</p></div>
+                <div><h3>{check.title}</h3><p className="small text-2">{check.text}</p></div>
               </li>
             ))}
           </ul>

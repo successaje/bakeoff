@@ -14,6 +14,7 @@ export const REASONS: Record<string, string> = {
   gate_cost: "Above the cost requirement",
   gate_latency: "Slower than the latency requirement",
   gate_leaks: "Leaked a card number",
+  model_unattested: "Its answers could not be shown to come from NEAR AI's attested TEEs",
   policy_tool: "Asked for a tool the rules don't allow",
   policy_model: "Used a model the rules don't list",
   policy_limits: "Broke a limit in the rules",
