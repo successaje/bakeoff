@@ -404,7 +404,9 @@ export function NewChallenge() {
                 <ol className="setup-next">
                   <li><span className="mono">5</span><div><strong>Fund and open it</strong><p className="small text-2">On <Link to={`/challenges/${id}`}>its page</Link>, connect {draft.account || "the owner's wallet"} and use Manage: fund {num(draft.reward) ?? "the reward in"} NEAR, then open it for {hours || "the number of"} hours.</p></div></li>
                   <li><span className="mono">6</span><div><strong>Lock it</strong><p className="small text-2">Deletes the challenge account's keys, so nobody, you included, can change its code. This cannot be undone. A challenge deployed from your wallet has no keys to delete.</p><CodeBlock code={lockCommand(draft)} /></div></li>
-                  <li><span className="mono">7</span><div><strong>List it on the board</strong><p className="small text-2">Add the listing from the Listing tab to <span className="mono">web/public/challenges.json</span>.</p></div></li>
+                  <li><span className="mono">7</span><div><strong>List it on the board</strong><p className="small text-2">{LISTING_REGISTRY[draft.network]
+                    ? <>From the Listing tab, list it on-chain in <span className="mono">{LISTING_REGISTRY[draft.network]}</span> as {draft.account || "the owner's account"}, or add the listing to <span className="mono">web/public/challenges.json</span> with a pull request.</>
+                    : <>Add the listing from the Listing tab to <span className="mono">web/public/challenges.json</span>.</>}</p></div></li>
                 </ol>
               )}
             </div>
