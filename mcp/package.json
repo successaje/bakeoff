@@ -1,6 +1,6 @@
 {
   "name": "bakeoff-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for Bakeoff: find sealed AI-agent challenges on NEAR, score candidates on the practice set with the challenge's pinned evaluator, and submit them for sealed evaluation and the bounty.",
   "license": "MIT OR Apache-2.0",
   "homepage": "https://github.com/successaje/bakeoff/tree/main/mcp#readme",
