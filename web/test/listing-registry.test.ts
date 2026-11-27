@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NearRpc } from "../src/lib/near.ts";
-import { CHALLENGE_CODE_HASHES, LISTING_REGISTRY, type ListedChallenge, mergeListings, networkOf, selfListedChallenges } from "../src/lib/registry.ts";
+import { CHALLENGE_CODE_HASHES, LISTING_REGISTRY, type ListedChallenge, listingHref, mergeListings, networkOf, selfListedChallenges } from "../src/lib/registry.ts";
 import { emptyDraft, listCommand, registryArgs } from "../src/lib/setup.ts";
 
 const listing = (title: string) => ({
@@ -51,6 +51,11 @@ test("each configured registry is an account on its own network", () => {
     assert.equal(networkOf(registry!), network, `${registry} is listed under ${network}`);
     assert.match(registry!, /^[a-z0-9._-]+$/);
   }
+});
+
+test("a self-listing's https links are used as they are, and challenges.json's paths are on the board", () => {
+  assert.equal(listingHref("https://example.com/practice.json"), "https://example.com/practice.json");
+  assert.equal(listingHref("data/practice.json"), "./data/practice.json");
 });
 
 test("challenges.json wins when it lists a challenge that is also self-listed", () => {

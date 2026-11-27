@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react";
 import type { ChallengeDetail } from "../lib/data.ts";
 import { useAsync } from "../lib/hooks.ts";
+import { listingHref } from "../lib/registry.ts";
 import { CopyButton } from "./ui.tsx";
 import { Book, Database, Download, Lock, Search } from "./Icons.tsx";
 
@@ -52,7 +53,7 @@ export function DataExplorer({ detail }: { detail: ChallengeDetail }) {
   const { listing, view } = detail;
   const source = listing.practice_set;
   const tickets = useAsync<Ticket[] | null>(
-    () => (source ? fetch(`./${source}`).then((r) => {
+    () => (source ? fetch(listingHref(source)).then((r) => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json() as Promise<Ticket[]>;
     }) : Promise.resolve(null)),
@@ -86,7 +87,7 @@ export function DataExplorer({ detail }: { detail: ChallengeDetail }) {
             <span className="pillar-icon"><Database /></span>
             <h3>Practice set <span className="chip chip-green">Public</span></h3>
             <p className="text-2">{listing.practice_tickets ?? (all.length || "The")} tickets with their labels. Builders tune on them, and the MCP server scores ideas against them with the challenge's own evaluator build.</p>
-            {source && <a className="btn btn-sm" href={`./${source}`} download><Download /> practice.json</a>}
+            {source && <a className="btn btn-sm" href={listingHref(source)} download><Download /> practice.json</a>}
           </div>
           <div className="card card-pad data-set">
             <span className="pillar-icon"><Lock /></span>
@@ -113,7 +114,7 @@ export function DataExplorer({ detail }: { detail: ChallengeDetail }) {
           </div>
           <p className="muted small dict-note">
             The categories and priorities are the ones the contract's rules store. A solution answers each ticket with one category, one priority and a short summary, and is scored on both labels.
-            {listing.labeling_guide && <> <a className="link-accent" href={`./${listing.labeling_guide}`} target="_blank" rel="noopener noreferrer"><Book /> Read the labeling guide</a></>}
+            {listing.labeling_guide && <> <a className="link-accent" href={listingHref(listing.labeling_guide)} target="_blank" rel="noopener noreferrer"><Book /> Read the labeling guide</a></>}
           </p>
         </div>
       </section>

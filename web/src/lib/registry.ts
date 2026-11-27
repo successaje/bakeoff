@@ -111,6 +111,14 @@ export async function selfListedChallenges(registry: string, rpc: ListingReader)
   }));
 }
 
+/**
+ * Where a listing's practice set or labeling guide is fetched from. The registry stores absolute
+ * https links, which are used as they are; challenges.json gives paths on this board.
+ */
+export function listingHref(link: string): string {
+  return /^https:\/\//.test(link) ? link : `./${link}`;
+}
+
 /** challenges.json first; a self-listed challenge is added unless the file already lists it. */
 export function mergeListings(curated: ListedChallenge[], selfListed: ListedChallenge[]): ListedChallenge[] {
   const known = new Set(curated.map((c) => c.id));
