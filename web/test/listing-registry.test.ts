@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { NearRpc } from "../src/lib/near.ts";
-import { CHALLENGE_CODE_HASHES, type ListedChallenge, mergeListings, selfListedChallenges } from "../src/lib/registry.ts";
+import { CHALLENGE_CODE_HASHES, LISTING_REGISTRY, type ListedChallenge, mergeListings, networkOf, selfListedChallenges } from "../src/lib/registry.ts";
 import { emptyDraft, listCommand, registryArgs } from "../src/lib/setup.ts";
 
 const listing = (title: string) => ({
@@ -44,6 +44,13 @@ test("self-listed challenges are read a page at a time, and only accounts runnin
     baseline: { accuracy_bp: 8700, cost_per_ticket_uusd: 128, p95_latency_ms: 18159 },
     tags: ["Cost"], practice_set: "https://example.com/practice.json", self_listed: true, listed_by: "owner.testnet",
   });
+});
+
+test("each configured registry is an account on its own network", () => {
+  for (const [network, registry] of Object.entries(LISTING_REGISTRY)) {
+    assert.equal(networkOf(registry!), network, `${registry} is listed under ${network}`);
+    assert.match(registry!, /^[a-z0-9._-]+$/);
+  }
 });
 
 test("challenges.json wins when it lists a challenge that is also self-listed", () => {
