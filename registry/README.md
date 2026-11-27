@@ -37,6 +37,16 @@ NETWORK=testnet BAKEOFF_ACCOUNT=you.testnet scripts/near/deploy-registry.sh
 
 It builds the contract (cargo-near 0.13+), creates `registry.<account>`, deploys and initialises it, then prints the line to add to `LISTING_REGISTRY`. On mainnet it asks for `MAINNET_CONFIRM`, like every script that spends.
 
+### Where it is deployed
+
+| Network | Account | Built from | Code hash |
+|---|---|---|---|
+| testnet | [`registry.finishr.testnet`](https://testnet.nearblocks.io/address/registry.finishr.testnet) | `383257e`, reproducibly | `HGcbazWdMuDzePRLsbSGPFN2mqspTuq3BiupH5VaGX76` |
+
+Deployed on 2026-11-27 with 1.82 NEAR for its 162,432 bytes of code. `scripts/near/verify-contract.sh registry.finishr.testnet` rebuilds the commit and compares the hash. The account keeps its deploy key, so the registry can still be upgraded. Mainnet has no registry yet.
+
+Its first listing, made the same day by `finishr.testnet`, is [`challenge-20261118175408.finishr.testnet`](https://bakeoff-near.vercel.app/#/challenges/challenge-20261118175408.finishr.testnet): the 16-ticket challenge that requires attested model answers, whose owner trial passed on an OutLayer worker. The listing holds 1,167 bytes, 0.0117 NEAR of the registry's storage.
+
 ## Tests
 
 `cargo test -p bakeoff-registry` covers who may list, the checks and paging. The sandbox test in [`integration-tests/tests/registry.rs`](../integration-tests/tests/registry.rs), run by `scripts/test-sandbox.sh`, covers storage and refunds on a local NEAR node.

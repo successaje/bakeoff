@@ -49,10 +49,14 @@ export interface ListedChallenge {
 }
 
 /**
- * The listing registry (registry/) on each network, once deployed. Owners list their challenges
- * there without a pull request.
+ * The listing registry (registry/) on each network where one is deployed. Owners list their
+ * challenges there without a pull request. scripts/near/verify-contract.sh checks which commit
+ * each one runs.
  */
-export const LISTING_REGISTRY: Partial<Record<Network, string>> = {};
+export const LISTING_REGISTRY: Partial<Record<Network, string>> = {
+  // The reproducible build of 383257e, deployed 2026-11-27.
+  testnet: "registry.finishr.testnet",
+};
 
 /**
  * Builds of the Bakeoff challenge contract, by NEAR code hash. A self-listed account is shown only
@@ -105,6 +109,14 @@ export async function selfListedChallenges(registry: string, rpc: ListingReader)
     self_listed: true,
     listed_by: owner,
   }));
+}
+
+/**
+ * Where a listing's practice set or labeling guide is fetched from. The registry stores absolute
+ * https links, which are used as they are; challenges.json gives paths on this board.
+ */
+export function listingHref(link: string): string {
+  return /^https:\/\//.test(link) ? link : `./${link}`;
 }
 
 /** challenges.json first; a self-listed challenge is added unless the file already lists it. */

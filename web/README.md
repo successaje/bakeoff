@@ -26,7 +26,7 @@ The contract stores only the SHA-256 of each result's config. The result page li
 
 The challenges listed, with a title, the task and the baseline each sponsor published, are in [`public/challenges.json`](public/challenges.json). Everything else comes from the contracts.
 
-Owners can also list a challenge themselves, on-chain, in the [listing registry](../registry/README.md). The board reads the registry for each network in `LISTING_REGISTRY` ([`src/lib/registry.ts`](src/lib/registry.ts)) and adds its listings to the file's, which wins when both list a challenge. It shows a self-listed challenge only if its account runs a known build of the challenge contract, by code hash, and marks it Self-listed: Bakeoff has not reviewed it. A registry that cannot be read leaves the board as it is. No registry is configured yet; `scripts/near/deploy-registry.sh` deploys one.
+Owners can also list a challenge themselves, on-chain, in the [listing registry](../registry/README.md). The board reads the registry for each network in `LISTING_REGISTRY` ([`src/lib/registry.ts`](src/lib/registry.ts)) and adds its listings to the file's, which wins when both list a challenge. It shows a self-listed challenge only if its account runs a known build of the challenge contract, by code hash, and marks it Self-listed: Bakeoff has not reviewed it. A registry that cannot be read leaves the board as it is. Testnet's is `registry.finishr.testnet`; mainnet has none yet, and `scripts/near/deploy-registry.sh` deploys one.
 
 ## Design
 
