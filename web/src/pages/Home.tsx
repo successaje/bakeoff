@@ -6,7 +6,7 @@
  */
 
 import { AnimatePresence, motion } from "motion/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Avatar, Cover, HostMark } from "../components/art.tsx";
 import { ActivityCard, ChallengeTile, MoreLink, SectionHead, topEntries } from "../components/board.tsx";
@@ -18,7 +18,7 @@ import { GoalPanel, PracticePanel, SealedPanel, STEPS } from "../components/Step
 import { Reveal } from "../components/ui.tsx";
 import { type ChallengeDetail, type ChallengeSummary, latestWin, loadAll, loadChallenges, recordsOf } from "../lib/data.ts";
 import { ago, microDollars, percent, seconds, shortHash } from "../lib/format.ts";
-import { useAsync, usePrefersReducedMotion } from "../lib/hooks.ts";
+import { useAsync, useOnScreen, usePrefersReducedMotion } from "../lib/hooks.ts";
 import { rankAccounts, recentActivity } from "../lib/leaderboard.ts";
 import { challengeGates, formatNear, type Gates, type Metrics } from "../lib/near.ts";
 import type { Baseline } from "../lib/registry.ts";
@@ -43,7 +43,12 @@ function LivePill({ win }: { win: ChallengeSummary | null }) {
 
 const GOALS = ["cheaper", "faster", "more accurate", "better"];
 
-/** The headline's goal: it runs through what a team can ask for, then settles on "better". */
+/**
+ * The headline's goal: it runs through what a team can ask for, then settles on "better". Every word
+ * is drawn, stacked, and only opacity and transform change, so the swap runs on the compositor. The
+ * slot glides to the current word's width, so the centred line slides instead of jumping, and on a
+ * narrow screen the word has a line of its own, so the page below never moves.
+ */
 function GoalWord() {
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
@@ -54,13 +59,26 @@ function GoalWord() {
     return () => clearTimeout(timer);
   }, [i, last, reduced]);
   const n = reduced ? last : i;
+  const words = useRef<(HTMLSpanElement | null)[]>([]);
+  const [width, setWidth] = useState<number | null>(null);
+  // Measured before paint, and again when the font loads or the viewport rescales the headline.
+  useLayoutEffect(() => {
+    const word = words.current[n];
+    if (!word) return;
+    const measure = () => setWidth(word.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(word);
+    return () => observer.disconnect();
+  }, [n]);
   return (
-    <span className="goal-slot" aria-hidden="true">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span key={n} className={`serif goal-word ${n === last ? "final" : ""}`} initial={{ y: "0.4em", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "-0.4em", opacity: 0 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}>
-          {GOALS[n]}
-        </motion.span>
-      </AnimatePresence>
+    <span className={`goal-slot${width === null ? "" : " is-measured"}`} style={width === null ? undefined : { width }} aria-hidden="true">
+      <span className="serif goal-strut">{"\u200b"}</span>
+      {GOALS.map((goal, k) => (
+        <span key={goal} ref={(el) => { words.current[k] = el; }} className={`serif goal-word${k === n ? " is-current" : k < n ? " is-past" : ""}${k === last ? " final" : ""}`}>
+          {goal}<span className="goal-stop">.</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -81,7 +99,7 @@ function LiveCard({ details }: { details: ChallengeDetail[] | null }) {
     <div className="ridge-card">
       <AnimatePresence mode="wait" initial={false}>
         {item ? (
-          <motion.div key={`${item.kind}:${item.challenge}:${item.evaluation}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+          <motion.div key={`${item.kind}:${item.challenge}:${item.evaluation}`} initial={{ opacity: 0, transform: "translateY(8px)" }} animate={{ opacity: 1, transform: "translateY(0px)" }} exit={{ opacity: 0, transform: "translateY(-8px)" }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
             <ActivityCard activity={item} />
           </motion.div>
         ) : <div className="activity card skeleton" style={{ height: 64 }} />}
@@ -92,9 +110,10 @@ function LiveCard({ details }: { details: ChallengeDetail[] | null }) {
 
 function Hero({ details, win }: { details: ChallengeDetail[] | null; win: ChallengeSummary | null }) {
   const reduced = usePrefersReducedMotion();
+  // A full transform string, not y, so Motion hands the animation to the compositor.
   const rise = (delay: number) => ({
-    initial: reduced ? false : { opacity: 0, y: 12 },
-    animate: { opacity: 1, y: 0 },
+    initial: reduced ? false : { opacity: 0, transform: "translateY(12px)" },
+    animate: { opacity: 1, transform: "translateY(0px)" },
     transition: { delay, duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
   });
   return (
@@ -102,7 +121,7 @@ function Hero({ details, win }: { details: ChallengeDetail[] | null; win: Challe
       <div className="container landing-copy">
         <motion.div {...rise(0.02)}><LivePill win={win} /></motion.div>
         <motion.h1 {...rise(0.08)} aria-label="Make your AI work better.">
-          <span aria-hidden="true">Make your AI work </span><GoalWord /><span aria-hidden="true">.</span>
+          <span aria-hidden="true">Make your AI work </span><GoalWord />
         </motion.h1>
         <motion.p className="landing-lede" {...rise(0.14)}>
           Teams post a goal for an AI workflow. Builders and their agents compete on test cases they never see, and a NEAR contract pays the result that meets it.
@@ -376,24 +395,27 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
   const reduced = usePrefersReducedMotion();
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Off-screen, the steps hold still and the panel's own animations pause, so nothing runs unseen.
+  const [ref, onScreen] = useOnScreen<HTMLDivElement>();
   const duration = (n: number) => (n === SLIDES.length - 1 ? 11 : 7);
+  const running = !reduced && !paused && onScreen;
   useEffect(() => {
-    if (reduced || paused) return;
+    if (!running) return;
     const timer = setTimeout(() => setI((n) => (n + 1) % SLIDES.length), duration(i) * 1000);
     return () => clearTimeout(timer);
-  }, [i, reduced, paused]);
+  }, [i, running]);
   const slide = SLIDES[i]!;
   return (
     <section className="landing-section">
       <div className="container">
-        <div className="spot card" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+        <div ref={ref} className={`spot card${onScreen ? "" : " is-offscreen"}`} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
           <div className="spot-copy">
             <span className="mono-label">How a bake-off works</span>
             <h2>Four steps, each one <span className="serif">checkable</span>.</h2>
             <ol className="spot-steps">
               {SLIDES.map((s, n) => (
                 <li key={s.tab} className={n === i ? "active" : n < i ? "done" : ""}>
-                  {n === i && !reduced && !paused && <span className="spot-progress" style={{ animationDuration: `${duration(n)}s` }} aria-hidden="true" />}
+                  {n === i && running && <span className="spot-progress" style={{ animationDuration: `${duration(n)}s` }} aria-hidden="true" />}
                   <button type="button" aria-expanded={n === i} onClick={() => setI(n)}>
                     <span className="spot-n mono">{String(n + 1).padStart(2, "0")}</span>
                     <span>{s.title}</span>
@@ -412,7 +434,7 @@ function Spotlight({ win, loading }: { win: ChallengeSummary | null; loading: bo
           </div>
           <div className="spot-art">
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={i} className="spot-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+              <motion.div key={i} className="spot-panel" initial={{ opacity: 0, transform: "translateY(12px)" }} animate={{ opacity: 1, transform: "translateY(0px)" }} exit={{ opacity: 0, transform: "translateY(-12px)" }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
                 {slide.panel(win, loading)}
               </motion.div>
             </AnimatePresence>
@@ -440,7 +462,7 @@ function Receipt({ rows, details, win }: { rows: ChallengeSummary[] | null; deta
   ];
   const award = win?.view?.award;
   return (
-    <motion.div className="receipt-wrap" initial={{ opacity: 0, y: 24, rotate: 0 }} whileInView={{ opacity: 1, y: 0, rotate: -1.2 }} viewport={{ once: true, margin: "-10% 0px" }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+    <motion.div className="receipt-wrap" initial={{ opacity: 0, transform: "translateY(24px) rotate(0deg)" }} whileInView={{ opacity: 1, transform: "translateY(0px) rotate(-1.2deg)" }} viewport={{ once: true, margin: "-10% 0px" }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
       <div className="receipt">
         <div className="receipt-head">
           <span className="receipt-brand"><LogoMark size={22} /> Bakeoff</span>

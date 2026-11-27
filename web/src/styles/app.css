@@ -99,6 +99,7 @@
 .fw-bar-label { font-family: var(--font-mono); font-size: 13px; fill: var(--muted); pointer-events: none; }
 .fw-spark { fill: var(--ridge-heat); opacity: 0; pointer-events: none; animation: fw-spark var(--cycle) var(--ease-out) var(--d) infinite paused; }
 .fw.baked .fw-spark { animation-play-state: running; }
+.fw.baked.asleep .fw-spark { animation-play-state: paused; }
 @keyframes fw-spark { 0%, 100% { opacity: 0; } 2% { opacity: 1; } 12% { opacity: 0; } }
 @media (hover: hover) {
   .fw-tile:hover { fill: var(--ridge-heat); transition-duration: 0s; }
@@ -113,7 +114,9 @@
 .footer-gh { display: inline-grid; place-items: center; color: var(--text-2); }
 .footer-gh:hover { color: var(--text); }
 .footer-gh svg { width: 18px; height: 18px; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent-glow); animation: pulse 2s var(--ease-in-out) infinite; color: var(--accent); }
+/* The live dot's ring is its own element scaled and faded, which the compositor animates without repainting. */
+.status-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); color: var(--accent); }
+.status-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: currentColor; animation: ping 2s var(--ease-in-out) infinite; }
 @media (max-width: 760px) {
   .footer-top { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding-top: var(--space-7); padding-bottom: var(--space-6); }
   .footer-word { padding-bottom: var(--space-5); }
@@ -241,7 +244,7 @@
   @keyframes flow-down { to { background-position: 0 24px; } }
 }
 @media (prefers-reduced-motion: reduce) {
-  .panel *, .ridge-row, .ridge-row rect, .ridge-pin, .wall-raised, .spot-progress, .fw-tile, .fw-spark { animation: none !important; transition: none !important; }
+  .panel *, .ridge-layer, .ridge-pins, .wall-raised, .spot-progress, .fw-tile, .fw-spark, .goal-slot, .goal-word { animation: none !important; transition: none !important; }
 }
 
 @media (max-width: 420px) { .card-grid { grid-template-columns: 1fr; } }

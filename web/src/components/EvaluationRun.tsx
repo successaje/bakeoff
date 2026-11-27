@@ -5,7 +5,7 @@
  */
 
 import { animate } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { ChallengeSummary } from "../lib/data.ts";
 import { microDollars, percent, seconds } from "../lib/format.ts";
@@ -22,33 +22,41 @@ const STEP_MS = 18;
 
 function useRun(tickets: number, ready: boolean, reduced: boolean) {
   const [phase, setPhase] = useState<Phase>(reduced ? "paid" : "sealed");
-  const [scored, setScored] = useState(reduced ? tickets : 0);
   const [run, setRun] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
     if (reduced) {
       setPhase("paid");
-      setScored(tickets);
       return;
     }
     setPhase("sealed");
-    setScored(0);
     const scoringFor = tickets * STEP_MS;
     const at: [number, Phase][] = [[350, "scoring"], [350 + scoringFor + 250, "scored"], [350 + scoringFor + 850, "checked"], [350 + scoringFor + 1900, "paid"]];
     const timers = at.map(([ms, next]) => setTimeout(() => setPhase(next), ms));
-    let stop = () => {};
-    timers.push(setTimeout(() => {
-      stop = animate(0, tickets, { duration: scoringFor / 1000, ease: "linear", onUpdate: (v) => setScored(Math.round(v)) }).stop;
-    }, 350));
-    return () => {
-      timers.forEach(clearTimeout);
-      stop();
-    };
+    return () => timers.forEach(clearTimeout);
   }, [ready, reduced, tickets, run]);
 
   const reached = (p: Phase) => ORDER.indexOf(phase) >= ORDER.indexOf(p);
-  return { phase, scored, reached, replay: () => setRun((n) => n + 1) };
+  return { phase, reached, replay: () => setRun((n) => n + 1) };
+}
+
+/**
+ * The tickets scored so far, counting up while the run scores. It writes its own text each frame,
+ * so the panel and its hundred squares render once per phase, not once per frame. Screen readers
+ * get the total, not every step of the count.
+ */
+function ScoringCount({ tickets }: { tickets: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const controls = animate(0, tickets, {
+      duration: (tickets * STEP_MS) / 1000,
+      ease: "linear",
+      onUpdate: (v) => { if (ref.current) ref.current.textContent = String(Math.round(v)); },
+    });
+    return () => controls.stop();
+  }, [tickets]);
+  return <><span ref={ref} aria-hidden="true">0</span><span aria-hidden="true">/{tickets}</span><span className="sr-only">{tickets} tickets</span></>;
 }
 
 export function EvaluationRun({ win, loading }: { win: ChallengeSummary | null; loading: boolean }) {
@@ -61,13 +69,13 @@ export function EvaluationRun({ win, loading }: { win: ChallengeSummary | null; 
   const ready = Boolean(win && metrics && gates && view?.award);
   // On a phone the panel sits below the fold; the run starts once it is seen.
   const [ref, seen] = useInView<HTMLDivElement>("0px 0px -20% 0px");
-  const { phase, scored, reached, replay } = useRun(tickets, ready && seen, reduced);
+  const { phase, reached, replay } = useRun(tickets, ready && seen, reduced);
   const checks = win && gates ? checkRequirements(gates, metrics, win.listing.baseline, { percent, micro: microDollars, seconds }) : [];
 
   const status = !ready
     ? loading ? "Reading the chain…" : "No result has met every requirement yet"
     : phase === "sealed" ? "Sealed"
-    : phase === "scoring" ? `Scoring ${scored}/${tickets}`
+    : phase === "scoring" ? <>Scoring <ScoringCount tickets={tickets} /></>
     : reached("paid") ? "Passed"
     : `${correct} of ${tickets} correct`;
 
