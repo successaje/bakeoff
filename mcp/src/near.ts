@@ -77,39 +77,47 @@ export class NearRpc {
     this.fetchImpl = fetchImpl;
   }
 
-  async view<T>(accountId: string, method: string, args: object = {}): Promise<T> {
+  private async query<R>(what: string, params: object): Promise<R> {
     const response = await this.fetchImpl(this.url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "bakeoff-mcp",
-        method: "query",
-        params: {
-          request_type: "call_function",
-          finality: "final",
-          account_id: accountId,
-          method_name: method,
-          args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
-        },
-      }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: "bakeoff-mcp", method: "query", params: { finality: "final", ...params } }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
-      throw new Error(`NEAR RPC answered ${response.status} for ${accountId}.${method}`);
+      throw new Error(`NEAR RPC answered ${response.status} for ${what}`);
     }
     const body = (await response.json()) as {
       error?: { message?: string; data?: unknown; cause?: { name?: string } };
-      result?: { result?: number[]; error?: string };
+      result?: R & { error?: string };
     };
     if (body.error) {
       const detail = body.error.cause?.name ?? JSON.stringify(body.error.data ?? body.error.message);
-      throw new Error(`${accountId}.${method} failed: ${detail}`);
+      throw new Error(`${what} failed: ${detail}`);
     }
     if (body.result?.error) {
-      throw new Error(`${accountId}.${method} failed: ${body.result.error}`);
+      throw new Error(`${what} failed: ${body.result.error}`);
     }
-    return JSON.parse(Buffer.from(body.result?.result ?? []).toString("utf8")) as T;
+    return body.result as R;
+  }
+
+  async view<T>(accountId: string, method: string, args: object = {}): Promise<T> {
+    const result = await this.query<{ result?: number[] }>(`${accountId}.${method}`, {
+      request_type: "call_function",
+      account_id: accountId,
+      method_name: method,
+      args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
+    });
+    return JSON.parse(Buffer.from(result.result ?? []).toString("utf8")) as T;
+  }
+
+  /** The account's code hash, or the hash of the shared global contract it uses. */
+  async codeHash(accountId: string): Promise<string> {
+    const account = await this.query<{ code_hash: string; global_contract_hash?: string | null }>(accountId, {
+      request_type: "view_account",
+      account_id: accountId,
+    });
+    return account.global_contract_hash || account.code_hash;
   }
 
   getChallenge(id: string): Promise<ChallengeView> {
